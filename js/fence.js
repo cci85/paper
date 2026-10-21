@@ -1,4 +1,4 @@
-// [7B] 圍籬修補：把 NotebookLM 回覆中的 Mermaid 圖補上 ```mermaid 圍籬（由 PowerShell 版移植）
+// [11] 圍籬修補：把 NotebookLM 回覆中的 Mermaid 圖補上 ```mermaid 圍籬（由 PowerShell 版移植）
 
 // 把「一個 flowchart 裡包多個 subgraph」拆成多個獨立區塊；subgraph 以外的跨群連線捨棄
 function splitSubgraphs(lines) {

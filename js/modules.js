@@ -37,7 +37,7 @@ const MODULES = [
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。"
   },
   {
-    id: "dr", group: "write", code: "3", label: "段落核實改寫",
+    id: "dr", group: "write", code: "2", label: "段落核實改寫",
     hint: "核實論文段落中的引用，再改寫。草稿階段保留內容、字數不減；定稿階段多做術語查證，並且必須精簡。",
     fields: [
       { id: "dr_stage", type: "radio", label: "段落階段", options: [["draft", "半完成草稿（字數不減）"], ["final", "接近完稿（術語查證＋字數必減）"]], value: "draft" },
@@ -55,45 +55,45 @@ const MODULES = [
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。"
   },
   {
-    id: "m5a", group: "map", code: "5A", label: "主題地圖・理論・方法",
+    id: "m5a", group: "map", code: "3", label: "主題地圖・理論・方法",
     hint: "先把整批文獻上傳到同一個 Notebook 並開新對話。這一輪只做主題地圖、理論框架與研究方法趨勢盤點。",
     fields: [{ id: "m5a_kw", type: "text", label: "搜尋這批文獻時用的關鍵字", hint: "可留空", placeholder: "例如：品牌人格、自我一致性" }],
     rules: () => [],
     build: (p, R) => T.m5a({ sourceDesc: blank(p.m5a_kw) ? "這批上傳的文獻" : `這批用關鍵字「${p.m5a_kw}」搜尋到的文獻` }) + R,
-    next: "下一步：貼到 NotebookLM 新對話；回覆完成後切到 5B，在同一個對話接續貼上（不要開新對話）。"
+    next: "下一步：貼到 NotebookLM 新對話；回覆完成後切到 [4]，在同一個對話接續貼上（不要開新對話）。"
   },
   {
-    id: "m5b", group: "map", code: "5B", label: "變數結構化與關係圖",
-    hint: "接在 5A 同一個對話，不需要重貼文獻。關係圖採用與 7A 相同的規則：每個主題群各畫一張。",
+    id: "m5b", group: "map", code: "4", label: "變數結構化與關係圖",
+    hint: "接在 [3] 同一個對話，不需要重貼文獻。關係圖採用與 [10] 相同的規則：每個主題群各畫一張。",
     fields: [],
     rules: () => [],
     build: (p, R) => T.m5b({}) + R,
-    next: "下一步：回到 5A 那個對話貼上。回覆整段複製後，到「小工具 → 7B 圍籬修補」補好圍籬再貼進 Obsidian；接著切到 5C。"
+    next: "下一步：回到 [3] 那個對話貼上。回覆整段複製後，到「小工具 → [11] 圍籬修補」補好圍籬再貼進 Obsidian；接著切到 [5]。"
   },
   {
-    id: "m5c", group: "map", code: "5C", label: "研究缺口與主題建議",
-    hint: "接在 5A、5B 同一個對話。",
+    id: "m5c", group: "map", code: "5", label: "研究缺口與主題建議",
+    hint: "接在 [3]、[4] 同一個對話。",
     fields: [],
     rules: () => [],
     build: (p, R) => T.m5c({}) + R,
     next: SAME
   },
   {
-    id: "m6a", group: "deep", code: "6A", label: "主題群展開",
-    hint: "把單一主題群的表格式摘要（例如 5A/5B 的其中一群）展開成完整的文獻探討小節。一次只貼一群。",
+    id: "m6a", group: "deep", code: "6", label: "主題群展開",
+    hint: "把單一主題群的表格式摘要（例如 [3]、[4] 的其中一群）展開成完整的文獻探討小節。一次只貼一群。",
     fields: [{ id: "m6a_text", type: "textarea", label: "單一主題群摘要", rows: 8 }],
     rules: () => ["citation", "style", "verify"],
     build: (p, R) => blank(p.m6a_text) ? "" : T.m6a({ cluster: p.m6a_text }) + R,
     empty: "（請貼上一個主題群的摘要）",
-    next: "下一步：建議貼到產生過這份主題地圖的同一個對話；回覆完成後切到 6B 接續貼上。"
+    next: "下一步：建議貼到產生過這份主題地圖的同一個對話；回覆完成後切到 [7] 接續貼上。"
   },
   {
-    id: "m6b", group: "deep", code: "6B", label: "代表文獻深入分析",
-    hint: "接在 6A 同一個對話，挑出該主題群最具代表性的一篇文獻深入分析。",
+    id: "m6b", group: "deep", code: "7", label: "代表文獻深入分析",
+    hint: "接在 [6] 同一個對話，挑出該主題群最具代表性的一篇文獻深入分析。",
     fields: [],
     rules: () => [],
     build: (p, R) => T.m6b({}) + R,
-    next: "下一步：回到 6A 那個對話貼上（不要開新對話）。"
+    next: "下一步：回到 [6] 那個對話貼上（不要開新對話）。"
   },
   {
     id: "m8", group: "deep", code: "8", label: "新文獻歸類與比較",
@@ -108,7 +108,7 @@ const MODULES = [
     next: "下一步：切到這篇新文獻所在的 NotebookLM 對話貼上。"
   },
   {
-    id: "m5d", group: "tools", code: "5D", label: "名詞解釋",
+    id: "m5d", group: "tools", code: "9", label: "名詞解釋",
     hint: "獨立使用。依名詞清單產生四面向（定義、角色、量表、補充）解釋。",
     fields: [{ id: "m5d_text", type: "textarea", label: "名詞清單", hint: "逐行或逗號分隔", placeholder: "品牌依附、自我一致性", rows: 5 }],
     rules: () => [],
@@ -117,16 +117,16 @@ const MODULES = [
     next: "下一步：貼到已上傳相關文獻的 NotebookLM。"
   },
   {
-    id: "m7a", group: "tools", code: "7A", label: "文字轉關係圖",
+    id: "m7a", group: "tools", code: "10", label: "文字轉關係圖",
     hint: "獨立使用。任何一段已生成的文字都可以畫成 Mermaid 關係圖，每個主題群各畫一張。",
     fields: [{ id: "m7a_text", type: "textarea", label: "要畫成關係圖的文字", rows: 8 }],
     rules: () => [],
     build: (p, R) => blank(p.m7a_text) ? "" : T.m7a({ content: p.m7a_text }) + R,
     empty: "（請貼上要畫圖的文字）",
-    next: "下一步：貼到 NotebookLM（建議在產生這段文字的同一個對話）；回覆整段複製後，到 7B 補好圍籬。"
+    next: "下一步：貼到 NotebookLM（建議在產生這段文字的同一個對話）；回覆整段複製後，到 [11] 補好圍籬。"
   },
   {
-    id: "m7b", group: "tools", code: "7B", label: "圍籬修補", tool: true,
+    id: "m7b", group: "tools", code: "11", label: "圍籬修補", tool: true,
     hint: "獨立使用。貼上 NotebookLM 的回覆（有沒有圍籬都可以），自動偵測每張圖並補上 ```mermaid 圍籬；包成 subgraph 的大圖會拆成每群一張。",
     fields: [{ id: "m7b_text", type: "textarea", label: "NotebookLM 回覆", rows: 12, mono: true }],
     build: p => {
