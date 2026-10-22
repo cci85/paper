@@ -252,7 +252,7 @@ const DEFS = {
     label: "段落核實改寫", target: "nlm",
     hint: "核實論文段落中的引用，再改寫。適用於任何一章。",
     fields: [
-      { id: "dr_stage", type: "radio", label: "段落階段", options: [["draft", "半完成草稿（字數不減）"], ["final", "接近完稿（術語查證＋字數必減）"]], value: "draft" },
+      { id: "dr_stage", type: "radio", label: "改寫方向", options: [["draft", "補強（字數不減）"], ["final", "精簡（術語查證＋字數必減）"]], value: "draft" },
       { id: "dr_text", type: "textarea", label: "論文段落", rows: 8 }
     ],
     variant: p => p.dr_stage,
@@ -304,13 +304,13 @@ const DEFS = {
 
 // ── 論文目錄：章 → 節 → 步驟 ──
 // step：{ mod, note, fixed（固定欄位值並隱藏該欄位） }；finish：每節最後的完稿步驟
-const FIN_FULL = ["polish"], FIN_POLISH = ["polish"];
+const FIN_FULL = ["dr", "polish"], FIN_POLISH = ["polish"];
 const OUTLINE = [
   { ch: "常用", quick: true, secs: [
-    { id: "q-draft", no: "", title: "核實改寫：草稿", desc: "半完成的論文段落：核實引用 → 診斷結構與邏輯 → 改寫，字數不減。（舊選單 [3]）", steps: [
-      { mod: "dr", note: "貼上任何一章、尚未完成的段落。", fixed: { dr_stage: "draft" } }] },
-    { id: "q-final", no: "", title: "核實改寫：定稿", desc: "接近完稿的論文段落：核實引用 → 術語查證 → 精簡診斷 → 改寫，字數必須減少。（舊選單 [4]）", steps: [
-      { mod: "dr", note: "貼上任何一章、接近完稿的段落。", fixed: { dr_stage: "final" } }] }
+    { id: "q-draft", no: "", title: "核實改寫：補強", desc: "段落還缺東西時使用（引用不確定、論點接不起來、細節不夠）：核實引用 → 診斷結構與邏輯 → 補強改寫，字數不減，產出可接近完稿。（舊選單 [3]）", steps: [
+      { mod: "dr", note: "一次貼一段，任何一章都可以。", fixed: { dr_stage: "draft" } }] },
+    { id: "q-final", no: "", title: "核實改寫：精簡", desc: "段落內容已齊全，但太冗長或想確認術語時使用：核實引用 → 術語查證 → 精簡診斷 → 改寫，字數必須減少。（舊選單 [4]）", steps: [
+      { mod: "dr", note: "一次貼一段，任何一章都可以；可接在「補強」之後使用。", fixed: { dr_stage: "final" } }] }
   ] },
   { ch: "第零章 研究準備", secs: [
     { id: "s0-1", no: "0.1", title: "聚焦研究方向與關鍵字", desc: "還沒讀文獻、只有一個想研究的現象時，從這裡開始。", steps: [
@@ -375,6 +375,7 @@ const OUTLINE = [
 ];
 
 const FINISH_NOTE = {
+  dr: "完稿：核實本節段落中的引用並改寫。內容還不完整用「補強」；內容齊全但太冗長，或想查證術語，用「精簡」。",
   polish: "完稿：潤色語句，或去除 AI 味。"
 };
 const ALL_SECS = OUTLINE.flatMap(c => c.secs);
