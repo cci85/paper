@@ -35,7 +35,18 @@ const DEFS = {
     fields: [{ id: "mx_cols", type: "checks", label: "要整理的欄位", hint: "「文獻」欄固定保留",
       options: MATRIX_COLS.map(c => [c.key, c.label, c.locked]), value: MATRIX_COLS.map(c => c.key) }],
     build: p => buildMatrix(p.mx_cols),
-    next: "下一步：在已上傳文獻的 NotebookLM 建立資料表，把這段貼進自訂指示；完成後可匯出成試算表。接著用{#m5a}開始文獻地圖。"
+    next: "下一步：在已上傳文獻的 NotebookLM 建立資料表，把這段貼進自訂指示；完成後匯出成試算表，接著進行{#gapsel}。要看整批文獻的全貌時，再用{#m5a}。"
+  },
+  gapsel: {
+    label: "選定變數與研究缺口", target: "ai",
+    hint: "依文獻資料表，以選擇題逐步選出依變數與其他變數，再推薦 key paper、列出研究缺口候選，最後產出研究架構草案。只依據表格內容，不讀全文。",
+    fields: [
+      { id: "gs_mode", type: "radio", label: "表格怎麼給 AI", options: [["upload", "上傳試算表檔案"], ["paste", "貼上表格內容"]], value: "upload" },
+      { id: "gs_table", type: "textarea", label: "表格內容", hint: "選「貼上表格內容」時才需要；從試算表複製即可", rows: 6, mono: true }
+    ],
+    build: p => buildGapsel(p),
+    empty: "（請貼上表格內容，或改選「上傳試算表檔案」）",
+    next: "下一步：在一般 AI 開新對話，上傳由{#matrix}匯出的試算表（或使用貼上的表格），貼上這段 Prompt 後依提問逐步選擇。步驟四的路徑清單可貼到{#hypo}的研究架構欄位。"
   },
   m5a: {
     label: "主題地圖・理論・方法", target: "nlm",
@@ -119,7 +130,7 @@ const DEFS = {
     fields: [
       { id: "bg_topic", type: "textarea", label: "研究主題與研究架構", rows: 3, placeholder: "例如：品牌人格透過自我一致性影響品牌依附——以台灣精釀啤酒為例" },
       { id: "bg_facts", type: "textarea", label: "產業或實務背景資料", hint: "選填；貼上您手邊的數據與出處", rows: 4 },
-      { id: "bg_gaps", type: "textarea", label: "研究缺口", hint: "選填；可貼上{#m5c}的結果", rows: 4 }
+      { id: "bg_gaps", type: "textarea", label: "研究缺口", hint: "選填；可貼上{#gapsel}的結果", rows: 4 }
     ],
     rules: () => ["citation", "style", "verify"],
     build: (p, R) => blank(p.bg_topic) ? "" : T.bg({ topic: p.bg_topic.trim(), facts: p.bg_facts, gaps: p.bg_gaps }) + R,
@@ -298,16 +309,18 @@ const OUTLINE = [
   { ch: "第零章 研究準備", secs: [
     { id: "s0-1", no: "0.1", title: "聚焦研究方向與關鍵字", desc: "還沒讀文獻、只有一個想研究的現象時，從這裡開始。", steps: [
       { mod: "focus", note: "用選擇題把現象收斂成研究問題，產生中英文關鍵字與檢索字串；檢索到的文獻存進同一個 Zotero 資料夾。" }] },
-    { id: "s0-2", no: "0.2", title: "整理文獻", desc: "文獻已上傳到 NotebookLM 後，先逐篇整理，再看整體的主題、變數與缺口。", steps: [
+    { id: "s0-2", no: "0.2", title: "整理文獻", desc: "文獻已上傳到 NotebookLM 後，先用資料表逐篇整理；文獻地圖（步驟 2–5）為選用，要看整批文獻的全貌時再做。", steps: [
       { mod: "matrix", note: "逐篇整理成資料表，作為之後所有章節的底稿。" },
-      { mod: "m5a", note: "開新對話，盤點主題、理論與研究方法。" },
-      { mod: "m5b", note: "同一個對話接續，整理變數角色並畫關係圖。" },
+      { mod: "m5a", note: "選用：要看整批文獻的全貌時使用。開新對話，盤點主題、理論與研究方法。" },
+      { mod: "m5b", note: "選用：同一個對話接續，整理變數角色並畫關係圖。" },
       { mod: "m7b", note: "選用：把上一步的關係圖補好圍籬，貼進 Obsidian。" },
-      { mod: "m5c", note: "同一個對話接續，找出研究缺口與研究主題建議。" }] }
+      { mod: "m5c", note: "選用：同一個對話接續，找出整批文獻的研究缺口與研究主題建議。" }] },
+    { id: "s0-3", no: "0.3", title: "選定變數與研究缺口", desc: "從文獻資料表選出要研究的變數，找出 key paper、研究缺口、理論基礎，並組成研究架構草案。", steps: [
+      { mod: "gapsel", note: "準備 0.2 匯出的文獻資料表試算表。依提問逐步選擇；搭橋檢索若發現已有研究，回到 0.1 補充關鍵字。" }] }
   ] },
   { ch: "第一章 緒論", secs: [
     { id: "s1-1", no: "1.1", title: "研究背景與動機", desc: "由產業現象收斂到文獻缺口。", steps: [
-      { mod: "bg", note: "準備研究架構、手邊的產業數據，以及 0.2 找到的研究缺口。" }], finish: FIN_FULL },
+      { mod: "bg", note: "準備研究架構、手邊的產業數據，以及 0.3 選定的研究缺口。" }], finish: FIN_FULL },
     { id: "s1-2", no: "1.2", title: "研究目的與問題", desc: "研究目的要對應動機，研究問題要能由假說回答。", steps: [
       { mod: "purpose", note: "準備研究架構（假說清單）與 1.1 寫好的研究動機。" }], finish: FIN_FULL },
     { id: "s1-3", no: "1.3", title: "名詞釋義", desc: "界定本研究主要構念的意涵。", steps: [
