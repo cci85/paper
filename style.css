@@ -103,3 +103,26 @@ ol.outline li small { color: var(--muted); }
 #groups button.on { color: var(--accent); border-bottom-color: var(--accent); }
 .chips label.chip input[type=radio], .chips label.chip input[type=checkbox] { margin: 0; }
 #pane h2 { margin: 0 0 4px; font-size: 17px; }
+.toolbox-back .sep { color: var(--muted); margin: 0 6px; }
+p.target { display: inline-block; margin: 2px 0 10px; padding: 2px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--line); }
+p.target.t-nlm, p.target.t-table { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+p.target.t-ai { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
+.chip.lock { opacity: .7; cursor: default; }
+
+/* 首頁 */
+.home { display: block; max-width: 960px; margin: 0 auto; padding: 32px 16px 56px; }
+.home h1 { font-size: 24px; margin: 0 0 6px; }
+.home .lede { color: var(--muted); margin: 0 0 18px; }
+.flow { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 10px 14px; margin-bottom: 22px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; font-size: 14px; }
+.flow b { color: var(--accent); }
+.flow span { color: var(--muted); }
+.stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 14px; }
+a.stage { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; color: inherit; text-decoration: none; transition: border-color .15s, transform .15s; }
+a.stage:hover { border-color: var(--accent); transform: translateY(-1px); }
+a.stage h2 { margin: 0 0 4px; font-size: 19px; color: var(--accent); }
+a.stage p { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+a.stage ul { margin: 0; padding-left: 18px; font-size: 14px; }
+a.stage li { margin: 3px 0; }
+a.stage li small { color: var(--muted); }
+.legend { margin-top: 18px; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.legend p.target { margin: 0 4px 0 0; }
