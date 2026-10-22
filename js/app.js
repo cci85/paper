@@ -1,54 +1,66 @@
-// ── 頁面控制：分組／模組切換、欄位繪製、共用規則勾選、即時產生、記憶 ──
+// ── 頁面控制：論文目錄 → 節 → 步驟；欄位繪製、共用規則、即時產生、記憶 ──
 const $ = id => document.getElementById(id);
 const blank = s => !s || !String(s).trim();
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-const PAGE = document.body.dataset.page;
-const page = PAGES[PAGE];
-const ref = s => fillRefs(s || "", PAGE);
-
-// 欄位值兩頁共用（同一個模組在兩頁出現時內容一致）；分組與模組選擇各頁分開
-const KEY = "research-prompts-v2";
-let store = { values: {}, rules: {}, pages: {} };
+const KEY = "research-prompts-v3";
+let store = { values: {}, rules: {}, sec: ALL_SECS[0].id, step: {} };
 try { Object.assign(store, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch {}
-// 沿用舊版（單頁版）已填的欄位與規則勾選
+// 沿用舊版已填的欄位與規則勾選
 try {
-  const old = JSON.parse(localStorage.getItem("research-prompts-v1") || "null");
-  if (old && !store.migrated) {
-    store.values = Object.assign({}, old.values, store.values);
-    store.rules = Object.assign({}, old.rules, store.rules);
-    store.migrated = true;
+  for (const k of ["research-prompts-v2", "research-prompts-v1"]) {
+    const old = JSON.parse(localStorage.getItem(k) || "null");
+    if (old && !store.migrated) {
+      store.values = Object.assign({}, old.values, store.values);
+      store.rules = Object.assign({}, old.rules, store.rules);
+    }
   }
+  if (store.values.st_hyps && !store.values.hy_paths) store.values.hy_paths = store.values.st_hyps;
+  store.migrated = true;
 } catch {}
-const ps = store.pages[PAGE] = Object.assign(
-  { group: page.groups[0].id, current: Object.fromEntries(page.groups.map(g => [g.id, g.mods[0]])) },
-  store.pages[PAGE] || {});
-if (!page.groups.some(g => g.id === ps.group)) ps.group = page.groups[0].id;
+if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = ALL_SECS[0].id;
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} };
 
-const group = () => page.groups.find(g => g.id === ps.group);
-const modId = () => { const g = group(); return g.mods.includes(ps.current[g.id]) ? ps.current[g.id] : g.mods[0]; };
-const mod = () => DEFS[modId()];
+const sec = () => ALL_SECS.find(s => s.id === store.sec);
+const steps = () => stepsOf(sec());
+const stepIdx = () => Math.min(store.step[store.sec] || 0, steps().length - 1);
+const step = () => steps()[stepIdx()];
+const mod = () => DEFS[step().mod];
+const ref = s => fillRefs(s || "", sec());
+
+// 欄位值：此步驟固定的值優先，其次是使用者填的，最後是預設值
 const valuesOf = m => {
-  const p = {};
-  m.fields.forEach(f => { p[f.id] = store.values[f.id] ?? (Array.isArray(f.value) ? f.value.slice() : f.value ?? ""); });
+  const p = {}, fixed = step().fixed || {};
+  m.fields.forEach(f => {
+    p[f.id] = f.id in fixed ? fixed[f.id]
+      : store.values[f.id] ?? (Array.isArray(f.value) ? f.value.slice() : f.value ?? "");
+  });
   return p;
 };
-const ruleKey = (m, p) => modId() + (m.variant ? ":" + m.variant(p) : "");
+const ruleKey = (m, p) => step().mod + (m.variant ? ":" + m.variant(p) : "");
 const activeRules = (m, p) => store.rules[ruleKey(m, p)] ?? m.rules(p);
 
-function renderGroups() {
-  $("groups").innerHTML = page.groups.map(g =>
-    `<button data-g="${g.id}" class="${g.id === ps.group ? "on" : ""}">${esc(g.label)}</button>`).join("");
+// 左側目錄
+function renderToc() {
+  $("toc").innerHTML = OUTLINE.map(c => {
+    const open = c.secs.some(s => s.id === store.sec);
+    return `<details ${open ? "open" : ""}><summary>${esc(c.ch)}</summary>` +
+      c.secs.map(s => `<button data-sec="${s.id}" class="${s.id === store.sec ? "on" : ""}"><b>${s.no}</b>${esc(s.title)}</button>`).join("") +
+      `</details>`;
+  }).join("");
 }
-function renderModules() {
-  $("modules").innerHTML = group().mods.map(id =>
-    `<button data-id="${id}" class="${id === modId() ? "on" : ""}"><b>${numberOf(PAGE, id)}</b>${esc(DEFS[id].label)}</button>`).join("");
+
+// 節標題與步驟
+function renderSection() {
+  const s = sec(), i = stepIdx();
+  $("sechead").innerHTML = `<h2><span class="no">${s.no}</span>${esc(s.title)}</h2><p class="hint">${esc(s.desc)}</p>
+    <ol class="steps">${steps().map((st, k) =>
+      `<li><button data-step="${k}" class="${k === i ? "on" : ""}${st.finish ? " fin" : ""}"><b>${k + 1}</b>${esc(DEFS[st.mod].label)}</button></li>`).join("")}</ol>`;
 }
 
 function renderPane() {
-  const m = mod(), p = valuesOf(m);
-  const fields = m.fields.map(f => {
+  const m = mod(), p = valuesOf(m), fixed = step().fixed || {};
+  const fields = m.fields.filter(f => !(f.id in fixed)).map(f => {
     const lab = `<label class="f">${esc(f.label)}${f.hint ? ` <small>${esc(ref(f.hint))}</small>` : ""}</label>`;
     if (f.type === "radio") return lab + `<div class="chips">` + f.options.map(([v, t]) =>
       `<label class="chip"><input type="radio" name="${f.id}" data-f="${f.id}" value="${v}" ${p[f.id] === v ? "checked" : ""}>${esc(t)}</label>`).join("") + `</div>`;
@@ -57,8 +69,9 @@ function renderPane() {
     if (f.type === "textarea") return lab + `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px" placeholder="${esc(f.placeholder || "")}">${esc(p[f.id])}</textarea>`;
     return lab + `<input type="text" data-f="${f.id}" value="${esc(p[f.id])}" placeholder="${esc(f.placeholder || "")}">`;
   }).join("");
-  $("pane").innerHTML = `<h2>[${numberOf(PAGE, modId())}] ${esc(m.label)}</h2>
+  $("pane").innerHTML = `<h3>步驟 ${stepIdx() + 1}　${esc(m.label)}</h3>
     <p class="target t-${m.target}">${esc(TARGETS[m.target])}</p>
+    <p class="stepnote">${esc(ref(step().note))}</p>
     <p class="hint">${esc(ref(m.hint))}</p>${fields}
     ${m.rules ? `<fieldset class="struct"><legend>附加共用規則</legend><div class="chips" id="rules"></div>
       <p class="hint" style="margin:8px 0 0">預設沿用原本的組合；勾選會依模組分別記住。</p></fieldset>` : ""}
@@ -88,15 +101,16 @@ function update() {
   save();
 }
 
-function showAll() { renderGroups(); renderModules(); renderPane(); update(); }
+function showAll() { renderToc(); renderSection(); renderPane(); update(); }
 
-$("groups").addEventListener("click", e => {
-  const b = e.target.closest("button"); if (!b) return;
-  ps.group = b.dataset.g; showAll();
+$("toc").addEventListener("click", e => {
+  const b = e.target.closest("button[data-sec]"); if (!b) return;
+  store.sec = b.dataset.sec; showAll();
+  if (window.innerWidth < 900) $("sechead").scrollIntoView({ behavior: "smooth" });
 });
-$("modules").addEventListener("click", e => {
-  const b = e.target.closest("button"); if (!b) return;
-  ps.current[ps.group] = b.dataset.id; showAll();
+$("sechead").addEventListener("click", e => {
+  const b = e.target.closest("button[data-step]"); if (!b) return;
+  store.step[store.sec] = +b.dataset.step; renderSection(); renderPane(); update();
 });
 $("pane").addEventListener("input", e => {
   const t = e.target;

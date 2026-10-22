@@ -8,41 +8,38 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main class="home">
+<header class="top">
   <h1>論文 Prompt 產生器</h1>
-  <p class="lede">從找研究方向到寫完第五章，各階段貼到 NotebookLM 或一般 AI 的 Prompt。所有內容都在您的瀏覽器中產生，不會上傳。</p>
-
-  <div class="flow">
-    <b>研究方向聚焦</b><span>→</span><b>檢索並存入 Zotero</b><span>→</span><b>上傳 NotebookLM</b><span>→</span><b>文獻資料表・文獻地圖</b><span>→</span><b>依章節撰寫</b><span>→</span><b>核實・潤色</b>
-  </div>
-
-  <div class="stages">
-    <a class="stage" href="./explore.html">
-      <h2>前置探索</h2>
-      <p>還在找方向、整理文獻的階段。</p>
-      <ul>
-        <li>研究起點 <small>研究方向聚焦、關鍵字與檢索字串</small></li>
-        <li>文獻整理 <small>文獻資料表、主題地圖、變數結構化、研究缺口</small></li>
-        <li>小工具 <small>文字轉關係圖、圍籬修補</small></li>
-      </ul>
-    </a>
-    <a class="stage" href="./write.html">
-      <h2>論文撰寫</h2>
-      <p>開始寫論文正文的階段，依章節分組。</p>
-      <ul>
-        <li>第一、二章 <small>文獻回顧、主題群展開、代表文獻、新文獻歸類、名詞解釋</small></li>
-        <li>第三章 <small>假說推導、操作型定義與量表</small></li>
-        <li>第四章 <small>統計結果轉 APA、假說檢定彙整</small></li>
-        <li>第五章 <small>討論、理論與實務意涵、研究限制</small></li>
-        <li>各章通用 <small>段落核實改寫、潤色與去 AI 味、關係圖工具</small></li>
-      </ul>
-    </a>
-  </div>
-
+  <p>從左側目錄選擇正在寫的章節 → 依步驟產生 Prompt → 按「複製」貼到指定的 AI。欄位內容只記在這台電腦的這個瀏覽器裡。</p>
   <div class="legend">
-    <span><p class="target t-nlm">NotebookLM</p>需先上傳文獻，AI 只依文獻回答</span>
-    <span><p class="target t-ai">一般 AI</p>Claude、ChatGPT、Gemini 等，不需上傳文獻</span>
+    <span><span class="tag t-nlm">NotebookLM</span>需先上傳文獻，AI 只依文獻回答</span>
+    <span><span class="tag t-ai">一般 AI</span>Claude、ChatGPT、Gemini 等，不需上傳文獻</span>
   </div>
-</main>
+</header>
+
+<div class="layout">
+  <aside id="toc" aria-label="論文目錄"></aside>
+  <div class="work">
+    <section class="card" id="sechead"></section>
+    <main>
+      <section class="card" id="pane"></section>
+      <section class="card out">
+        <div class="out-head">
+          <span id="count"></span>
+          <button class="copy" id="copy">複製 Prompt</button>
+        </div>
+        <pre id="out"></pre>
+        <div class="next" id="next"></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- 一般 script（非 ES module），雙擊本機檔案開啟也能用 -->
+<script src="js/prompts.js"></script>
+<script src="js/prompts-new.js"></script>
+<script src="js/fence.js"></script>
+<script src="js/modules.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
