@@ -142,3 +142,7 @@ p.stepnote { margin: 0 0 6px; padding: 8px 12px; border-left: 3px solid var(--ac
   .layout { grid-template-columns: minmax(0, 1fr); }
   #toc { position: static; max-height: none; }
 }
+#toc details.quick { border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-bottom: 6px; }
+#toc details.quick summary { color: var(--accent); }
+#toc details.quick button { padding-left: 22px; }
+#toc details.quick button b { display: none; }

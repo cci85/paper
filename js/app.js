@@ -4,7 +4,7 @@ const blank = s => !s || !String(s).trim();
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 const KEY = "research-prompts-v3";
-let store = { values: {}, rules: {}, sec: ALL_SECS[0].id, step: {} };
+let store = { values: {}, rules: {}, sec: "s0-1", step: {} };
 try { Object.assign(store, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch {}
 // 沿用舊版已填的欄位與規則勾選
 try {
@@ -18,7 +18,7 @@ try {
   if (store.values.st_hyps && !store.values.hy_paths) store.values.hy_paths = store.values.st_hyps;
   store.migrated = true;
 } catch {}
-if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = ALL_SECS[0].id;
+if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} };
 
 const sec = () => ALL_SECS.find(s => s.id === store.sec);
@@ -43,8 +43,8 @@ const activeRules = (m, p) => store.rules[ruleKey(m, p)] ?? m.rules(p);
 // 左側目錄
 function renderToc() {
   $("toc").innerHTML = OUTLINE.map(c => {
-    const open = c.secs.some(s => s.id === store.sec);
-    return `<details ${open ? "open" : ""}><summary>${esc(c.ch)}</summary>` +
+    const open = c.quick || c.secs.some(s => s.id === store.sec);
+    return `<details class="${c.quick ? "quick" : ""}" ${open ? "open" : ""}><summary>${esc(c.ch)}</summary>` +
       c.secs.map(s => `<button data-sec="${s.id}" class="${s.id === store.sec ? "on" : ""}"><b>${s.no}</b>${esc(s.title)}</button>`).join("") +
       `</details>`;
   }).join("");
@@ -53,8 +53,9 @@ function renderToc() {
 // 節標題與步驟
 function renderSection() {
   const s = sec(), i = stepIdx();
-  $("sechead").innerHTML = `<h2><span class="no">${s.no}</span>${esc(s.title)}</h2><p class="hint">${esc(s.desc)}</p>
-    <ol class="steps">${steps().map((st, k) =>
+  const single = steps().length === 1 && !s.no;
+  $("sechead").innerHTML = `<h2>${s.no ? `<span class="no">${s.no}</span>` : ""}${esc(s.title)}</h2><p class="hint">${esc(s.desc)}</p>
+    <ol class="steps" ${single ? "hidden" : ""}>${steps().map((st, k) =>
       `<li><button data-step="${k}" class="${k === i ? "on" : ""}${st.finish ? " fin" : ""}"><b>${k + 1}</b>${esc(DEFS[st.mod].label)}</button></li>`).join("")}</ol>`;
 }
 
@@ -69,7 +70,7 @@ function renderPane() {
     if (f.type === "textarea") return lab + `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px" placeholder="${esc(f.placeholder || "")}">${esc(p[f.id])}</textarea>`;
     return lab + `<input type="text" data-f="${f.id}" value="${esc(p[f.id])}" placeholder="${esc(f.placeholder || "")}">`;
   }).join("");
-  $("pane").innerHTML = `<h3>步驟 ${stepIdx() + 1}　${esc(m.label)}</h3>
+  $("pane").innerHTML = `<h3>${sec().no ? `步驟 ${stepIdx() + 1}　` : ""}${esc(m.label)}</h3>
     <p class="target t-${m.target}">${esc(TARGETS[m.target])}</p>
     <p class="stepnote">${esc(ref(step().note))}</p>
     <p class="hint">${esc(ref(m.hint))}</p>${fields}
