@@ -92,7 +92,7 @@ function renderRules() {
 
 function update() {
   const m = mod(), p = valuesOf(m);
-  const R = m.rules ? RULES.filter(r => activeRules(m, p).includes(r.key)).map(r => r.text).join("") : "";
+  const R = m.rules ? RULES.filter(r => activeRules(m, p).includes(r.key)).map(r => typeof r.text === "function" ? r.text(p) : r.text).join("") : "";
   const out = m.build(p, R);
   $("out").textContent = out || m.empty || "";
   $("copy").disabled = !out;
