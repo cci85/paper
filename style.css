@@ -149,3 +149,5 @@ p.stepnote { margin: 0 0 6px; padding: 8px 12px; border-left: 3px solid var(--ac
 .picker .pickrole { margin: 6px 0 10px; }
 .picker .pickrole > small { display: block; margin-bottom: 4px; opacity: .75; }
 .picker .chip small { opacity: .6; margin-left: 4px; }
+.picker .chip.extra { border-style: dashed; }
+.picker .chip.extra small { opacity: .5; }
