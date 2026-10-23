@@ -140,7 +140,7 @@ const DEFS = {
   },
   asf: {
     label: "提出候選研究架構", target: "nlm",
-    hint: "接在{#asc}同一個對話。依上傳文獻提出數個彼此有明顯差異的研究架構，各附變數、理論、文獻支持與架構圖，供你挑選。",
+    hint: "接在{#asc}同一個對話。依上傳文獻提出數個彼此有明顯差異的研究架構，各附變數、理論與文獻支持，供你挑選。",
     fields: [
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
       { id: "as_con", type: "text", label: "要追問的構念", hint: "選填；不填時為上一段回覆中的核心構念", placeholder: "例如：短影音推薦系統特性" },
@@ -150,11 +150,11 @@ const DEFS = {
     rules: () => ["citation"],
     build: (p, R) => blank(p.as_ctx) ? "" : T.ask_frame({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), method: p.as_method, n: p.as_n }) + R,
     empty: "（請填入研究情境）",
-    next: "下一步：要自行挑選變數、跨架構混搭時，到{#asmix}；挑選一個架構後，採問卷調查法時先到{#asq}評估可行性；再把{#asc}的完整回覆與選定的架構一起貼到{#asp}。架構圖若無法顯示，可用{#m7b}補上圍籬。"
+    next: "下一步：要自行挑選變數、跨架構混搭時，到{#asmix}；挑選一個架構後，採問卷調查法時先到{#asq}評估可行性；再把{#asc}的完整回覆與選定的架構一起貼到{#asp}。"
   },
   vdeep: {
     label: "深入了解單一變數", target: "nlm",
-    hint: "依上傳文獻整理一個變數的定義、維度、理論、量表、施測情境、前因、後果與相近構念，並畫出前因後果關係圖。只能根據上傳文獻回答，文獻只是順帶提及這個變數時，回答會較薄。",
+    hint: "依上傳文獻整理一個變數的定義、維度、理論、量表、施測情境、前因、後果與相近構念。只能根據上傳文獻回答，文獻只是順帶提及這個變數時，回答會較薄。",
     fields: [
       { id: "vd_var", type: "text", label: "變數名稱", placeholder: "例如：顧客靈感（customer inspiration）" },
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", hint: "選填", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" }
@@ -166,7 +166,7 @@ const DEFS = {
   },
   asmix: {
     label: "組合研究架構", target: "nlm",
-    hint: "在本頁貼上{#asf}的回覆，依「變數清單」勾選要用的變數，可跨架構混搭；產生的 Prompt 貼回同一個 NotebookLM 對話，確認路徑、文獻支持並畫出架構圖，並產生 Google Scholar Labs 的英文檢索問題。",
+    hint: "在本頁貼上{#asf}的回覆，依「變數清單」勾選要用的變數，可跨架構混搭；產生的 Prompt 貼回同一個 NotebookLM 對話，確認路徑與文獻支持，並產生 Google Scholar Labs 的英文檢索問題。",
     fields: [
       { id: "as_vlist", type: "textarea", label: "上一步的回覆", hint: "至少要包含「變數清單」一節", rows: 6, mono: true },
       { id: "as_pick", type: "picker", label: "勾選要用的變數", source: p => parseVarList(p.as_vlist), roles: MIX_ROLES, value: [] }
