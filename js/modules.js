@@ -166,7 +166,7 @@ const DEFS = {
   },
   asmix: {
     label: "組合研究架構", target: "nlm",
-    hint: "在本頁貼上{#asf}的回覆，依「變數清單」勾選要用的變數，可跨架構混搭；產生的 Prompt 貼回同一個 NotebookLM 對話，確認路徑、文獻支持並畫出架構圖。",
+    hint: "在本頁貼上{#asf}的回覆，依「變數清單」勾選要用的變數，可跨架構混搭；產生的 Prompt 貼回同一個 NotebookLM 對話，確認路徑、文獻支持並畫出架構圖，並產生 Google Scholar Labs 的英文檢索問題。",
     fields: [
       { id: "as_vlist", type: "textarea", label: "上一步的回覆", hint: "至少要包含「變數清單」一節", rows: 6, mono: true },
       { id: "as_pick", type: "picker", label: "勾選要用的變數", source: p => parseVarList(p.as_vlist), roles: MIX_ROLES, value: [] }
@@ -183,7 +183,7 @@ const DEFS = {
       return n ? `已讀取 ${n} 個變數` : "沒有讀取到變數，請確認貼上的內容包含「變數清單」，且每行為「角色｜變數名稱｜出處｜架構」。";
     },
     empty: "（請貼上上一步的回覆，並勾選要用的變數）",
-    next: "下一步：貼回同一個 NotebookLM 對話。確認組合可行後，到{#asq}時「選定的架構」填「我組合的架構」。"
+    next: "下一步：貼回同一個 NotebookLM 對話。回覆中的英文問題一次一個貼到 Google Scholar Labs（scholar.google.com 的 Labs），找到的文獻上傳到同一個 Notebook。確認組合可行後，到{#asq}時「選定的架構」填「我組合的架構」。"
   },
   asq: {
     label: "問卷草稿與可行性評估", target: "nlm",
