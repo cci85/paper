@@ -136,7 +136,21 @@ const DEFS = {
     rules: () => ["citation", "verify"],
     build: (p, R) => blank(p.as_ctx) ? "" : T.ask_concept({ ctx: p.as_ctx.trim(), con: p.as_con.trim() }) + R,
     empty: "（請填入研究情境）",
-    next: "下一步：複製整段回覆（含「無法由上傳文獻回答之事項」），到{#asp}貼上。"
+    next: "下一步：到{#asf}，在同一個對話接續；或直接複製整段回覆（含「無法由上傳文獻回答之事項」），到{#asp}貼上。"
+  },
+  asf: {
+    label: "提出候選研究架構", target: "nlm",
+    hint: "接在{#asc}同一個對話。依上傳文獻提出數個彼此有明顯差異的研究架構，各附變數、理論、文獻支持與架構圖，供你挑選。",
+    fields: [
+      { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
+      { id: "as_con", type: "text", label: "要追問的構念", hint: "選填；不填時為上一段回覆中的核心構念", placeholder: "例如：短影音推薦系統特性" },
+      { id: "as_method", type: "radio", label: "研究方法", options: [["any", "不限"], ["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "次級資料"]], value: "any" },
+      { id: "as_n", type: "radio", label: "架構數量", options: [["2", "2 個"], ["3", "3 個"], ["4", "4 個"]], value: "3" }
+    ],
+    rules: () => ["citation"],
+    build: (p, R) => blank(p.as_ctx) ? "" : T.ask_frame({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), method: p.as_method, n: p.as_n }) + R,
+    empty: "（請填入研究情境）",
+    next: "下一步：挑選一個架構後，把{#asc}的完整回覆與選定的架構一起貼到{#asp}。架構圖若無法顯示，可用{#m7b}補上圍籬。"
   },
   asp: {
     label: "研究情境與實務缺口", target: "ai",
@@ -145,10 +159,10 @@ const DEFS = {
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
       { id: "as_con", type: "text", label: "要追問的構念", hint: "選填", placeholder: "例如：短影音推薦系統特性" },
       { id: "as_path", type: "text", label: "研究情境中的歷程", hint: "選填；不填時由 AI 依構念與結果決定階段", placeholder: "例如：開啟應用程式、滑動影片、接觸商品相關內容、產生購買念頭" },
-      { id: "as_prev", type: "textarea", label: "上一步的完整回覆", hint: "含「無法由上傳文獻回答之事項」", rows: 8 }
+      { id: "as_prev", type: "textarea", label: "前面步驟的回覆", hint: "貼上「構念界定與學術缺口」的完整回覆（含「無法由上傳文獻回答之事項」）；已選定研究架構時，一併貼上該架構", rows: 8 }
     ],
     build: p => blank(p.as_ctx) || blank(p.as_prev) ? "" : T.ask_practice({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), path: p.as_path.trim(), prev: p.as_prev }),
-    empty: "（請填入研究情境，並貼上上一步的完整回覆）",
+    empty: "（請填入研究情境，並貼上前面步驟的回覆）",
     next: "下一步：逐一點開「來源核對」中的網址確認內容；AI 即使遵守上述規則，仍可能產生不存在的網址。確認後，研究情境與實務問題可貼到{#bg}的「產業或實務背景資料」，學術缺口與實務缺口可貼到「研究缺口」。"
   },
 
@@ -352,10 +366,11 @@ const OUTLINE = [
       { mod: "m5c", note: "選用：同一個對話接續，找出整批文獻的研究缺口與研究主題建議。" }] },
     { id: "s0-3", no: "0.3", title: "選定變數與研究缺口", desc: "從文獻資料表選出要研究的變數，找出 key paper、研究缺口、理論基礎，並組成研究架構草案。產出的研究架構草案可到 0.4 回到全文查證。", steps: [
       { mod: "gapsel", note: "準備 0.2 匯出的文獻資料表試算表。依提問逐步選擇；搭橋檢索若發現已有研究，回到 0.1 補充關鍵字。" }] },
-    { id: "s0-4", no: "0.4", title: "向文獻提問、確認文獻支持", desc: "回到 NotebookLM 以全文查證。選「具體問題」：把 0.3 的研究架構草案或研究缺口逐一當成問題，確認是否有文獻支持；還沒選定變數時選「研究主題」：由 AI 先提出問題再回答，用來釐清方向。步驟 2、3 用於追問構念界定、學術缺口與實務缺口。", steps: [
+    { id: "s0-4", no: "0.4", title: "向文獻提問、確認文獻支持", desc: "回到 NotebookLM 以全文查證。選「具體問題」：把 0.3 的研究架構草案或研究缺口逐一當成問題，確認是否有文獻支持；還沒選定變數時選「研究主題」：由 AI 先提出問題再回答，用來釐清方向。步驟 2–4 用於追問構念界定與學術缺口、提出候選研究架構，以及查證實務情境與實務缺口。", steps: [
       { mod: "lr", note: "一次問一組變數關係或一個研究缺口。回覆最後的支持程度總結若為「部分」或「不足」，回到 0.3 調整，或回到 0.1 補充關鍵字。", preset: { lr_start: "question" }, rules: ["citation", "verify", "support"] },
       { mod: "asc", note: "回覆看不懂、無法想像構念在研究情境中的樣貌，或要找學術缺口時使用。" },
-      { mod: "asp", note: "把上一步文獻無法回答的事項交給一般 AI 查證，寫成研究情境、實務問題與實務缺口。" }] }
+      { mod: "asf", note: "變數與研究路線很多時使用：由 AI 提出幾個合理的研究架構，再由你挑選。" },
+      { mod: "asp", note: "把前面步驟文獻無法回答的事項交給一般 AI 查證，寫成研究情境、實務問題與實務缺口。" }] }
   ] },
   { ch: "第一章 緒論", secs: [
     { id: "s1-1", no: "1.1", title: "研究背景與動機", desc: "由產業現象收斂到文獻缺口。", steps: [
