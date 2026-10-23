@@ -152,6 +152,18 @@ const DEFS = {
     empty: "（請填入研究情境）",
     next: "下一步：要自行挑選變數、跨架構混搭時，到{#asmix}；挑選一個架構後，採問卷調查法時先到{#asq}評估可行性；再把{#asc}的完整回覆與選定的架構一起貼到{#asp}。架構圖若無法顯示，可用{#m7b}補上圍籬。"
   },
+  vdeep: {
+    label: "深入了解單一變數", target: "nlm",
+    hint: "依上傳文獻整理一個變數的定義、維度、理論、量表、前因、後果與相近構念，並畫出前因後果關係圖。只能根據上傳文獻回答，文獻只是順帶提及這個變數時，回答會較薄。",
+    fields: [
+      { id: "vd_var", type: "text", label: "變數名稱", placeholder: "例如：顧客靈感（customer inspiration）" },
+      { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", hint: "選填", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" }
+    ],
+    rules: () => ["citation", "verify"],
+    build: (p, R) => blank(p.vd_var) ? "" : T.var_deep({ v: p.vd_var.trim(), ctx: p.as_ctx.trim() }) + R,
+    empty: "（請填入變數名稱）",
+    next: "下一步：「文獻不足之處」列出的關鍵字可用來檢索新文獻，上傳到同一個 Notebook 後再問一次。要寫成第二章時用{#m6a}；整理量表與題項用{#opdef}。"
+  },
   asmix: {
     label: "組合研究架構", target: "nlm",
     hint: "在本頁貼上{#asf}的回覆，依「變數清單」勾選要用的變數，可跨架構混搭；產生的 Prompt 貼回同一個 NotebookLM 對話，確認路徑、文獻支持並畫出架構圖。",
@@ -389,7 +401,9 @@ const OUTLINE = [
     { id: "q-draft", no: "", title: "核實改寫：補強", desc: "段落還缺東西時使用（引用不確定、論點接不起來、細節不夠）：核實引用 → 診斷結構與邏輯 → 補強改寫，字數不減，產出可接近完稿。（舊選單 [3]）", steps: [
       { mod: "dr", note: "一次貼一段，任何一章都可以。", fixed: { dr_stage: "draft" } }] },
     { id: "q-final", no: "", title: "核實改寫：精簡", desc: "段落內容已齊全，但太冗長或想確認術語時使用：核實引用 → 術語查證 → 精簡診斷 → 改寫，字數必須減少。（舊選單 [4]）", steps: [
-      { mod: "dr", note: "一次貼一段，任何一章都可以；可接在「補強」之後使用。", fixed: { dr_stage: "final" } }] }
+      { mod: "dr", note: "一次貼一段，任何一章都可以；可接在「補強」之後使用。", fixed: { dr_stage: "final" } }] },
+    { id: "q-var", no: "", title: "深入了解單一變數", desc: "對某個變數有興趣、想深入了解時使用：定義、維度、理論、操作型定義與量表、前因與後果、相近構念，任何階段都可以。", steps: [
+      { mod: "vdeep", note: "一次問一個變數；文獻不足時，先針對這個變數補上傳文獻再問。" }] }
   ] },
   { ch: "第零章 研究準備", secs: [
     { id: "s0-1", no: "0.1", title: "聚焦研究方向與關鍵字", desc: "還沒讀文獻、只有一個想研究的現象時，從這裡開始。", steps: [
