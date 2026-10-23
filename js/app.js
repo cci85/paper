@@ -28,17 +28,20 @@ const step = () => steps()[stepIdx()];
 const mod = () => DEFS[step().mod];
 const ref = s => fillRefs(s || "", sec());
 
-// 欄位值：此步驟固定的值優先，其次是使用者填的，最後是預設值
+// 欄位值：此步驟固定的值優先，其次是使用者填的，再來是此步驟的預設（preset），最後是模組預設值
+// 有 preset 的欄位依節分別記住，不影響其他節
+const vkey = id => (step().preset && id in step().preset) ? store.sec + "|" + id : id;
 const valuesOf = m => {
-  const p = {}, fixed = step().fixed || {};
+  const p = {}, st = step(), fixed = st.fixed || {}, preset = st.preset || {};
   m.fields.forEach(f => {
     p[f.id] = f.id in fixed ? fixed[f.id]
-      : store.values[f.id] ?? (Array.isArray(f.value) ? f.value.slice() : f.value ?? "");
+      : store.values[vkey(f.id)] ?? preset[f.id] ?? (Array.isArray(f.value) ? f.value.slice() : f.value ?? "");
   });
   return p;
 };
-const ruleKey = (m, p) => step().mod + (m.variant ? ":" + m.variant(p) : "");
-const activeRules = (m, p) => store.rules[ruleKey(m, p)] ?? m.rules(p);
+// 步驟自訂規則預設（rules）時，勾選依節分別記住
+const ruleKey = (m, p) => (step().rules ? store.sec + "|" : "") + step().mod + (m.variant ? ":" + m.variant(p) : "");
+const activeRules = (m, p) => store.rules[ruleKey(m, p)] ?? step().rules ?? m.rules(p);
 
 // 左側目錄
 function renderToc() {
@@ -75,7 +78,7 @@ function renderPane() {
     <p class="stepnote">${esc(ref(step().note))}</p>
     <p class="hint">${esc(ref(m.hint))}</p>${fields}
     ${m.rules ? `<fieldset class="struct"><legend>附加共用規則</legend><div class="chips" id="rules"></div>
-      <p class="hint" style="margin:8px 0 0">預設沿用原本的組合；勾選會依模組分別記住。</p></fieldset>` : ""}
+      <p class="hint" style="margin:8px 0 0">${step().rules ? "本節預設精簡組合；勾選會依本節分別記住。" : "預設沿用原本的組合；勾選會依模組分別記住。"}</p></fieldset>` : ""}
     <div class="note" id="status"></div>`;
   renderRules();
 }
@@ -83,7 +86,7 @@ function renderPane() {
 function renderRules() {
   const m = mod(); if (!m.rules) return;
   const p = valuesOf(m), on = activeRules(m, p);
-  $("rules").innerHTML = RULES.map(r =>
+  $("rules").innerHTML = RULES.filter(r => !r.opt || (step().rules || []).includes(r.key)).map(r =>
     `<label class="chip"><input type="checkbox" data-r="${r.key}" ${on.includes(r.key) ? "checked" : ""}>${esc(r.label)}</label>`).join("");
 }
 
@@ -116,7 +119,7 @@ $("sechead").addEventListener("click", e => {
 $("pane").addEventListener("input", e => {
   const t = e.target;
   if (t.dataset.f) {
-    store.values[t.dataset.f] = t.value;
+    store.values[vkey(t.dataset.f)] = t.value;
     if (t.type === "radio") renderRules();   // 不同選項有各自的規則預設
   } else if (t.dataset.c) {
     store.values[t.dataset.c] = [...document.querySelectorAll(`input[data-c="${t.dataset.c}"]:checked`)].map(x => x.value);

@@ -3,7 +3,9 @@ const RULES = [
   { key: "citation", label: "引用格式規範", text: T.citation },
   { key: "evidence", label: "實證結果與引用分散", text: T.evidence },
   { key: "style", label: "文字風格規範", text: T.style },
-  { key: "verify", label: "完成後自我核對", text: T.verify }
+  { key: "verify", label: "完成後自我核對", text: T.verify },
+  // opt：只在步驟預設有列入時才顯示
+  { key: "support", label: "文獻支持程度總結", text: T.support, opt: true }
 ];
 
 // 貼到哪裡
@@ -321,8 +323,10 @@ const OUTLINE = [
       { mod: "m5b", note: "選用：同一個對話接續，整理變數角色並畫關係圖。" },
       { mod: "m7b", note: "選用：把上一步的關係圖補好圍籬，貼進 Obsidian。" },
       { mod: "m5c", note: "選用：同一個對話接續，找出整批文獻的研究缺口與研究主題建議。" }] },
-    { id: "s0-3", no: "0.3", title: "選定變數與研究缺口", desc: "從文獻資料表選出要研究的變數，找出 key paper、研究缺口、理論基礎，並組成研究架構草案。", steps: [
-      { mod: "gapsel", note: "準備 0.2 匯出的文獻資料表試算表。依提問逐步選擇；搭橋檢索若發現已有研究，回到 0.1 補充關鍵字。" }] }
+    { id: "s0-3", no: "0.3", title: "選定變數與研究缺口", desc: "從文獻資料表選出要研究的變數，找出 key paper、研究缺口、理論基礎，並組成研究架構草案。產出的研究架構草案可到 0.4 回到全文查證。", steps: [
+      { mod: "gapsel", note: "準備 0.2 匯出的文獻資料表試算表。依提問逐步選擇；搭橋檢索若發現已有研究，回到 0.1 補充關鍵字。" }] },
+    { id: "s0-4", no: "0.4", title: "向文獻提問、確認文獻支持", desc: "回到 NotebookLM 以全文查證。選「具體問題」：把 0.3 的研究架構草案或研究缺口逐一當成問題，確認是否有文獻支持；還沒選定變數時選「研究主題」：由 AI 先提出問題再回答，用來釐清方向。", steps: [
+      { mod: "lr", note: "一次問一組變數關係或一個研究缺口。回覆最後的支持程度總結若為「部分」或「不足」，回到 0.3 調整，或回到 0.1 補充關鍵字。", preset: { lr_start: "question" }, rules: ["citation", "verify", "support"] }] }
   ] },
   { ch: "第一章 緒論", secs: [
     { id: "s1-1", no: "1.1", title: "研究背景與動機", desc: "由產業現象收斂到文獻缺口。", steps: [
