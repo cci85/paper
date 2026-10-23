@@ -119,7 +119,7 @@ function update() {
   $("next").textContent = ref(m.next);
   const st = m.status ? m.status(p) : "";
   $("status").textContent = st;
-  $("status").className = "note" + (st && /沒有/.test(st) ? " warn" : "");
+  $("status").className = "note" + (st && /沒有|過長/.test(st) ? " warn" : "");
   save();
 }
 

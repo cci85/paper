@@ -190,12 +190,13 @@ const DEFS = {
     hint: "接在{#asf}同一個對話，選定一個架構後使用。題項只取自上傳文獻，量表的原始論文須先上傳到 NotebookLM；找不到的會標示【待補量表】。",
     fields: [
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
-      { id: "as_arch", type: "textarea", label: "選定的架構", hint: "同一個對話中寫架構編號即可，或貼上架構內容", rows: 2, placeholder: "例如：架構二，或「我組合的架構」" },
+      { id: "as_arch", type: "textarea", label: "選定的架構", hint: "在同一個對話接續時，寫「架構二」或「上一段回覆中我組合的架構」即可，不要貼上整段回覆", rows: 2, placeholder: "例如：架構二，或「上一段回覆中我組合的架構」" },
       { id: "as_target", type: "text", label: "研究對象", hint: "選填", placeholder: "例如：過去三個月曾在抖音購物的消費者" },
       { id: "as_scale", type: "text", label: "量尺形式", hint: "選填；不填時依原量表", placeholder: "例如：Likert 七點尺度" },
       { id: "as_amethod", type: "text", label: "分析方法", hint: "選填；不填時由 AI 依架構建議", placeholder: "例如：PLS-SEM" }
     ],
     rules: () => ["citation"],
+    status: p => (p.as_arch || "").trim().length > 300 ? "「選定的架構」內容過長，NotebookLM 可能無法讀取；同一個對話中只需寫架構編號。" : "",
     build: (p, R) => blank(p.as_ctx) || blank(p.as_arch) ? "" : T.ask_survey({ ctx: p.as_ctx.trim(), arch: p.as_arch.trim(), target: p.as_target.trim(), scale: p.as_scale.trim(), method: p.as_amethod.trim() }) + R,
     empty: "（請填入研究情境與選定的架構）",
     next: "下一步：【待補量表】的構念，請找到量表原始論文上傳後再問一次；確認可行後，到{#asp}查證實務面。正式撰寫第三章時，用{#opdef}整理量表。"
