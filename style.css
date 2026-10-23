@@ -146,3 +146,6 @@ p.stepnote { margin: 0 0 6px; padding: 8px 12px; border-left: 3px solid var(--ac
 #toc details.quick summary { color: var(--accent); }
 #toc details.quick button { padding-left: 22px; }
 #toc details.quick button b { display: none; }
+.picker .pickrole { margin: 6px 0 10px; }
+.picker .pickrole > small { display: block; margin-bottom: 4px; opacity: .75; }
+.picker .chip small { opacity: .6; margin-left: 4px; }

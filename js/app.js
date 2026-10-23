@@ -70,6 +70,7 @@ function renderPane() {
       `<label class="chip"><input type="radio" name="${f.id}" data-f="${f.id}" value="${v}" ${p[f.id] === v ? "checked" : ""}>${esc(t)}</label>`).join("") + `</div>`;
     if (f.type === "checks") return lab + `<div class="chips">` + f.options.map(([v, t, locked]) =>
       `<label class="chip${locked ? " lock" : ""}"><input type="checkbox" data-c="${f.id}" value="${v}" ${locked || p[f.id].includes(v) ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(t)}</label>`).join("") + `</div>`;
+    if (f.type === "picker") return lab + `<div class="picker" id="pick-${f.id}"></div>`;
     if (f.type === "textarea") return lab + `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px" placeholder="${esc(f.placeholder || "")}">${esc(p[f.id])}</textarea>`;
     return lab + `<input type="text" data-f="${f.id}" value="${esc(p[f.id])}" placeholder="${esc(f.placeholder || "")}">`;
   }).join("");
@@ -90,8 +91,25 @@ function renderRules() {
     `<label class="chip"><input type="checkbox" data-r="${r.key}" ${on.includes(r.key) ? "checked" : ""}>${esc(r.label)}</label>`).join("");
 }
 
+// 由其他欄位內容產生的勾選框（例如由變數清單解析出的變數），內容變動時才重畫
+function renderPickers(m, p) {
+  m.fields.filter(f => f.type === "picker").forEach(f => {
+    const box = $("pick-" + f.id); if (!box) return;
+    const opts = f.source(p), sig = JSON.stringify(opts), on = p[f.id] || [];
+    if (box.dataset.sig === sig) return;
+    box.dataset.sig = sig;
+    box.innerHTML = opts.length ? f.roles.map(([r, label]) => {
+      const vs = opts.filter(o => o.role === r);
+      return `<div class="pickrole"><small>${esc(label)}</small><div class="chips">${vs.length ? vs.map(o =>
+        `<label class="chip" title="${esc([o.src, o.frames].filter(Boolean).join("｜"))}"><input type="checkbox" data-c="${f.id}" value="${esc(o.key)}" ${on.includes(o.key) ? "checked" : ""}>${esc(o.name)}${o.frames ? ` <small>${esc(o.frames)}</small>` : ""}</label>`).join("")
+        : `<small>（無）</small>`}</div></div>`;
+    }).join("") : `<p class="hint">（貼上回覆後，這裡會列出可勾選的變數）</p>`;
+  });
+}
+
 function update() {
   const m = mod(), p = valuesOf(m);
+  renderPickers(m, p);
   const R = m.rules ? RULES.filter(r => activeRules(m, p).includes(r.key)).map(r => typeof r.text === "function" ? r.text(p) : r.text).join("") : "";
   const out = m.build(p, R);
   $("out").textContent = out || m.empty || "";

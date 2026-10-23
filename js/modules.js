@@ -150,14 +150,35 @@ const DEFS = {
     rules: () => ["citation"],
     build: (p, R) => blank(p.as_ctx) ? "" : T.ask_frame({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), method: p.as_method, n: p.as_n }) + R,
     empty: "（請填入研究情境）",
-    next: "下一步：挑選一個架構後，採問卷調查法時先到{#asq}評估可行性；再把{#asc}的完整回覆與選定的架構一起貼到{#asp}。架構圖若無法顯示，可用{#m7b}補上圍籬。"
+    next: "下一步：要自行挑選變數、跨架構混搭時，到{#asmix}；挑選一個架構後，採問卷調查法時先到{#asq}評估可行性；再把{#asc}的完整回覆與選定的架構一起貼到{#asp}。架構圖若無法顯示，可用{#m7b}補上圍籬。"
+  },
+  asmix: {
+    label: "組合研究架構", target: "nlm",
+    hint: "在本頁貼上{#asf}的回覆，依「變數清單」勾選要用的變數，可跨架構混搭；產生的 Prompt 貼回同一個 NotebookLM 對話，確認路徑、文獻支持並畫出架構圖。",
+    fields: [
+      { id: "as_vlist", type: "textarea", label: "上一步的回覆", hint: "至少要包含「變數清單」一節", rows: 6, mono: true },
+      { id: "as_pick", type: "picker", label: "勾選要用的變數", source: p => parseVarList(p.as_vlist), roles: MIX_ROLES, value: [] }
+    ],
+    rules: () => ["citation"],
+    build: (p, R) => {
+      const vs = parseVarList(p.as_vlist), on = new Set(p.as_pick || []);
+      const picked = vs.filter(v => on.has(v.key));
+      return picked.length ? T.ask_mix({ picked }) + R : "";
+    },
+    status: p => {
+      if (blank(p.as_vlist)) return "";
+      const n = parseVarList(p.as_vlist).length;
+      return n ? `已讀取 ${n} 個變數` : "沒有讀取到變數，請確認貼上的內容包含「變數清單」，且每行為「角色｜變數名稱｜出處｜架構」。";
+    },
+    empty: "（請貼上上一步的回覆，並勾選要用的變數）",
+    next: "下一步：貼回同一個 NotebookLM 對話。確認組合可行後，到{#asq}時「選定的架構」填「我組合的架構」。"
   },
   asq: {
     label: "問卷草稿與可行性評估", target: "nlm",
     hint: "接在{#asf}同一個對話，選定一個架構後使用。題項只取自上傳文獻，量表的原始論文須先上傳到 NotebookLM；找不到的會標示【待補量表】。",
     fields: [
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
-      { id: "as_arch", type: "textarea", label: "選定的架構", hint: "同一個對話中寫架構編號即可，或貼上架構內容", rows: 2, placeholder: "例如：架構二" },
+      { id: "as_arch", type: "textarea", label: "選定的架構", hint: "同一個對話中寫架構編號即可，或貼上架構內容", rows: 2, placeholder: "例如：架構二，或「我組合的架構」" },
       { id: "as_target", type: "text", label: "研究對象", hint: "選填", placeholder: "例如：過去三個月曾在抖音購物的消費者" },
       { id: "as_scale", type: "text", label: "量尺形式", hint: "選填；不填時依原量表", placeholder: "例如：Likert 七點尺度" },
       { id: "as_amethod", type: "text", label: "分析方法", hint: "選填；不填時由 AI 依架構建議", placeholder: "例如：PLS-SEM" }
@@ -381,10 +402,11 @@ const OUTLINE = [
       { mod: "m5c", note: "選用：同一個對話接續，找出整批文獻的研究缺口與研究主題建議。" }] },
     { id: "s0-3", no: "0.3", title: "選定變數與研究缺口", desc: "從文獻資料表選出要研究的變數，找出 key paper、研究缺口、理論基礎，並組成研究架構草案。產出的研究架構草案可到 0.4 回到全文查證。", steps: [
       { mod: "gapsel", note: "準備 0.2 匯出的文獻資料表試算表。依提問逐步選擇；搭橋檢索若發現已有研究，回到 0.1 補充關鍵字。" }] },
-    { id: "s0-4", no: "0.4", title: "向文獻提問、確認文獻支持", desc: "回到 NotebookLM 以全文查證。選「具體問題」：把 0.3 的研究架構草案或研究缺口逐一當成問題，確認是否有文獻支持；還沒選定變數時選「研究主題」：由 AI 先提出問題再回答，用來釐清方向。步驟 2–5 用於追問構念界定與學術缺口、提出候選研究架構、評估問卷可行性，以及查證實務情境與實務缺口。", steps: [
+    { id: "s0-4", no: "0.4", title: "向文獻提問、確認文獻支持", desc: "回到 NotebookLM 以全文查證。選「具體問題」：把 0.3 的研究架構草案或研究缺口逐一當成問題，確認是否有文獻支持；還沒選定變數時選「研究主題」：由 AI 先提出問題再回答，用來釐清方向。步驟 2–6 用於追問構念界定與學術缺口、提出並組合研究架構、評估問卷可行性，以及查證實務情境與實務缺口。", steps: [
       { mod: "lr", note: "一次問一組變數關係或一個研究缺口。回覆最後的支持程度總結若為「部分」或「不足」，回到 0.3 調整，或回到 0.1 補充關鍵字。", preset: { lr_start: "question" }, rules: ["citation", "verify", "support"] },
       { mod: "asc", note: "回覆看不懂、無法想像構念在研究情境中的樣貌，或要找學術缺口時使用。" },
       { mod: "asf", note: "變數與研究路線很多時使用：由 AI 提出幾個合理的研究架構，再由你挑選。" },
+      { mod: "asmix", note: "從候選架構中自行挑選變數、跨架構混搭，組成自己的研究架構。" },
       { mod: "asq", note: "研究方法選問卷調查法時使用：為選定的架構產出問卷草稿，並評估題數、樣本數、量表與施測風險。" },
       { mod: "asp", note: "把前面步驟文獻無法回答的事項交給一般 AI 查證，寫成研究情境、實務問題與實務缺口。" }] }
   ] },
