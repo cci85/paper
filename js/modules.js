@@ -164,6 +164,21 @@ const DEFS = {
     empty: "（請填入變數名稱）",
     next: "下一步：「文獻不足之處」列出的關鍵字可用來檢索新文獻，上傳到同一個 Notebook 後再問一次。要寫成第二章時用{#m6a}；整理量表與題項用{#opdef}。"
   },
+  vcomp: {
+    label: "區辨相近變數", target: "nlm",
+    hint: "兩個以上的變數看起來很像時使用：比較定義、描述層次、文獻中的角色、衡量方式與實證區辨，判斷它們是同一構念、部分重疊、前後因果，還是彼此獨立，並建議在研究架構中如何處理。",
+    fields: [
+      { id: "vc_vars", type: "textarea", label: "變數", hint: "每行一個，至少兩個；建議附英文原文", rows: 4, placeholder: "偶遇商品資訊（Encountering Product Information）\n體驗到的驚喜感（Experienced Serendipity）" },
+      { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", hint: "選填", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" }
+    ],
+    rules: () => ["citation"],
+    build: (p, R) => {
+      const vars = (p.vc_vars || "").split(/\r?\n/).map(v => v.replace(/^[\s\-*•]+/, "").trim()).filter(Boolean);
+      return vars.length < 2 ? "" : T.var_compare({ vars, ctx: p.as_ctx.trim() }) + R;
+    },
+    empty: "（請填入至少兩個變數，每行一個）",
+    next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。若判斷為前後因果，可回到{#asmix}調整勾選；要深入了解其中一個變數，用{#vdeep}。"
+  },
   asmix: {
     label: "組合研究架構", target: "nlm", stack: true,   // stack：欄位佔滿寬度，Prompt 放在下方
     hint: "在本頁貼上{#asf}的回覆，依「變數清單」勾選要用的變數，可跨架構混搭；產生的 Prompt 貼回同一個 NotebookLM 對話，確認路徑與文獻支持，並產生 Google Scholar Labs 的英文檢索問題。",
@@ -404,7 +419,9 @@ const OUTLINE = [
     { id: "q-final", no: "", title: "核實改寫：精簡", desc: "段落內容已齊全，但太冗長或想確認術語時使用：核實引用 → 術語查證 → 精簡診斷 → 改寫，字數必須減少。（舊選單 [4]）", steps: [
       { mod: "dr", note: "一次貼一段，任何一章都可以；可接在「補強」之後使用。", fixed: { dr_stage: "final" } }] },
     { id: "q-var", no: "", title: "深入了解單一變數", desc: "對某個變數有興趣、想深入了解時使用：定義、維度、理論、操作型定義與量表、施測情境、前因與後果、相近構念，任何階段都可以。", steps: [
-      { mod: "vdeep", note: "一次問一個變數；文獻不足時，先針對這個變數補上傳文獻再問。「施測情境」常因原文只簡短交代而標示「未提及」，請回到原文的方法章節或附錄查看。" }] }
+      { mod: "vdeep", note: "一次問一個變數；文獻不足時，先針對這個變數補上傳文獻再問。「施測情境」常因原文只簡短交代而標示「未提及」，請回到原文的方法章節或附錄查看。" }] },
+    { id: "q-vcomp", no: "", title: "區辨相近變數", desc: "兩個以上的變數看起來很像，想分辨它們在研究架構上的異同時使用。", steps: [
+      { mod: "vcomp", note: "每行填一個變數；可直接從組合研究架構的勾選區複製名稱。" }] }
   ] },
   { ch: "第零章 研究準備", secs: [
     { id: "s0-1", no: "0.1", title: "聚焦研究方向與關鍵字", desc: "還沒讀文獻、只有一個想研究的現象時，從這裡開始。", steps: [
