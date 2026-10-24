@@ -194,22 +194,27 @@ const DEFS = {
       return n ? `已讀取 ${n} 個變數` : "沒有讀取到變數，請確認貼上的內容包含「變數清單」，且每行為「角色｜變數名稱｜出處｜架構」。";
     },
     empty: "（請貼上上一步的回覆，並勾選要用的變數）",
-    next: "下一步：貼回同一個 NotebookLM 對話。回覆中的英文問題一次一個貼到 Google Scholar Labs（scholar.google.com 的 Labs），找到的文獻上傳到同一個 Notebook。確認組合可行後，到{#asq}時「選定的架構」填「上一段回覆中我組合的架構」；要查實務面時，把本步驟的完整回覆貼到{#asp}。"
+    next: "下一步：貼回同一個 NotebookLM 對話。回覆中的英文問題一次一個貼到 Google Scholar Labs（scholar.google.com 的 Labs），找到的文獻上傳到同一個 Notebook。確認組合可行後，到{#asq}時「選定的架構」選「我勾選組合的架構」；要查實務面時，把本步驟的完整回覆貼到{#asp}。"
   },
   asq: {
     label: "問卷草稿與可行性評估", target: "nlm",
     hint: "接在{#asf}同一個對話，選定一個架構後使用。題項只取自上傳文獻，量表的原始論文須先上傳到 NotebookLM；找不到的會標示【待補量表】。",
     fields: [
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
-      { id: "as_arch", type: "textarea", label: "選定的架構", hint: "在同一個對話接續時，寫「架構二」或「上一段回覆中我組合的架構」即可，不要貼上整段回覆", rows: 2, placeholder: "例如：架構二，或「上一段回覆中我組合的架構」" },
+      { id: "as_archm", type: "radio", label: "選定的架構", options: [["mine", "我勾選組合的架構"], ["num", "候選架構編號"], ["other", "其他"]], value: "mine" },
+      { id: "as_archno", type: "text", label: "架構編號", hint: "填數字即可", placeholder: "例如：2", when: p => p.as_archm === "num" },
+      { id: "as_arch", type: "textarea", label: "其他架構", hint: "簡短描述即可，不要貼上整段回覆", rows: 2, placeholder: "例如：架構一加上消費者創新性作為調節變數", when: p => p.as_archm === "other" },
       { id: "as_target", type: "text", label: "研究對象", hint: "選填", placeholder: "例如：過去三個月曾在抖音購物的消費者" },
       { id: "as_scale", type: "text", label: "量尺形式", hint: "選填；不填時依原量表", placeholder: "例如：Likert 七點尺度" },
       { id: "as_amethod", type: "text", label: "分析方法", hint: "選填；不填時由 AI 依架構建議", placeholder: "例如：PLS-SEM" }
     ],
     rules: () => ["citation"],
-    status: p => (p.as_arch || "").trim().length > 300 ? "「選定的架構」內容過長，NotebookLM 可能無法讀取；同一個對話中只需寫架構編號。" : "",
-    build: (p, R) => blank(p.as_ctx) || blank(p.as_arch) ? "" : T.ask_survey({ ctx: p.as_ctx.trim(), arch: p.as_arch.trim(), target: p.as_target.trim(), scale: p.as_scale.trim(), method: p.as_amethod.trim() }) + R,
-    empty: "（請填入研究情境與選定的架構）",
+    status: p => p.as_archm === "other" && (p.as_arch || "").trim().length > 300 ? "「其他架構」內容過長，NotebookLM 可能無法讀取；同一個對話中簡短描述即可。" : "",
+    build: (p, R) => {
+      const arch = archLabel(p);
+      return blank(p.as_ctx) || !arch ? "" : T.ask_survey({ ctx: p.as_ctx.trim(), arch, target: p.as_target.trim(), scale: p.as_scale.trim(), method: p.as_amethod.trim() }) + R;
+    },
+    empty: "（請填入研究情境，並指定選定的架構）",
     next: "下一步：【待補量表】的構念，請找到量表原始論文上傳後再問一次；確認可行後，到{#asp}查證實務面。正式撰寫第三章時，用{#opdef}整理量表。"
   },
   asp: {
@@ -404,6 +409,18 @@ const DEFS = {
     next: "下一步：貼進 Obsidian 的 .md 筆記，就會自動渲染成圖。"
   }
 };
+
+// 問卷草稿：選定的架構（勾選組合／候選架構編號／其他）
+function archLabel(p) {
+  if (p.as_archm === "num") {
+    const n = (p.as_archno || "").trim();
+    if (!n) return "";
+    const zh = { "1": "一", "2": "二", "3": "三", "4": "四", "5": "五", "6": "六" }[n] || n;
+    return `上述候選研究架構中的架構${zh}`;
+  }
+  if (p.as_archm === "other") return (p.as_arch || "").trim();
+  return "前述我自行勾選組合的研究架構";
+}
 
 // ── 論文目錄：章 → 節 → 步驟 ──
 // step：{ mod, note, fixed（固定欄位值並隱藏該欄位） }；finish：每節最後的完稿步驟
