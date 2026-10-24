@@ -72,6 +72,7 @@ function renderPane() {
     if (f.type === "checks") return lab + `<div class="chips">` + f.options.map(([v, t, locked]) =>
       `<label class="chip${locked ? " lock" : ""}"><input type="checkbox" data-c="${f.id}" value="${v}" ${locked || p[f.id].includes(v) ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(t)}</label>`).join("") + `</div>`;
     if (f.type === "picker") return lab + `<div class="picker" id="pick-${f.id}"></div>`;
+    if (f.type === "diagram") return lab + `<div class="dg-tools"><button type="button" data-dg="${f.id}" data-act="layout">重新排列</button><button type="button" data-dg="${f.id}" data-act="clear">清除箭頭</button><button type="button" data-dg="${f.id}" data-act="png">下載 PNG</button></div><div class="diagram" id="diag-${f.id}"></div>`;
     if (f.type === "textarea") return lab + `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px" placeholder="${esc(f.placeholder || "")}">${esc(p[f.id])}</textarea>`;
     return lab + `<input type="text" data-f="${f.id}" value="${esc(p[f.id])}" placeholder="${esc(f.placeholder || "")}">`;
   }).join("");
@@ -111,6 +112,7 @@ function renderPickers(m, p) {
 function update() {
   const m = mod(), p = valuesOf(m);
   renderPickers(m, p);
+  m.fields.filter(f => f.type === "diagram").forEach(f => renderDiagram(f, p));
   const R = m.rules ? RULES.filter(r => activeRules(m, p).includes(r.key)).map(r => typeof r.text === "function" ? r.text(p) : r.text).join("") : "";
   const out = m.build(p, R);
   $("out").textContent = out || m.empty || "";
@@ -150,6 +152,12 @@ $("pane").addEventListener("input", e => {
     store.rules[ruleKey(m, p)] = [...document.querySelectorAll("#rules input:checked")].map(x => x.dataset.r);
   }
   update();
+});
+
+$("pane").addEventListener("click", e => {
+  const b = e.target.closest("button[data-dg]"); if (!b) return;
+  const f = mod().fields.find(x => x.id === b.dataset.dg);
+  if (f) diagramAction(f, b.dataset.act);
 });
 
 $("copy").addEventListener("click", async () => {

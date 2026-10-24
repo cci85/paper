@@ -158,3 +158,11 @@ p.stepnote { margin: 0 0 6px; padding: 8px 12px; border-left: 3px solid var(--ac
 .work main.stack { grid-template-columns: minmax(0, 1fr); }
 .work main.stack .out { position: static; }
 .work main.stack pre#out { max-height: 420px; }
+/* 研究架構圖 */
+.dg-tools { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.dg-tools button { font: inherit; font-size: 13px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); cursor: pointer; }
+.dg-tools button:hover { border-color: var(--accent); }
+.diagram { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; touch-action: none; user-select: none; }
+.diagram svg { display: block; }
+.diagram .hint { padding: 16px; margin: 0; color: #6b6f76; }
+
