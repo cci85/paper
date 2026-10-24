@@ -181,7 +181,7 @@ const DEFS = {
     fields: [
       { id: "as_vlist", type: "textarea", label: "前面步驟的回覆", hint: "貼上提出候選研究架構與補充變數清單的各次回覆，可一起貼上", rows: 6, mono: true },
       { id: "as_pick", type: "picker", label: "勾選要用的變數", source: p => parseVarList(p.as_vlist), roles: MIX_ROLES, value: [] },
-      { id: "as_diag", type: "diagram", label: "研究架構圖", hint: "選填。拖曳方塊調整位置；點一個方塊再點另一個方塊，畫出箭頭；先點調節變數再點一條箭頭，畫出調節虛線；未選方塊時點箭頭或虛線可刪除。有畫箭頭時，AI 會逐條檢核你的路徑",
+      { id: "as_diag", type: "diagram", label: "研究架構圖", hint: "選填。拖曳方塊調整位置；點一個方塊再點另一個方塊，畫出箭頭；先點調節變數再點一條箭頭，畫出調節虛線，拖曳虛線末端的圓點可沿箭頭調整接點位置；未選方塊時點箭頭或虛線可刪除。有畫箭頭時，AI 會逐條檢核你的路徑",
         source: p => { const on = new Set(p.as_pick || []); return parseVarList(p.as_vlist).filter(v => on.has(v.key)); } }
     ],
     rules: () => ["citation"],
