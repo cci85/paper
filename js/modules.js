@@ -165,7 +165,7 @@ const DEFS = {
     next: "下一步：「文獻不足之處」列出的關鍵字可用來檢索新文獻，上傳到同一個 Notebook 後再問一次。要寫成第二章時用{#m6a}；整理量表與題項用{#opdef}。"
   },
   asmix: {
-    label: "組合研究架構", target: "nlm",
+    label: "組合研究架構", target: "nlm", stack: true,   // stack：欄位佔滿寬度，Prompt 放在下方
     hint: "在本頁貼上{#asf}的回覆，依「變數清單」勾選要用的變數，可跨架構混搭；產生的 Prompt 貼回同一個 NotebookLM 對話，確認路徑與文獻支持，並產生 Google Scholar Labs 的英文檢索問題。",
     fields: [
       { id: "as_vlist", type: "textarea", label: "上一步的回覆", hint: "至少要包含「變數清單」一節", rows: 6, mono: true },

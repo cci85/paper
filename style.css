@@ -154,3 +154,7 @@ p.stepnote { margin: 0 0 6px; padding: 8px 12px; border-left: 3px solid var(--ac
 .picker .chip.hasdef { border-radius: 10px; align-items: flex-start; max-width: 100%; }
 .picker .chip.hasdef input { margin-top: 4px; }
 .picker .chip .def { display: block; font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 2px; }
+/* 上下排列的步驟（例如組合研究架構）：欄位佔滿寬度，Prompt 放在下方 */
+.work main.stack { grid-template-columns: minmax(0, 1fr); }
+.work main.stack .out { position: static; }
+.work main.stack pre#out { max-height: 420px; }

@@ -64,6 +64,7 @@ function renderSection() {
 
 function renderPane() {
   const m = mod(), p = valuesOf(m), fixed = step().fixed || {};
+  document.querySelector(".work main").classList.toggle("stack", !!m.stack);
   const fields = m.fields.filter(f => !(f.id in fixed)).map(f => {
     const lab = `<label class="f">${esc(f.label)}${f.hint ? ` <small>${esc(ref(f.hint))}</small>` : ""}</label>`;
     if (f.type === "radio") return lab + `<div class="chips">` + f.options.map(([v, t]) =>
