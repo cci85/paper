@@ -140,20 +140,25 @@ const DEFS = {
   },
   asf: {
     label: "提出候選研究架構", target: "nlm",
-    hint: "接在{#asc}同一個對話。可選擇依上傳文獻提出數個彼此有明顯差異的研究架構（各附變數、理論與文獻支持），或不寫架構、逐篇列出上傳文獻中的所有變數，供你在{#asmix}自行挑選。",
+    hint: "接在{#asc}同一個對話。依上傳文獻提出數個彼此有明顯差異的研究架構，各附變數、理論與文獻支持，最後附上變數清單，供你挑選。",
     fields: [
-      { id: "as_out", type: "radio", label: "輸出內容", options: [["frames", "研究架構＋變數清單"], ["list", "只列出所有變數"]], value: "frames" },
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
       { id: "as_con", type: "text", label: "要追問的構念", hint: "選填；不填時為上一段回覆中的核心構念", placeholder: "例如：短影音推薦系統特性" },
-      { id: "as_method", type: "radio", label: "研究方法", options: [["any", "不限"], ["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "次級資料"]], value: "survey", when: p => p.as_out !== "list" },
-      { id: "as_n", type: "radio", label: "架構數量", options: [["2", "2 個"], ["3", "3 個"], ["4", "4 個"]], value: "4", when: p => p.as_out !== "list" }
+      { id: "as_method", type: "radio", label: "研究方法", options: [["any", "不限"], ["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "次級資料"]], value: "survey" },
+      { id: "as_n", type: "radio", label: "架構數量", options: [["2", "2 個"], ["3", "3 個"], ["4", "4 個"], ["5", "5 個"], ["6", "6 個"]], value: "4" }
     ],
     rules: () => ["citation"],
-    build: (p, R) => blank(p.as_ctx) ? "" : p.as_out === "list"
-      ? T.ask_varlist({ ctx: p.as_ctx.trim(), con: p.as_con.trim() }) + R
-      : T.ask_frame({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), method: p.as_method, n: p.as_n }) + R,
+    build: (p, R) => blank(p.as_ctx) ? "" : T.ask_frame({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), method: p.as_method, n: p.as_n }) + R,
     empty: "（請填入研究情境）",
-    next: "下一步：選「只列出所有變數」時，若回覆最後寫「未完」，在同一個對話輸入「繼續」，再把各次回覆一起貼到{#asmix}，網頁會自動合併。要自行挑選變數、跨架構混搭時，到{#asmix}；挑選一個架構後，採問卷調查法時先到{#asq}評估可行性；再把{#asc}的完整回覆與選定的架構一起貼到{#asp}。"
+    next: "下一步：到{#asmore}，在同一個對話補齊變數與各變數可擔任的角色；挑選一個架構後，採問卷調查法時先到{#asq}評估可行性；再把{#asc}的完整回覆與選定的架構一起貼到{#asp}。"
+  },
+  asmore: {
+    label: "補充變數清單", target: "nlm",
+    hint: "接在{#asf}同一個對話。AI 已經思考過各架構，這一步只做一件事：逐篇檢查上傳文獻，補上尚未出現的變數，並列出每個變數可擔任的所有角色；有文獻依據的標示「文獻」，依理論推論的標示「推論」。",
+    fields: [],
+    rules: () => ["citation"],
+    build: (p, R) => T.ask_more({}) + R,
+    next: "下一步：若回覆最後寫「未完」，輸入「繼續」。把{#asf}與本步驟（含「繼續」）的各次回覆一起貼到{#asmix}，網頁會自動合併、去除重複。"
   },
   vdeep: {
     label: "深入了解單一變數", target: "nlm",
@@ -184,9 +189,9 @@ const DEFS = {
   },
   asmix: {
     label: "組合研究架構", target: "nlm", stack: true,   // stack：欄位佔滿寬度，Prompt 放在下方
-    hint: "在本頁貼上{#asf}的回覆，依「變數清單」勾選要用的變數，可跨架構混搭；產生的 Prompt 貼回同一個 NotebookLM 對話，確認路徑與文獻支持，並產生 Google Scholar Labs 的英文檢索問題。",
+    hint: "在本頁貼上{#asf}與{#asmore}的回覆，依「變數清單」勾選要用的變數，可跨架構混搭；同一變數有多種角色時，會出現在各角色組中，由你決定位置；標示「推論」者為文獻尚未以此角色研究過的位置。產生的 Prompt 貼回同一個 NotebookLM 對話，確認路徑與文獻支持，並產生 Google Scholar Labs 的英文檢索問題。",
     fields: [
-      { id: "as_vlist", type: "textarea", label: "上一步的回覆", hint: "至少要包含「變數清單」一節", rows: 6, mono: true },
+      { id: "as_vlist", type: "textarea", label: "前面步驟的回覆", hint: "貼上提出候選研究架構與補充變數清單的各次回覆，可一起貼上", rows: 6, mono: true },
       { id: "as_pick", type: "picker", label: "勾選要用的變數", source: p => parseVarList(p.as_vlist), roles: MIX_ROLES, value: [] }
     ],
     rules: () => ["citation"],
@@ -437,10 +442,11 @@ const OUTLINE = [
       { mod: "m5c", note: "選用：同一個對話接續，找出整批文獻的研究缺口與研究主題建議。" }] },
     { id: "s0-3", no: "0.3", title: "選定變數與研究缺口", desc: "從文獻資料表選出要研究的變數，找出 key paper、研究缺口、理論基礎，並組成研究架構草案。產出的研究架構草案可到 0.4 回到全文查證。", steps: [
       { mod: "gapsel", note: "準備 0.2 匯出的文獻資料表試算表。依提問逐步選擇；搭橋檢索若發現已有研究，回到 0.1 補充關鍵字。" }] },
-    { id: "s0-4", no: "0.4", title: "向文獻提問、確認文獻支持", desc: "回到 NotebookLM 以全文查證。選「具體問題」：把 0.3 的研究架構草案或研究缺口逐一當成問題，確認是否有文獻支持；還沒選定變數時選「研究主題」：由 AI 先提出問題再回答，用來釐清方向。步驟 2–6 用於追問構念界定與學術缺口、提出並組合研究架構、評估問卷可行性，以及查證實務情境與實務缺口。", steps: [
+    { id: "s0-4", no: "0.4", title: "向文獻提問、確認文獻支持", desc: "回到 NotebookLM 以全文查證。選「具體問題」：把 0.3 的研究架構草案或研究缺口逐一當成問題，確認是否有文獻支持；還沒選定變數時選「研究主題」：由 AI 先提出問題再回答，用來釐清方向。步驟 2–7 用於追問構念界定與學術缺口、提出並組合研究架構、評估問卷可行性，以及查證實務情境與實務缺口。", steps: [
       { mod: "lr", note: "一次問一組變數關係或一個研究缺口。回覆最後的支持程度總結若為「部分」或「不足」，回到 0.3 調整，或回到 0.1 補充關鍵字。", preset: { lr_start: "question" }, rules: ["citation", "verify", "support"] },
       { mod: "asc", note: "回覆看不懂、無法想像構念在研究情境中的樣貌，或要找學術缺口時使用。" },
       { mod: "asf", note: "變數與研究路線很多時使用：由 AI 提出幾個合理的研究架構，再由你挑選。" },
+      { mod: "asmore", note: "提出架構後接著問：補齊變數，並列出每個變數可擔任的所有角色。" },
       { mod: "asmix", note: "從候選架構中自行挑選變數、跨架構混搭，組成自己的研究架構。" },
       { mod: "asq", note: "研究方法選問卷調查法時使用：為選定的架構產出問卷草稿，並評估題數、樣本數、量表與施測風險。" },
       { mod: "asp", note: "把前面步驟文獻無法回答的事項交給一般 AI 查證，寫成研究情境、實務問題與實務缺口。" }] }
