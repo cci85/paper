@@ -101,7 +101,7 @@ function renderPickers(m, p) {
     box.innerHTML = opts.length ? f.roles.map(([r, label]) => {
       const vs = opts.filter(o => o.role === r).sort((a, b) => a.extra - b.extra);   // 架構中的變數在前，「未納入架構」在後
       return `<div class="pickrole"><small>${esc(label)}</small><div class="chips">${vs.length ? vs.map(o =>
-        `<label class="chip${o.extra ? " extra" : ""}" title="${esc([o.src, o.frames].filter(Boolean).join("｜"))}"><input type="checkbox" data-c="${f.id}" value="${esc(o.key)}" ${on.includes(o.key) ? "checked" : ""}>${esc(o.name)}${o.frames ? ` <small>${esc(o.frames)}</small>` : ""}</label>`).join("")
+        `<label class="chip${o.extra ? " extra" : ""}${o.def ? " hasdef" : ""}" title="${esc([o.src, o.frames].filter(Boolean).join("｜"))}"><input type="checkbox" data-c="${f.id}" value="${esc(o.key)}" ${on.includes(o.key) ? "checked" : ""}><span>${esc(o.name)}${o.frames ? ` <small>${esc(o.frames)}</small>` : ""}${o.def ? `<span class="def">${esc(o.def)}</span>` : ""}</span></label>`).join("")
         : `<small>（無）</small>`}</div></div>`;
     }).join("") : `<p class="hint">（貼上回覆後，這裡會列出可勾選的變數）</p>`;
   });
