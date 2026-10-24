@@ -65,7 +65,7 @@ function renderSection() {
 function renderPane() {
   const m = mod(), p = valuesOf(m), fixed = step().fixed || {};
   document.querySelector(".work main").classList.toggle("stack", !!m.stack);
-  const fields = m.fields.filter(f => !(f.id in fixed)).map(f => {
+  const fields = m.fields.filter(f => !(f.id in fixed) && (!f.when || f.when(p))).map(f => {   // when：依其他欄位決定是否顯示
     const lab = `<label class="f">${esc(f.label)}${f.hint ? ` <small>${esc(ref(f.hint))}</small>` : ""}</label>`;
     if (f.type === "radio") return lab + `<div class="chips">` + f.options.map(([v, t]) =>
       `<label class="chip"><input type="radio" name="${f.id}" data-f="${f.id}" value="${v}" ${p[f.id] === v ? "checked" : ""}>${esc(t)}</label>`).join("") + `</div>`;
@@ -139,7 +139,10 @@ $("pane").addEventListener("input", e => {
   const t = e.target;
   if (t.dataset.f) {
     store.values[vkey(t.dataset.f)] = t.value;
-    if (t.type === "radio") renderRules();   // 不同選項有各自的規則預設
+    if (t.type === "radio") {
+      if (mod().fields.some(f => f.when)) { renderPane(); }   // 有條件顯示的欄位時，重畫欄位
+      else renderRules();   // 不同選項有各自的規則預設
+    }
   } else if (t.dataset.c) {
     store.values[t.dataset.c] = [...document.querySelectorAll(`input[data-c="${t.dataset.c}"]:checked`)].map(x => x.value);
   } else if (t.dataset.r) {

@@ -140,17 +140,20 @@ const DEFS = {
   },
   asf: {
     label: "提出候選研究架構", target: "nlm",
-    hint: "接在{#asc}同一個對話。依上傳文獻提出數個彼此有明顯差異的研究架構，各附變數、理論與文獻支持，供你挑選。",
+    hint: "接在{#asc}同一個對話。可選擇依上傳文獻提出數個彼此有明顯差異的研究架構（各附變數、理論與文獻支持），或不寫架構、逐篇列出上傳文獻中的所有變數，供你在{#asmix}自行挑選。",
     fields: [
+      { id: "as_out", type: "radio", label: "輸出內容", options: [["frames", "研究架構＋變數清單"], ["list", "只列出所有變數"]], value: "frames" },
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
       { id: "as_con", type: "text", label: "要追問的構念", hint: "選填；不填時為上一段回覆中的核心構念", placeholder: "例如：短影音推薦系統特性" },
-      { id: "as_method", type: "radio", label: "研究方法", options: [["any", "不限"], ["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "次級資料"]], value: "survey" },
-      { id: "as_n", type: "radio", label: "架構數量", options: [["2", "2 個"], ["3", "3 個"], ["4", "4 個"]], value: "4" }
+      { id: "as_method", type: "radio", label: "研究方法", options: [["any", "不限"], ["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "次級資料"]], value: "survey", when: p => p.as_out !== "list" },
+      { id: "as_n", type: "radio", label: "架構數量", options: [["2", "2 個"], ["3", "3 個"], ["4", "4 個"]], value: "4", when: p => p.as_out !== "list" }
     ],
     rules: () => ["citation"],
-    build: (p, R) => blank(p.as_ctx) ? "" : T.ask_frame({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), method: p.as_method, n: p.as_n }) + R,
+    build: (p, R) => blank(p.as_ctx) ? "" : p.as_out === "list"
+      ? T.ask_varlist({ ctx: p.as_ctx.trim(), con: p.as_con.trim() }) + R
+      : T.ask_frame({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), method: p.as_method, n: p.as_n }) + R,
     empty: "（請填入研究情境）",
-    next: "下一步：要自行挑選變數、跨架構混搭時，到{#asmix}；挑選一個架構後，採問卷調查法時先到{#asq}評估可行性；再把{#asc}的完整回覆與選定的架構一起貼到{#asp}。"
+    next: "下一步：選「只列出所有變數」時，若回覆最後寫「未完」，在同一個對話輸入「繼續」，再把各次回覆一起貼到{#asmix}，網頁會自動合併。要自行挑選變數、跨架構混搭時，到{#asmix}；挑選一個架構後，採問卷調查法時先到{#asq}評估可行性；再把{#asc}的完整回覆與選定的架構一起貼到{#asp}。"
   },
   vdeep: {
     label: "深入了解單一變數", target: "nlm",
