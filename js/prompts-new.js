@@ -698,7 +698,7 @@ T.search_method = p => [
 ].join("\n");
 
 // 0.2 步驟 5：統計方法與結果揭露（NotebookLM，接在組合研究架構同一個對話）
-const RMETHOD = { survey: "問卷調查法", exp: "實驗設計法", sec: "次級資料分析" };
+const RMETHOD = { survey: "問卷調查法", exp: "實驗設計法", sec: "追蹤資料（panel data）分析" };
 T.ask_stats = p => [
   `延續上一段回覆，請針對前述我自行勾選組合的研究架構，依據上傳文獻，說明適合的統計方法與應揭露的實證結果。研究方法為${RMETHOD[p.rm] || "問卷調查法"}` + (p.data ? `；資料描述：${p.data}。` : "。"),
   "",

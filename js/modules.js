@@ -217,19 +217,19 @@ const DEFS = {
     label: "統計方法與結果揭露", target: "nlm",
     hint: "接在{#asmix}同一個對話。整理上傳文獻針對相近變數與路徑用過的統計方法，建議本研究適用的方法，並列出實證結果應揭露的項目；一般應報告但文獻未報告者標示【待補文獻】。",
     fields: [
-      { id: "as_rmethod", type: "radio", label: "研究方法", options: [["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "次級資料"]], value: "survey" },
+      { id: "as_rmethod", type: "radio", label: "研究方法", options: [["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "panel data"]], value: "survey" },
       { id: "as_data", type: "textarea", label: "資料描述", hint: "選填；資料來源、分析單位與特性", rows: 2, placeholder: "例如：非營利組織的捐款紀錄，捐款日期巢套於捐款者，很多人只有一筆捐款" }
     ],
     rules: () => ["citation"],
     build: (p, R) => T.ask_stats({ rm: p.as_rmethod, data: (p.as_data || "").trim() }) + R,
-    next: "下一步：研究方法為問卷調查法或實驗設計法時，到{#asq}；次級資料不需要問卷，可跳過。正式撰寫時，第三章用{#analysis}，第四章用{#stats}。"
+    next: "下一步：研究方法為問卷調查法或實驗設計法時，到{#asq}；panel data 不需要問卷，可跳過。正式撰寫時，第三章用{#analysis}，第四章用{#stats}。"
   },
   asq: {
     label: "問卷草稿與可行性評估", target: "nlm",
     hint: "接在{#astat}同一個對話，研究方法為問卷調查法或實驗設計法時使用；實驗設計法會另外產出操弄情境與操弄檢定。題項只取自上傳文獻，量表的原始論文須先上傳到 NotebookLM；找不到的會標示【待補量表】。",
     fields: [
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
-      { id: "as_rmethod", type: "radio", label: "研究方法", options: [["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "次級資料"]], value: "survey" },
+      { id: "as_rmethod", type: "radio", label: "研究方法", options: [["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "panel data"]], value: "survey" },
       { id: "as_archm", type: "radio", label: "選定的架構", options: [["mine", "我勾選組合的架構"], ["num", "候選架構編號"], ["other", "其他"]], value: "mine" },
       { id: "as_archno", type: "text", label: "架構編號", hint: "填數字即可", placeholder: "例如：2", when: p => p.as_archm === "num" },
       { id: "as_arch", type: "textarea", label: "其他架構", hint: "簡短描述即可，不要貼上整段回覆", rows: 2, placeholder: "例如：架構一加上消費者創新性作為調節變數", when: p => p.as_archm === "other" },
@@ -238,7 +238,7 @@ const DEFS = {
       { id: "as_amethod", type: "text", label: "分析方法", hint: "選填；不填時由 AI 依架構建議", placeholder: "例如：PLS-SEM" }
     ],
     rules: () => ["citation"],
-    status: p => p.as_rmethod === "sec" ? "研究方法為次級資料時不需要問卷草稿，可跳過此步驟。" : p.as_archm === "other" && (p.as_arch || "").trim().length > 300 ? "「其他架構」內容過長，NotebookLM 可能無法讀取；同一個對話中簡短描述即可。" : "",
+    status: p => p.as_rmethod === "sec" ? "研究方法為 panel data 時不需要問卷草稿，可跳過此步驟。" : p.as_archm === "other" && (p.as_arch || "").trim().length > 300 ? "「其他架構」內容過長，NotebookLM 可能無法讀取；同一個對話中簡短描述即可。" : "",
     build: (p, R) => {
       const arch = archLabel(p);
       return blank(p.as_ctx) || !arch || p.as_rmethod === "sec" ? "" : T.ask_survey({ exp: p.as_rmethod === "exp", ctx: p.as_ctx.trim(), arch, target: p.as_target.trim(), scale: p.as_scale.trim(), method: p.as_amethod.trim() }) + R;
@@ -484,7 +484,7 @@ const OUTLINE = [
       { mod: "asmore", note: "提出架構後接著問：補齊變數，並列出每個變數可擔任的所有角色。" },
       { mod: "asmix", note: "從候選架構中自行挑選變數、跨架構混搭，組成自己的研究架構。" },
       { mod: "astat", note: "選定變數與資料之後：確認文獻用過的統計方法、本研究適用的方法，以及實證結果應揭露哪些項目。" },
-      { mod: "asq", note: "研究方法為問卷調查法或實驗設計法時使用：產出問卷草稿，並評估題數、樣本數、量表與施測風險；次級資料可跳過。" }] }
+      { mod: "asq", note: "研究方法為問卷調查法或實驗設計法時使用：產出問卷草稿，並評估題數、樣本數、量表與施測風險；panel data 可跳過。" }] }
   ] },
   { ch: "第一章 緒論", secs: [
     { id: "s1-1", no: "1.1", title: "研究背景與動機", desc: "由產業現象收斂到文獻缺口。", steps: [
