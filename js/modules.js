@@ -175,6 +175,19 @@ const DEFS = {
     empty: "（請填入至少兩個變數，每行一個）",
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。若判斷為前後因果，可回到{#asmix}調整勾選；要深入了解其中一個變數，用{#vdeep}。"
   },
+  smethod: {
+    label: "方法導向檢索", target: "ai",
+    hint: "要找特定領域、使用特定統計方法的量化研究時使用。AI 只產生同義名稱、關鍵字、期刊名稱與檢索式，不列出文獻，以免捏造；檢索式拿去 Google Scholar 或 Scholar Labs 使用。",
+    fields: [
+      { id: "sm_field", type: "text", label: "研究領域", placeholder: "例如：行銷、消費者行為、人力資源管理" },
+      { id: "sm_method", type: "text", label: "統計方法", hint: "建議附英文", placeholder: "例如：多層次模型（multilevel model）" },
+      { id: "sm_topic", type: "text", label: "研究主題或變數", hint: "選填；填了會讓檢索式更聚焦", placeholder: "例如：店家特性對購買意願的跨層次影響" },
+      { id: "sm_excl", type: "text", label: "要排除的領域", hint: "選填；該方法常見但與你無關的領域", placeholder: "例如：教育、護理" }
+    ],
+    build: p => blank(p.sm_field) || blank(p.sm_method) ? "" : T.search_method({ field: p.sm_field.trim(), method: p.sm_method.trim(), topic: p.sm_topic.trim(), excl: p.sm_excl.trim() }),
+    empty: "（請填入研究領域與統計方法）",
+    next: "下一步：檢索式貼到 Google Scholar（scholar.google.com），研究問題一次一個貼到 Scholar Labs。找到的論文先看摘要與方法章節，確認確實使用該方法，再上傳到 NotebookLM。"
+  },
   asmix: {
     label: "組合研究架構", target: "nlm", stack: true,   // stack：欄位佔滿寬度，Prompt 放在下方
     hint: "在本頁貼上{#asf}與{#asmore}的回覆，依「變數清單」勾選要用的變數，可跨架構混搭；同一變數有多種角色時，會出現在各角色組中，由你決定位置；標示「推論」者為文獻尚未以此角色研究過的位置。產生的 Prompt 貼回同一個 NotebookLM 對話，確認路徑與文獻支持，並產生 Google Scholar Labs 的英文檢索問題。",
@@ -437,6 +450,10 @@ const OUTLINE = [
       { mod: "vdeep", note: "一次問一個變數；文獻不足時，先針對這個變數補上傳文獻再問。「施測情境」常因原文只簡短交代而標示「未提及」，請回到原文的方法章節或附錄查看。" }] },
     { id: "q-vcomp", no: "", title: "區辨相近變數", desc: "兩個以上的變數看起來很像，想分辨它們在研究架構上的異同時使用。", steps: [
       { mod: "vcomp", note: "每行填一個變數；可直接從組合研究架構的勾選區複製名稱。" }] }
+  ] },
+  { ch: "文獻檢索", quick: true, secs: [
+    { id: "r-method", no: "", title: "方法導向檢索", desc: "找特定領域、使用特定統計方法的量化研究：產生方法的同義名稱、期刊名稱、Google Scholar 檢索式與 Scholar Labs 研究問題。", steps: [
+      { mod: "smethod", note: "貼到一般 AI 對話即可，不需要上傳文獻。" }] }
   ] },
   { ch: "第零章 研究準備", secs: [
     { id: "s0-1", no: "0.1", title: "主題探索", desc: "還沒讀文獻、只有一個想研究的現象時，從這裡開始：聚焦研究問題與關鍵字 → 建立文獻比較表 → 選定變數與研究缺口。步驟 3–6 為選用，要看整批文獻的全貌時再做。產出的研究架構草案可到 0.2 回到全文查證。", steps: [
