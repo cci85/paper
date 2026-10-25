@@ -211,13 +211,25 @@ const DEFS = {
       return n ? `已讀取 ${n} 個變數` : "沒有讀取到變數，請確認貼上的內容包含「變數清單」，且每行為「角色｜變數名稱｜出處｜架構」。";
     },
     empty: "（請貼上上一步的回覆，並勾選要用的變數）",
-    next: "下一步：貼回同一個 NotebookLM 對話。回覆中的英文問題一次一個貼到 Google Scholar Labs（scholar.google.com 的 Labs），找到的文獻上傳到同一個 Notebook。確認組合可行後，到{#asq}時「選定的架構」選「我勾選組合的架構」；要查實務面時，把本步驟的完整回覆貼到{#asp}。"
+    next: "下一步：貼回同一個 NotebookLM 對話。回覆中的英文問題一次一個貼到 Google Scholar Labs（scholar.google.com 的 Labs），找到的文獻上傳到同一個 Notebook。確認組合可行後，到{#astat}確認統計方法；要查實務面時，把本步驟的完整回覆貼到{#asp}。"
+  },
+  astat: {
+    label: "統計方法與結果揭露", target: "nlm",
+    hint: "接在{#asmix}同一個對話。整理上傳文獻針對相近變數與路徑用過的統計方法，建議本研究適用的方法，並列出實證結果應揭露的項目；一般應報告但文獻未報告者標示【待補文獻】。",
+    fields: [
+      { id: "as_rmethod", type: "radio", label: "研究方法", options: [["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "次級資料"]], value: "survey" },
+      { id: "as_data", type: "textarea", label: "資料描述", hint: "選填；資料來源、分析單位與特性", rows: 2, placeholder: "例如：非營利組織的捐款紀錄，捐款日期巢套於捐款者，很多人只有一筆捐款" }
+    ],
+    rules: () => ["citation"],
+    build: (p, R) => T.ask_stats({ rm: p.as_rmethod, data: (p.as_data || "").trim() }) + R,
+    next: "下一步：研究方法為問卷調查法或實驗設計法時，到{#asq}；次級資料不需要問卷，可跳過。正式撰寫時，第三章用{#analysis}，第四章用{#stats}。"
   },
   asq: {
     label: "問卷草稿與可行性評估", target: "nlm",
-    hint: "接在{#asf}同一個對話，選定一個架構後使用。題項只取自上傳文獻，量表的原始論文須先上傳到 NotebookLM；找不到的會標示【待補量表】。",
+    hint: "接在{#astat}同一個對話，研究方法為問卷調查法或實驗設計法時使用；實驗設計法會另外產出操弄情境與操弄檢定。題項只取自上傳文獻，量表的原始論文須先上傳到 NotebookLM；找不到的會標示【待補量表】。",
     fields: [
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
+      { id: "as_rmethod", type: "radio", label: "研究方法", options: [["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "次級資料"]], value: "survey" },
       { id: "as_archm", type: "radio", label: "選定的架構", options: [["mine", "我勾選組合的架構"], ["num", "候選架構編號"], ["other", "其他"]], value: "mine" },
       { id: "as_archno", type: "text", label: "架構編號", hint: "填數字即可", placeholder: "例如：2", when: p => p.as_archm === "num" },
       { id: "as_arch", type: "textarea", label: "其他架構", hint: "簡短描述即可，不要貼上整段回覆", rows: 2, placeholder: "例如：架構一加上消費者創新性作為調節變數", when: p => p.as_archm === "other" },
@@ -226,13 +238,13 @@ const DEFS = {
       { id: "as_amethod", type: "text", label: "分析方法", hint: "選填；不填時由 AI 依架構建議", placeholder: "例如：PLS-SEM" }
     ],
     rules: () => ["citation"],
-    status: p => p.as_archm === "other" && (p.as_arch || "").trim().length > 300 ? "「其他架構」內容過長，NotebookLM 可能無法讀取；同一個對話中簡短描述即可。" : "",
+    status: p => p.as_rmethod === "sec" ? "研究方法為次級資料時不需要問卷草稿，可跳過此步驟。" : p.as_archm === "other" && (p.as_arch || "").trim().length > 300 ? "「其他架構」內容過長，NotebookLM 可能無法讀取；同一個對話中簡短描述即可。" : "",
     build: (p, R) => {
       const arch = archLabel(p);
-      return blank(p.as_ctx) || !arch ? "" : T.ask_survey({ ctx: p.as_ctx.trim(), arch, target: p.as_target.trim(), scale: p.as_scale.trim(), method: p.as_amethod.trim() }) + R;
+      return blank(p.as_ctx) || !arch || p.as_rmethod === "sec" ? "" : T.ask_survey({ exp: p.as_rmethod === "exp", ctx: p.as_ctx.trim(), arch, target: p.as_target.trim(), scale: p.as_scale.trim(), method: p.as_amethod.trim() }) + R;
     },
     empty: "（請填入研究情境，並指定選定的架構）",
-    next: "下一步：【待補量表】的構念，請找到量表原始論文上傳後再問一次；確認可行後，到{#asp}查證實務面。正式撰寫第三章時，用{#opdef}整理量表。"
+    next: "下一步：【待補量表】的構念，請找到量表原始論文上傳後再問一次。正式撰寫第三章時，用{#opdef}整理量表；要查實務面時，到{#asp}。"
   },
   asp: {
     label: "研究情境與實務缺口", target: "ai",
@@ -466,17 +478,18 @@ const OUTLINE = [
       { mod: "m7b", note: "選用：把上一步的關係圖補好圍籬，貼進 Obsidian。" },
       { mod: "m5c", note: "選用：同一個對話接續，找出整批文獻的研究缺口與研究主題建議。" },
       { mod: "gapsel", note: "準備{#matrix}匯出的試算表。依提問逐步選擇；搭橋檢索若發現已有研究，回到{#focus}補充關鍵字。" }] },
-    { id: "s0-4", no: "0.2", title: "向文獻提問、確認文獻支持", desc: "回到 NotebookLM 以全文查證。選「具體問題」：把 0.1 產出的研究架構草案或研究缺口逐一當成問題，確認是否有文獻支持；還沒選定變數時選「研究主題」：由 AI 先提出問題再回答，用來釐清方向。步驟 2–6 用於提出並組合研究架構、評估問卷可行性，以及查證實務情境與實務缺口。", steps: [
+    { id: "s0-4", no: "0.2", title: "向文獻提問、確認文獻支持", desc: "回到 NotebookLM 以全文查證。選「具體問題」：把 0.1 產出的研究架構草案或研究缺口逐一當成問題，確認是否有文獻支持；還沒選定變數時選「研究主題」：由 AI 先提出問題再回答，用來釐清方向。步驟 2–6 用於提出並組合研究架構、確認統計方法與應揭露的實證結果，以及撰寫問卷草稿（問卷調查法、實驗設計法適用）。", steps: [
       { mod: "lr", note: "一次問一組變數關係或一個研究缺口。回覆最後的支持程度總結若為「部分」或「不足」，回到 0.1 調整變數或補充關鍵字。", preset: { lr_start: "question" }, rules: ["citation", "verify", "support"] },
       { mod: "asf", note: "變數與研究路線很多時使用：由 AI 提出幾個合理的研究架構，再由你挑選。" },
       { mod: "asmore", note: "提出架構後接著問：補齊變數，並列出每個變數可擔任的所有角色。" },
       { mod: "asmix", note: "從候選架構中自行挑選變數、跨架構混搭，組成自己的研究架構。" },
-      { mod: "asq", note: "研究方法選問卷調查法時使用：為選定的架構產出問卷草稿，並評估題數、樣本數、量表與施測風險。" },
-      { mod: "asp", note: "把前面步驟文獻無法回答的事項交給一般 AI 查證，寫成研究情境、實務問題與實務缺口。" }] }
+      { mod: "astat", note: "選定變數與資料之後：確認文獻用過的統計方法、本研究適用的方法，以及實證結果應揭露哪些項目。" },
+      { mod: "asq", note: "研究方法為問卷調查法或實驗設計法時使用：產出問卷草稿，並評估題數、樣本數、量表與施測風險；次級資料可跳過。" }] }
   ] },
   { ch: "第一章 緒論", secs: [
     { id: "s1-1", no: "1.1", title: "研究背景與動機", desc: "由產業現象收斂到文獻缺口。", steps: [
-      { mod: "bg", note: "準備研究架構、手邊的產業數據，以及 0.1 選定的研究缺口。" }], finish: FIN_FULL },
+      { mod: "asp", note: "先查實務面：把{#asmix}的完整回覆交給有網路搜尋的 AI，寫成研究情境、實務問題與實務缺口。" },
+      { mod: "bg", note: "準備研究架構、手邊的產業數據，以及 0.1 選定的研究缺口；上一步的研究情境與實務問題可貼到「產業或實務背景資料」。" }], finish: FIN_FULL },
     { id: "s1-2", no: "1.2", title: "研究目的與問題", desc: "研究目的要對應動機，研究問題要能由假說回答。", steps: [
       { mod: "purpose", note: "準備研究架構（假說清單）與 1.1 寫好的研究動機。" }], finish: FIN_FULL },
     { id: "s1-3", no: "1.3", title: "名詞釋義", desc: "界定本研究主要構念的意涵。", steps: [
