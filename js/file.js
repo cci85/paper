@@ -7,7 +7,7 @@ const DATA_TAG = "paper-data";
 const NOTE_START = "<!-- 我的筆記：以下可自由編輯，網頁存檔時會保留 -->";
 const NOTE_END = "<!-- 我的筆記結束 -->";
 const NOTE_EMPTY = "（在這裡寫下你的筆記）";
-const PNG_NAME = { ac_diag: "架構圖", as_diag: "組合架構圖" };
+const PNG_NAME = { ac_diag: "架構圖", as_diag: "組合架構圖", ow_diag: "自訂架構圖" };
 
 const proj = { dir: null, dirName: "", file: "", lastMod: 0, lastPayload: "", pngSig: {}, conflict: false, busy: false, timer: 0 };
 
@@ -196,7 +196,7 @@ window.onStoreSave = () => {
 // ── 讀入 ──
 function applyData(d, fileName, lastMod) {
   store.name = d.name || (fileName || "").replace(/\.md$/i, "");
-  store.values = d.values || {}; store.rules = d.rules || {}; store.replies = d.replies || {};
+  store.values = d.values || {}; store.rules = d.rules || {}; store.replies = migrateReplies(d.replies || {});
   proj.file = fileName || ""; proj.lastMod = lastMod || 0; proj.lastPayload = payloadOf(); proj.pngSig = {}; proj.conflict = false;
   hideConflict();
   $("pname").value = store.name;

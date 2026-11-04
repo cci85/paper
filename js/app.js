@@ -18,6 +18,17 @@ try {
   if (store.values.st_hyps && !store.values.hy_paths) store.values.hy_paths = store.values.st_hyps;
   store.migrated = true;
 } catch {}
+// 2026-11 第零章重整：步驟移到新的節，AI 回覆跟著搬（舊存檔讀入時也會套用）
+const REPLY_MOVE = { "s0-1|gapsel": "s0-4|gapsel", "s0-4|lr": "s2-2|lr", "s0-4|astat": "s0-6|astat", "s0-4|asq": "s0-6|asq" };
+function migrateReplies(r) {
+  if (!r) return r;
+  Object.entries(REPLY_MOVE).forEach(([a, b]) => {
+    if (a in r) { if (blank(r[b])) r[b] = r[a]; delete r[a]; }
+  });
+  return r;
+}
+migrateReplies(store.replies);
+if (store.layout !== 2) { delete store.step["s0-1"]; delete store.step["s0-4"]; store.layout = 2; }
 if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} if (window.onStoreSave) window.onStoreSave(); };
 

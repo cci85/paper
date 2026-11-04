@@ -389,8 +389,8 @@ const GAPSEL_STEP4 = `最後，請我從上述研究缺口候選中選擇一個�
 
 步驟四｜研究架構草案
 依我選定的研究缺口，輸出研究架構草案：
-1. 變數角色：列出本研究的自變數、中介變數、調節變數與依變數（沒有者標示「無」），並標註各變數出自哪些文獻。
-2. 路徑清單：以「H1：X → Y（方向）」的格式逐行列出，中介與調節路徑分開列出。表格中已有文獻檢驗的路徑，方向依表格結果填寫並標註文獻；尚無文獻檢驗的路徑，方向一律寫「待文獻確認」，並標示「文獻未涵蓋」。路徑清單整段放在一個程式碼區塊中，方便我複製。
+1. 變數角色：另起一節「## 變數」，每行一個變數，格式為：角色｜中文名稱（英文原文）｜出處文獻。角色只能填「自變數」「中介變數」「調節變數」「依變數」「控制變數」之一。
+2. 路徑清單：另起一節「## 路徑」，每行一條路徑，格式為：H1｜X → Y｜方向（正向／負向／未標示）；調節路徑寫成：H5｜調節變數 × （X → Y）｜方向。中介路徑拆成兩條直接路徑列出。這兩節不使用表格、條列符號或程式碼區塊。表格中已有文獻檢驗的路徑，方向依表格結果填寫並標註文獻；尚無文獻檢驗的路徑，方向一律寫「待文獻確認」，並標示「文獻未涵蓋」。路徑清單整段放在一個程式碼區塊中，方便我複製。
 3. 理論對應：每條路徑可用來說明的理論與出處文獻；表格中沒有合適的理論，標示「表格未載，需另尋理論」。
 4. 量表對應：每個變數可採用的量表、維度與出處文獻；表格中沒有者，標示「表格未載」。
 5. 待確認清單：列出進入正式撰寫前需要確認的事項，例如需要搭橋檢索的路徑、需另尋的理論與量表。
@@ -529,18 +529,17 @@ T.ask_mix = p => {
     "",
     "請依據上傳文獻，針對此組合完成以下工作：",
     ...((p.paths || []).length ? [
-      "1. 路徑檢核：以下是我設定的研究路徑，請逐條依據上傳文獻與理論檢核其合理性，包括方向是否正確、變數角色是否恰當；並說明應刪除、修改或增加的路徑及理由，但不得自行更動我選定的變數。",
+      "1. 研究路徑：以下是我設定的研究路徑，請以此為準完成後續各項；路徑的合理性另行檢核，此處不需評論。",
       ...p.paths.map(x => "   - " + x)
     ] : ["1. 路徑推導：說明變數之間合理的影響路徑，包括各中介變數位於哪些自變數與依變數之間、各調節變數調節哪一條路徑，並說明推導所依據的理論與文獻。"]),
     "2. 文獻支持：逐條列出各路徑，說明上傳文獻中是否已有實證研究支持，已有者附上出處，尚無者標示「尚無實證」。",
-    "3. 組合檢討：指出此組合可能的問題，例如變數概念重疊、中介或調節角色在文獻中不一致、缺乏統合的理論基礎、變數過多而難以執行等，並提出調整建議，但不得自行更動我選定的變數。",
-    "4. 可回應的研究缺口：說明此組合可回應的研究缺口，並附上判斷所依據的文獻；缺口須具體指向此組合中的變數或路徑，不得為一般性的缺口。",
-    "5. Scholar Labs 檢索問題：依上述路徑，以英文撰寫可直接貼入 Google Scholar Labs 的研究問題。",
+    "3. 可回應的研究缺口：說明此組合可回應的研究缺口，並附上判斷所依據的文獻；缺口須具體指向此組合中的變數或路徑，不得為一般性的缺口。",
+    "4. Scholar Labs 檢索問題：依上述路徑，以英文撰寫可直接貼入 Google Scholar Labs 的研究問題。",
     "   (1) 先寫一個涵蓋整體架構的問題。",
     "   (2) 再為每一條路徑各寫一個問題；標示「尚無實證」或【待補文獻】的路徑必須涵蓋，並排在前面。",
     "   (3) 每個問題須為一個完整英文問句，包含變數的英文學術名稱、變數之間的關係（影響、中介或調節），以及研究情境。",
     "   (4) 每個問題下方以一行中文說明此問題要找的文獻。",
-    "6. 無法由上傳文獻回答之事項：逐行列出說明此組合的研究情境、實務問題與實務缺口時所需、但上傳文獻未提供的資訊（例如研究情境中的實際運作方式、相關做法、產業數據），每行一項，格式為：事項｜需要此資訊的原因。",
+    "5. 無法由上傳文獻回答之事項：逐行列出說明此組合的研究情境、實務問題與實務缺口時所需、但上傳文獻未提供的資訊（例如研究情境中的實際運作方式、相關做法、產業數據），每行一項，格式為：事項｜需要此資訊的原因。",
     "",
     "限制：只能使用上傳文獻中出現的理論與證據；若某條路徑需要上傳文獻以外的支持，請標示【待補文獻】。用詞一律使用「變數」，不得使用「變項」。變數關係一律以純文字箭頭「→」表示，不得使用 LaTeX 等數學語法（例如 $\\rightarrow$）；Mermaid 程式碼區塊內仍依 Mermaid 語法使用 -->。"
   ].join("\n");
@@ -879,3 +878,43 @@ function archText(A, d) {
   });
   return lines.join("\n");
 }
+
+
+// ── 研究架構的來源：0.3 可直接沿用 0.2 路線 B（組合研究架構）或路線 C（自行設計）的架構 ──
+// 轉成 0.3 的文字格式（## 變數／## 路徑），供解析與畫圖
+function archFromDiagram(vars, d, roleOf) {
+  if (!vars.length) return "";
+  const roleZh = Object.fromEntries(ARCH_ROLE.map(r => [r[0], r[1]]));
+  const { by, edges, mods } = dgPaths(vars, { pos: {}, edges: (d && d.edges) || [], mods: (d && d.mods) || [] });
+  const nm = k => dgLabel(by[k].name)[0];
+  let n = 0;
+  return [
+    "## 變數", ...vars.map(v => `${roleZh[roleOf(v)] || "自變數"}｜${v.name}`), "", "## 路徑",
+    ...edges.map(e => `H${++n}｜${nm(e.from)} → ${nm(e.to)}｜未標示`),
+    ...mods.map(m => { const [a, b] = m.edge.split(">"); return `H${++n}｜${nm(m.from)} × （${nm(a)} → ${nm(b)}）｜未標示`; })
+  ].join("\n");
+}
+const mixArchText = () => {
+  const v = store.values, on = new Set(v.as_pick || []);
+  return archFromDiagram(parseVarList(v.as_vlist).filter(x => on.has(x.key)), v.as_diag, x => x.role);
+};
+// 路線 C：每行「角色｜變數名稱（英文）」；角色可省略，省略時依箭頭判斷
+function parseOwnVars(text) {
+  const out = [], seen = new Set();
+  (text || "").split(/\r?\n/).forEach(raw => {
+    const line = raw.replace(/^[\s\-*•]+|^\d+[.、)]\s*/g, "").trim(); if (!line) return;
+    const cells = line.split(/\s*[｜|\t]\s*/).filter(Boolean);
+    const r = cells.length > 1 ? ARCH_ROLE.find(x => x[2].test(cells[0])) : null;
+    const name = (r ? cells[1] : cells[0]).trim(), key = archKey(name);
+    if (!key || seen.has(key)) return;
+    seen.add(key); out.push({ key, name, role: r ? r[0] : "" });
+  });
+  return out;
+}
+const ownRole = (v, d) => v.role || (() => {
+  const e = (d && d.edges) || [], out = e.some(x => x.from === v.key), inn = e.some(x => x.to === v.key);
+  return ((d && d.mods) || []).some(m => m.from === v.key) && !out && !inn ? "mod" : out && inn ? "med" : inn ? "dv" : "iv";
+})();
+const ownArchText = () => { const v = store.values, vars = parseOwnVars(v.ow_vars); return archFromDiagram(vars, v.ow_diag, x => ownRole(x, v.ow_diag)); };
+// 0.3 實際使用的架構文字
+const archSrcText = p => p.ac_src === "mix" ? mixArchText() : p.ac_src === "own" ? ownArchText() : (p.ac_arch || "");
