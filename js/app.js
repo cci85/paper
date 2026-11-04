@@ -4,7 +4,7 @@ const blank = s => !s || !String(s).trim();
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 const KEY = "research-prompts-v3";
-let store = { values: {}, rules: {}, sec: "s0-1", step: {} };
+let store = { values: {}, rules: {}, replies: {}, name: "", sec: "s0-1", step: {} };
 try { Object.assign(store, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch {}
 // 沿用舊版已填的欄位與規則勾選
 try {
@@ -19,7 +19,7 @@ try {
   store.migrated = true;
 } catch {}
 if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} };
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} if (window.onStoreSave) window.onStoreSave(); };
 
 const sec = () => ALL_SECS.find(s => s.id === store.sec);
 const steps = () => stepsOf(sec());
@@ -27,6 +27,7 @@ const stepIdx = () => Math.min(store.step[store.sec] || 0, steps().length - 1);
 const step = () => steps()[stepIdx()];
 const mod = () => DEFS[step().mod];
 const ref = s => fillRefs(s || "", sec());
+const replyKey = () => store.sec + "|" + step().mod;   // 每一步的 AI 回覆（存檔用）
 
 // 欄位值：此步驟固定的值優先，其次是使用者填的，再來是此步驟的預設（preset），最後是模組預設值
 // 有 preset 的欄位依節分別記住，不影響其他節
@@ -82,7 +83,10 @@ function renderPane() {
     <p class="hint">${esc(ref(m.hint))}</p>${fields}
     ${m.rules ? `<fieldset class="struct"><legend>附加共用規則</legend><div class="chips" id="rules"></div>
       <p class="hint" style="margin:8px 0 0">${step().rules ? "本節預設精簡組合；勾選會依本節分別記住。" : "預設沿用原本的組合；勾選會依模組分別記住。"}</p></fieldset>` : ""}
-    <div class="note" id="status"></div>`;
+    <div class="note" id="status"></div>
+    ${m.target === "tool" ? "" : `<fieldset class="struct reply"><legend>AI 回覆</legend>
+      <p class="hint" style="margin:0 0 6px">選填；貼上這一步的 AI 回覆，會一併存入研究存檔，不影響上方的 Prompt。</p>
+      <textarea data-reply="1" rows="5" placeholder="把 AI 的回覆貼在這裡">${esc((store.replies || {})[replyKey()] || "")}</textarea></fieldset>`}`;
   renderRules();
 }
 
@@ -139,6 +143,7 @@ $("sechead").addEventListener("click", e => {
 });
 $("pane").addEventListener("input", e => {
   const t = e.target;
+  if (t.dataset.reply) { (store.replies ||= {})[replyKey()] = t.value; save(); return; }
   if (t.dataset.f) {
     store.values[vkey(t.dataset.f)] = t.value;
     if (t.type === "radio") {

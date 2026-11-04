@@ -232,19 +232,26 @@ function diagramAction(f, act) {
   update();
 }
 
+// 架構圖轉成 PNG（2 倍解析度）
+function diagramBlob(vars, d) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas"); c.width = DG.W * 2; c.height = DG.H * 2;
+      c.getContext("2d").drawImage(img, 0, 0);
+      c.toBlob(b => b ? res(b) : rej(new Error("無法產生 PNG")), "image/png");
+    };
+    img.onerror = () => rej(new Error("無法產生 PNG"));
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(dgSvg(vars, d, null, true));
+  });
+}
+
 function downloadDiagram(vars, d) {
   if (!vars.length) return;
-  const svg = dgSvg(vars, d, null, true);
-  const img = new Image();
-  img.onload = () => {
-    const c = document.createElement("canvas"); c.width = DG.W * 2; c.height = DG.H * 2;
-    c.getContext("2d").drawImage(img, 0, 0);
-    c.toBlob(b => {
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(b); a.download = "research-framework.png";
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    }, "image/png");
-  };
-  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  diagramBlob(vars, d).then(b => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(b); a.download = "research-framework.png";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  });
 }

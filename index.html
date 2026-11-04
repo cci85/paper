@@ -5,15 +5,26 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>論文 Prompt 產生器</title>
-<link rel="stylesheet" href="style.css?v=202611041600">
+<link rel="stylesheet" href="style.css?v=202611041700">
 </head>
 <body>
 <header class="top">
   <h1>論文 Prompt 產生器</h1>
-  <p>從左側目錄選擇正在寫的章節 → 依步驟產生 Prompt → 按「複製」貼到指定的 AI。欄位內容只記在這台電腦的這個瀏覽器裡。</p>
+  <p>從左側目錄選擇正在寫的章節 → 依步驟產生 Prompt → 按「複製」貼到指定的 AI。欄位內容會記在這個瀏覽器裡；選擇存檔資料夾後，會自動存成研究存檔（.md），可在其他電腦開啟。</p>
   <div class="legend">
     <span><span class="tag t-nlm">NotebookLM</span>需先上傳文獻，AI 只依文獻回答</span>
     <span><span class="tag t-ai">一般 AI</span>Claude、ChatGPT、Gemini 等，不需上傳文獻</span>
+  </div>
+  <div class="pbar" id="pbar">
+    <label class="pn">研究名稱<input type="text" id="pname" placeholder="例如：抖音衝動購買" autocomplete="off"></label>
+    <button type="button" id="pdir">選擇存檔資料夾</button>
+    <button type="button" id="popen">開啟存檔</button>
+    <button type="button" id="pnew">新研究</button>
+    <button type="button" id="presume" class="warn" hidden></button>
+    <span class="pstat" id="pstat"></span>
+    <div class="plist" id="plist" hidden></div>
+    <div class="pconflict" id="pconflict" hidden></div>
+    <input type="file" id="pupload" accept=".md,text/markdown" hidden>
   </div>
 </header>
 
@@ -36,11 +47,12 @@
 </div>
 
 <!-- 一般 script（非 ES module），雙擊本機檔案開啟也能用 -->
-<script src="js/prompts.js?v=202611041600"></script>
-<script src="js/prompts-new.js?v=202611041600"></script>
-<script src="js/fence.js?v=202611041600"></script>
-<script src="js/modules.js?v=202611041600"></script>
-<script src="js/diagram.js?v=202611041600"></script>
-<script src="js/app.js?v=202611041600"></script>
+<script src="js/prompts.js?v=202611041700"></script>
+<script src="js/prompts-new.js?v=202611041700"></script>
+<script src="js/fence.js?v=202611041700"></script>
+<script src="js/modules.js?v=202611041700"></script>
+<script src="js/diagram.js?v=202611041700"></script>
+<script src="js/app.js?v=202611041700"></script>
+<script src="js/file.js?v=202611041700"></script>
 </body>
 </html>
