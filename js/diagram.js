@@ -20,16 +20,26 @@ function dgSize(v) {
   return { w, h: en ? 54 : 40, cn, en };
 }
 
-// 依角色自動排列：自變數左、中介中、依變數右、調節上
+// 依角色自動排列：自變數左、中介中、依變數右、調節上、控制下
 function dgAutoPos(vars, pos, force) {
   const col = { iv: 130, med: 500, dv: 870 };
-  const groups = { iv: [], med: [], dv: [], mod: [] };
-  vars.forEach(v => groups[v.role].push(v));
+  const groups = { iv: [], med: [], dv: [], mod: [], ctrl: [] };
+  vars.forEach(v => (groups[v.role] || groups.iv).push(v));
   ["iv", "med", "dv"].forEach(r => {
     const g = groups[r], top = 150, span = DG.H - top - 40;
     g.forEach((v, i) => { if (force || !pos[v.key]) pos[v.key] = { x: col[r], y: top + span * (i + 0.5) / g.length }; });
   });
   groups.mod.forEach((v, i) => { if (force || !pos[v.key]) pos[v.key] = { x: DG.W * (i + 1) / (groups.mod.length + 1), y: 55 }; });
+  groups.ctrl.forEach((v, i) => { if (force || !pos[v.key]) pos[v.key] = { x: DG.W * (i + 1) / (groups.ctrl.length + 1), y: DG.H - 35 }; });
+}
+
+// 欄位有 seed（由文字解析出的箭頭）時：文字內容變動才依文字重設箭頭，否則保留圖上的手動修改
+function dgSeed(f, p) {
+  const d = dgData(f.id);
+  if (!f.seed) return d;
+  const s = f.seed(p);
+  if (d.sig !== s.sig) { d.sig = s.sig; d.edges = s.edges.map(e => ({ ...e })); d.mods = s.mods.map(m => ({ ...m })); }
+  return d;
 }
 
 // 從中心 a 指向 b 的線段，裁切在方塊邊緣
@@ -115,7 +125,7 @@ function dgSvg(vars, d, sel, forExport) {
   vars.forEach(v => {
     const p = P[v.key], z = S[v.key], on = !forExport && sel === v.key;
     s += `<g ${forExport ? "" : `data-box="${esc(v.key)}" style="cursor:grab"`}>
-<rect x="${p.x - z.w / 2}" y="${p.y - z.h / 2}" width="${z.w}" height="${z.h}" rx="8" fill="${on ? DG.sel : "#fff"}" stroke="${v.role === "mod" ? DG.mod : DG.box}" stroke-width="${on ? 3 : 1.6}"/>
+<rect x="${p.x - z.w / 2}" y="${p.y - z.h / 2}" width="${z.w}" height="${z.h}" rx="8" fill="${on ? DG.sel : "#fff"}" stroke="${v.role === "mod" ? DG.mod : v.role === "ctrl" ? DG.sub : DG.box}" stroke-width="${on ? 3 : 1.6}"${v.role === "ctrl" ? ` stroke-dasharray="5 4"` : ""}/>
 <text x="${p.x}" y="${p.y + (z.en ? -4 : 5)}" text-anchor="middle" font-size="15" fill="${DG.text}">${esc(z.cn)}</text>` +
       (z.en ? `<text x="${p.x}" y="${p.y + 15}" text-anchor="middle" font-size="11" fill="${DG.sub}">${esc(z.en)}</text>` : "") + `</g>`;
   });
@@ -129,9 +139,9 @@ function dgSvg(vars, d, sel, forExport) {
 const dgSel = {};
 function renderDiagram(f, p) {
   const box = $("diag-" + f.id); if (!box) return;
-  const vars = f.source(p), d = dgData(f.id);
+  const vars = f.source(p), d = dgSeed(f, p);
   dgAutoPos(vars, d.pos, false);
-  if (!vars.length) { box.innerHTML = `<p class="hint">（勾選變數後，這裡會出現方塊）</p>`; return; }
+  if (!vars.length) { box.innerHTML = `<p class="hint">${esc(f.emptyHint || "（勾選變數後，這裡會出現方塊）")}</p>`; return; }
   if (dgSel[f.id] && !vars.some(v => v.key === dgSel[f.id])) dgSel[f.id] = null;
   box.innerHTML = dgSvg(vars, d, dgSel[f.id], false);
   if (box.dataset.wired) return;
@@ -217,6 +227,7 @@ function diagramAction(f, act) {
   const d = dgData(f.id), vars = f.source(valuesOf(mod()));
   if (act === "layout") dgAutoPos(vars, d.pos, true);
   if (act === "clear") { d.edges = []; d.mods = []; dgSel[f.id] = null; }
+  if (act === "reset") { d.sig = null; dgSel[f.id] = null; dgAutoPos(vars, d.pos, true); }
   if (act === "png") return downloadDiagram(vars, d);
   update();
 }

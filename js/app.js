@@ -72,7 +72,7 @@ function renderPane() {
     if (f.type === "checks") return lab + `<div class="chips">` + f.options.map(([v, t, locked]) =>
       `<label class="chip${locked ? " lock" : ""}"><input type="checkbox" data-c="${f.id}" value="${v}" ${locked || p[f.id].includes(v) ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(t)}</label>`).join("") + `</div>`;
     if (f.type === "picker") return lab + `<div class="picker" id="pick-${f.id}"></div>`;
-    if (f.type === "diagram") return lab + `<div class="dg-tools"><button type="button" data-dg="${f.id}" data-act="layout">重新排列</button><button type="button" data-dg="${f.id}" data-act="clear">清除箭頭</button><button type="button" data-dg="${f.id}" data-act="png">下載 PNG</button></div><div class="diagram" id="diag-${f.id}"></div>`;
+    if (f.type === "diagram") return lab + `<div class="dg-tools">${f.seed ? `<button type="button" data-dg="${f.id}" data-act="reset">依文字重畫</button>` : ""}<button type="button" data-dg="${f.id}" data-act="layout">重新排列</button><button type="button" data-dg="${f.id}" data-act="clear">清除箭頭</button><button type="button" data-dg="${f.id}" data-act="png">下載 PNG</button></div><div class="diagram" id="diag-${f.id}"></div>`;
     if (f.type === "textarea") return lab + `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px" placeholder="${esc(f.placeholder || "")}">${esc(p[f.id])}</textarea>`;
     return lab + `<input type="text" data-f="${f.id}" value="${esc(p[f.id])}" placeholder="${esc(f.placeholder || "")}">`;
   }).join("");
@@ -122,7 +122,7 @@ function update() {
   $("next").textContent = ref(m.next);
   const st = m.status ? m.status(p) : "";
   $("status").textContent = st;
-  $("status").className = "note" + (st && /沒有|過長/.test(st) ? " warn" : "");
+  $("status").className = "note" + (st && /沒有|過長|請確認/.test(st) ? " warn" : "");
   save();
 }
 

@@ -803,3 +803,76 @@ T.arch_followup = p => [
   "2. 問題涉及判斷時（例如某條路徑是否合理、某變數該放在哪個位置），須同時列出支持與不支持的文獻證據，再提出判斷。",
   "3. 以正式學術段落撰寫；用詞一律使用「變數」，不得使用「變項」；變數關係一律以純文字箭頭「→」表示。"
 ].join("\n");
+
+// 0.3 步驟 2：解析研究架構文字（步驟 1 的回覆格式；也容許只有路徑的清單）
+const ARCH_ROLE = [["iv", "自變數", /自變數/], ["med", "中介變數", /中介/], ["mod", "調節變數", /調節/], ["dv", "依變數", /依變數/], ["ctrl", "控制變數", /控制/]];
+const archKey = name => dgLabel(name)[0].replace(/\s+/g, "");
+function parseArch(text) {
+  const vars = [], by = {}, edges = [], mods = [], unsure = [];
+  const clean = s => s.replace(/\*\*/g, "").replace(/^[\s\-*•]+/, "").trim();
+  const addVar = (name, role, frames) => {
+    const k = archKey(name); if (!k) return null;
+    if (!by[k]) { by[k] = { key: k, name, role: role || "", frames: frames || "" }; vars.push(by[k]); }
+    else {
+      if (role && !by[k].role) by[k].role = role;
+      if (/[（(]/.test(name) && !/[（(]/.test(by[k].name)) by[k].name = name;   // 帶英文的名稱優先
+      if (frames && !by[k].frames) by[k].frames = frames;
+    }
+    return k;
+  };
+  let part = "";
+  (text || "").split(/\r?\n/).forEach(raw => {
+    const line = clean(raw); if (!line) return;
+    if (/^#+\s*|^【/.test(line)) {
+      part = /變數/.test(line) ? "var" : /路徑|假說|假設/.test(line) ? "path" : /無法確定|不確定/.test(line) ? "unsure" : "";
+      return;
+    }
+    if (part === "unsure") { if (!/^無[。．.]?$/.test(line)) unsure.push(line); return; }
+    if (/編號為自行排列/.test(line)) return;
+    const cells = line.split(/[｜|]/).map(s => s.trim());
+    const ai = cells.findIndex(c => /→|->/.test(c));
+    if (ai >= 0) {   // 路徑：編號｜起點 → 終點｜方向；調節：編號｜調節變數 × （起點 → 終點）｜方向
+      const id = ai > 0 ? cells[0] : "", dir = cells[ai + 1] || "", c = cells[ai];
+      const m = c.match(/^(.+?)\s*[×xX＊*]\s*[（(]\s*(.+?)\s*(?:→|->)\s*(.+?)\s*[）)]\s*$/);
+      if (m) {
+        const z = addVar(m[1].trim()), a = addVar(m[2].trim()), b = addVar(m[3].trim());
+        if (z && a && b) mods.push({ id, from: z, edge: a + ">" + b, dir });
+        return;
+      }
+      const e = c.split(/\s*(?:→|->)\s*/).map(s => s.trim()).filter(Boolean);
+      for (let i = 0; i + 1 < e.length; i++) {   // A → B → C 拆成兩條
+        const a = addVar(e[i]), b = addVar(e[i + 1]);
+        if (a && b) edges.push({ id: e.length > 2 ? "" : id, from: a, to: b, dir: e.length > 2 ? "" : dir });
+      }
+      return;
+    }
+    if (part !== "path" && cells.length >= 2) {   // 變數：角色｜名稱｜構面
+      const r = ARCH_ROLE.find(x => x[2].test(cells[0]));
+      if (r) addVar(cells[1], r[0], cells[2] && !/^無$/.test(cells[2]) ? cells[2] : "");
+    }
+  });
+  mods.forEach(m => { const [a, b] = m.edge.split(">"); if (!edges.some(e => e.from === a && e.to === b)) edges.push({ id: "", from: a, to: b, dir: "" }); });
+  vars.forEach(v => {   // 未標示角色者依箭頭判斷
+    if (v.role) return;
+    const out = edges.some(e => e.from === v.key), inn = edges.some(e => e.to === v.key);
+    v.role = mods.some(m => m.from === v.key) && !out && !inn ? "mod" : out && inn ? "med" : inn ? "dv" : "iv";
+  });
+  return { vars, edges, mods, unsure };
+}
+
+// 依圖上的路徑（可能已手動修改）重組研究架構文字；文字中有的路徑沿用其編號與方向
+function archText(A, d) {
+  const roleZh = Object.fromEntries(ARCH_ROLE.map(r => [r[0], r[1]])), nm = k => A.vars.find(v => v.key === k).name.replace(/\s*[（(][^（）()]*[）)]\s*$/, "");
+  const ids = [...A.edges, ...A.mods].map(x => (x.id.match(/^H(\d+)/i) || [])[1]).filter(Boolean).map(Number);
+  let next = ids.length ? Math.max(...ids) : 0;
+  const lines = ["## 變數", ...ARCH_ROLE.flatMap(([r]) => A.vars.filter(v => v.role === r).map(v => `${roleZh[r]}｜${v.name}` + (v.frames ? `｜構面：${v.frames}` : ""))), "", "## 路徑"];
+  d.edges.forEach(e => {
+    const t = A.edges.find(x => x.from === e.from && x.to === e.to);
+    lines.push(`${t && t.id ? t.id : "H" + ++next}｜${nm(e.from)} → ${nm(e.to)}｜${t && t.dir ? t.dir : "未標示"}`);
+  });
+  d.mods.filter(m => d.edges.some(e => e.from + ">" + e.to === m.edge)).forEach(m => {
+    const t = A.mods.find(x => x.from === m.from && x.edge === m.edge), [a, b] = m.edge.split(">");
+    lines.push(`${t && t.id ? t.id : "H" + ++next}｜${nm(m.from)} × （${nm(a)} → ${nm(b)}）｜${t && t.dir ? t.dir : "未標示"}`);
+  });
+  return lines.join("\n");
+}

@@ -65,7 +65,7 @@ input[type=number] { max-width: 140px; }
   border: 1px solid var(--line); border-radius: 999px; cursor: pointer; font-size: 14px;
 }
 .chip:has(input:checked) { background: var(--accent-soft); border-color: var(--accent); }
-.note { margin-top: 12px; padding: 8px 12px; border-radius: 8px; font-size: 13px; background: var(--accent-soft); }
+.note { white-space: pre-line; margin-top: 12px; padding: 8px 12px; border-radius: 8px; font-size: 13px; background: var(--accent-soft); }
 .note.warn { background: var(--warn-soft); color: var(--warn); }
 .note:empty { display: none; }
 .out { position: sticky; top: 12px; align-self: start; }

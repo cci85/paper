@@ -445,14 +445,18 @@ const DEFS = {
       { id: "ax_note", type: "textarea", label: "圖例或補充說明", hint: "選填；圖中看不出來、但會影響判讀的資訊", rows: 2, placeholder: "例如：虛線代表調節效果；小方框為構面；H4 指向 H2 的箭頭" }
     ],
     build: p => T.arch_extract({ note: (p.ax_note || "").trim() }),
-    next: "下一步：在一般 AI 開新對話，先上傳架構圖再貼上這段 Prompt。逐行核對回覆中的變數與箭頭方向，依「無法確定之處」修正後，貼到{#archchk}的研究架構欄位。"
+    next: "下一步：在一般 AI 開新對話，先上傳架構圖再貼上這段 Prompt。把回覆整段貼到{#archchk}的研究架構欄位，在自動畫出的架構圖上核對與修正。"
   },
   archchk: {
-    label: "依文獻檢核架構", target: "nlm",
-    hint: "把核對過的研究架構貼到已上傳文獻的 NotebookLM 對話，依勾選的制式項目檢核，並可一併提出自己的問題。回覆最後會逐條路徑總結文獻支持程度。",
+    label: "依文獻檢核架構", target: "nlm", stack: true,
+    hint: "貼上研究架構後，下方會依文字畫出架構圖，供你核對；畫錯可直接在圖上修改。產生的 Prompt 貼到已上傳文獻的 NotebookLM 對話，依勾選的制式項目檢核，並可一併提出自己的問題。回覆最後會逐條路徑總結文獻支持程度。",
     fields: [
       { id: "ac_arch", type: "textarea", label: "研究架構", hint: "貼上{#archx}核對過的回覆；也可直接輸入變數與假說清單", rows: 8, mono: true,
         placeholder: "## 變數\n自變數｜品牌人格（Brand Personality）｜無\n中介變數｜自我一致性（Self-Congruity）｜真實自我一致性、理想自我一致性\n依變數｜品牌依附（Brand Attachment）｜無\n\n## 路徑\nH1｜品牌人格 → 自我一致性｜正向\nH2｜自我一致性 → 品牌依附｜正向" },
+      { id: "ac_diag", type: "diagram", label: "研究架構圖", hint: "依上方文字自動畫出，請核對是否與原圖一致。箭頭畫錯時直接在圖上修改：點一個方塊再點另一個方塊，加上箭頭；先點調節變數再點一條箭頭，加上調節虛線；未選方塊時點箭頭或虛線可刪除；拖曳方塊調整位置。變數名稱或角色有誤，請改上方文字。產生的 Prompt 以圖上的路徑為準",
+        emptyHint: "（貼上研究架構後，這裡會出現架構圖）",
+        source: p => parseArch(p.ac_arch).vars,
+        seed: p => { const A = parseArch(p.ac_arch); return { sig: JSON.stringify([A.edges, A.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: A.edges.map(({ from, to }) => ({ from, to })), mods: A.mods.map(({ from, edge }) => ({ from, edge })) }; } },
       { id: "ac_theory", type: "text", label: "理論基礎", hint: "選填；架構圖上通常沒有，有採用特定理論時填入", placeholder: "例如：自我一致性理論（Self-Congruity Theory）" },
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", hint: "選填", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
       { id: "ac_checks", type: "checks", label: "制式檢核項目", hint: "可全部取消，只問自己的問題",
@@ -462,9 +466,21 @@ const DEFS = {
     ],
     rules: () => ["citation"],
     build: (p, R) => {
-      const arch = (p.ac_arch || "").trim(), qs = splitLines(p.ac_qs);
-      if (!arch || (!p.ac_checks.length && !qs.length)) return "";
-      return T.arch_check({ arch, theory: (p.ac_theory || "").trim(), ctx: (p.as_ctx || "").trim(), checks: p.ac_checks, qs }) + R;
+      const raw = (p.ac_arch || "").trim(), qs = splitLines(p.ac_qs);
+      if (!raw || (!p.ac_checks.length && !qs.length)) return "";
+      return T.arch_check({ arch: archOut(p), theory: (p.ac_theory || "").trim(), ctx: (p.as_ctx || "").trim(), checks: p.ac_checks, qs }) + R;
+    },
+    status: p => {
+      if (blank(p.ac_arch)) return "";
+      const A = parseArch(p.ac_arch);
+      if (!A.edges.length) return "沒有解析出任何路徑（格式為：H1｜起點 → 終點｜方向），將以原文送出，也不會畫出架構圖。";
+      const d = archDiag(p), diff = JSON.stringify(d.edges.map(e => e.from + ">" + e.to).sort()) !== JSON.stringify(A.edges.map(e => e.from + ">" + e.to).sort())
+        || JSON.stringify(d.mods.map(m => m.from + "@" + m.edge).sort()) !== JSON.stringify(A.mods.map(m => m.from + "@" + m.edge).sort());
+      return [
+        `已解析 ${A.vars.length} 個變數、${A.edges.length} 條路徑` + (A.mods.length ? `、${A.mods.length} 條調節路徑` : "") + "。",
+        diff ? "圖上的路徑已手動修改，Prompt 以圖為準；按「依文字重畫」可還原。" : "",
+        A.unsure.length ? `步驟 1 列有無法確定之處，請確認圖是否正確：${A.unsure.join("；")}` : ""
+      ].filter(Boolean).join("\n");
     },
     empty: "（請貼上研究架構，並至少勾選一個檢核項目或填入一個問題）",
     next: "下一步：貼到已上傳文獻的 NotebookLM 對話。讀完回覆後若還有疑問，用{#archq}在同一個對話接著問，不必重貼架構。"
@@ -482,6 +498,10 @@ const DEFS = {
     next: "下一步：貼到同一個 NotebookLM 對話接續提問；要換問題時，清空欄位重新填寫即可。"
   }
 };
+
+// 0.3 步驟 2：架構圖資料（依文字建立，保留圖上的手動修改）與送出的架構文字
+const archDiag = p => dgSeed(DEFS.archchk.fields.find(f => f.id === "ac_diag"), p);
+const archOut = p => { const A = parseArch(p.ac_arch); return A.edges.length ? archText(A, archDiag(p)) : (p.ac_arch || "").trim(); };
 
 // 每行一項（去除行首的條列符號與空白）
 const splitLines = s => (s || "").split(/\r?\n/).map(v => v.replace(/^[\s\-*•]+/, "").trim()).filter(Boolean);
