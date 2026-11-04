@@ -245,6 +245,7 @@ async function pickDir() {
 function downloadAll() {
   const pngs = diagramsToSave();
   const save = (blob, n) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = n; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
+  store.name = $("pname").value.trim();
   if (!projName()) { pstat("請先輸入研究名稱。", "warn"); return; }
   save(new Blob([fileText("", pngs)], { type: "text/markdown" }), projName() + ".md");
   pngs.forEach(g => diagramBlob(g.vars, g.d).then(b => save(b, g.file)));
@@ -278,6 +279,21 @@ $("pbar").addEventListener("click", async e => {
   if (b.dataset.act === "overwrite") { proj.conflict = false; hideConflict(); return writeNow(true); }
 });
 
+// 不支援資料夾存取的原因（狀態列說明）
+function whyNoFs() {
+  const ua = navigator.userAgent, tail = "目前只能用「下載存檔」與「開啟存檔」。";
+  if (navigator.brave) return "Brave 預設關閉資料夾存取：在網址列輸入 brave://flags/#file-system-access-api，改為 Enabled 並重新啟動瀏覽器；或改用 Chrome、Edge 開啟。" + tail;
+  if (window.self !== window.top) return "網頁被嵌在其他頁面裡，無法存取資料夾，請直接在 Chrome 的分頁開啟本網址。" + tail;
+  if (/Android|iPhone|iPad|Mobile/i.test(ua)) return "手機與平板的瀏覽器不支援資料夾存取，請在電腦版 Chrome 或 Edge 開啟。" + tail;
+  if (/Line\/|FBAN|FBAV|Instagram|Obsidian|Electron/i.test(ua)) return "網頁開在其他程式的內建瀏覽器裡，請複製網址，改在 Chrome 或 Edge 開啟。" + tail;
+  if (/Firefox\//.test(ua)) return "Firefox 不支援資料夾存取，請改用 Chrome 或 Edge 開啟。" + tail;
+  if (/Safari\//.test(ua) && !/Chrome\//.test(ua)) return "Safari 不支援資料夾存取，請改用 Chrome 或 Edge 開啟。" + tail;
+  if (!window.isSecureContext) return "網頁不是以 https 開啟，無法存取資料夾，請使用 https://cci85.github.io/paper/。" + tail;
+  return "這個瀏覽器不支援資料夾存取，請改用電腦版 Chrome 或 Edge 開啟。" + tail;
+}
+
+// 研究名稱：邊打邊記，不必等游標離開
+$("pname").addEventListener("input", () => { store.name = $("pname").value.trim(); });
 $("pname").addEventListener("change", () => {
   const old = projName();
   store.name = $("pname").value.trim();
@@ -297,7 +313,7 @@ $("pupload").addEventListener("change", async e => {
 // 啟動：接回上次的資料夾與存檔
 (async () => {
   renderProj();
-  if (!FS_OK) { pstat("這個瀏覽器不支援直接存入資料夾，可用「下載存檔」與「開啟存檔」。"); return; }
+  if (!FS_OK) { pstat(whyNoFs(), "warn"); return; }
   const h = await kvGet("dir");
   if (!h) { pstat("尚未選擇存檔資料夾：目前內容只記在這個瀏覽器。"); return; }
   proj.dir = h; proj.dirName = h.name; renderProj();
