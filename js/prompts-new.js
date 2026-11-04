@@ -395,9 +395,12 @@ const GAPSEL_STEP4 = `最後，請我從上述研究缺口候選中選擇一個�
 4. 量表對應：每個變數可採用的量表、維度與出處文獻；表格中沒有者，標示「表格未載」。
 5. 待確認清單：列出進入正式撰寫前需要確認的事項，例如需要搭橋檢索的路徑、需另尋的理論與量表。
 `;
+// 文獻比較表步驟貼上的 AI 回覆（試算表內容）；選定變數時若沒有另外貼表格，就沿用這份
+const matrixReply = () => Object.entries(store.replies || {}).filter(([k, v]) => k.endsWith("|matrix") && !blank(v)).map(([, v]) => v)[0] || "";
 function buildGapsel(p) {
+  const tbl = blank(p.gs_table) ? matrixReply() : p.gs_table;
   const table = p.gs_mode === "paste"
-    ? (blank(p.gs_table) ? "" : "\n\n" + p.gs_table.trim() + "\n\n")
+    ? (blank(tbl) ? "" : "\n\n" + tbl.trim() + "\n\n")
     : "（見上傳的表格檔案）";
   if (p.gs_mode === "paste" && !table) return "";
   return T.gapsel_orig

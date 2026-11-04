@@ -44,10 +44,11 @@ const DEFS = {
     hint: "依文獻比較表，以選擇題逐步選出依變數與其他變數，再推薦 key paper、列出研究缺口候選，最後產出研究架構草案。只依據表格內容，不讀全文。",
     fields: [
       { id: "gs_mode", type: "radio", label: "表格怎麼給 AI", options: [["upload", "上傳試算表檔案"], ["paste", "貼上表格內容"]], value: "upload" },
-      { id: "gs_table", type: "textarea", label: "表格內容", hint: "選「貼上表格內容」時才需要；從試算表複製即可", rows: 6, mono: true }
+      { id: "gs_table", type: "textarea", label: "表格內容", hint: "選「貼上表格內容」時才需要；從試算表複製即可。留空時，沿用「建立文獻比較表」那一步貼在 AI 回覆的表格", rows: 6, mono: true, when: p => p.gs_mode === "paste" }
     ],
     build: p => buildGapsel(p),
     empty: "（請貼上表格內容，或改選「上傳試算表檔案」）",
+    status: p => p.gs_mode === "paste" && blank(p.gs_table) && matrixReply() ? "表格內容留空：已沿用「建立文獻比較表」那一步貼上的表格。" : "",
     next: "下一步：在一般 AI 開新對話，上傳由{#matrix}匯出的試算表（或使用貼上的表格），貼上這段 Prompt 後依提問逐步選擇。步驟四的路徑清單可貼到{#hypo}的研究架構欄位。"
   },
   m5a: {

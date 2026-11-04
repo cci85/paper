@@ -58,6 +58,37 @@ function diagramsToSave() {
 // 貼上的內容若有標題，降三級，避免打亂存檔的章節結構
 const demote = t => String(t).trim().replace(/^(#{1,6})(\s)/gm, (_, h, sp) => "#".repeat(Math.min(6, h.length + 3)) + sp);
 
+// 從試算表複製的內容（以 Tab 分隔；含換行的儲存格以雙引號包住）→ 每列一個陣列；不像表格時回傳 null
+function parseTsv(text) {
+  const t = String(text).replace(/\r\n?/g, "\n").replace(/\n+$/, "");
+  if (!t.includes("\t")) return null;
+  const rows = []; let row = [], cell = "", i = 0, q = false;
+  while (i < t.length) {
+    const c = t[i];
+    if (q) {
+      if (c === '"' && t[i + 1] === '"') { cell += '"'; i += 2; continue; }
+      if (c === '"') { q = false; i++; continue; }
+      cell += c; i++; continue;
+    }
+    if (c === '"' && cell === "") { q = true; i++; continue; }
+    if (c === "\t") { row.push(cell); cell = ""; i++; continue; }
+    if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; i++; continue; }
+    cell += c; i++;
+  }
+  row.push(cell); rows.push(row);
+  const n = Math.max(...rows.map(r => r.length));
+  const full = rows.filter(r => r.length === n).length;
+  if (rows.length < 2 || n < 2 || full < rows.length * 0.8) return null;
+  return rows.map(r => r.concat(Array(n - r.length).fill("")));
+}
+// 轉成 Markdown 表格：第一列為標題；儲存格內的換行改為 <br>，直線改為 \|
+function mdTable(rows) {
+  const c = v => v.trim().replace(/\|/g, "\\|").replace(/\n/g, "<br>") || " ";
+  return [rows[0].map(c), rows[0].map(() => "---"), ...rows.slice(1).map(r => r.map(c))].map(r => "| " + r.join(" | ") + " |").join("\n");
+}
+// 存檔中的長文字：試算表內容轉成表格，其他文字的標題降級
+const mdText = t => { const r = parseTsv(t); return r ? mdTable(r) : demote(t); };
+
 // 可閱讀的內容：依目錄列出有填寫的欄位與 AI 回覆；同一欄位只在第一次出現時列出
 function readable(pngs) {
   const shown = new Set(), out = [];
@@ -82,10 +113,10 @@ function readable(pngs) {
         if (JSON.stringify(v) === JSON.stringify(f.value ?? "")) return;   // 與預設值相同者不列
         shown.add(f.id);
         const t = fmt(f, v);
-        lines.push(f.type === "textarea" ? `**${f.label}**\n\n${demote(t)}` : `**${f.label}**：${t}`);
+        lines.push(f.type === "textarea" ? `**${f.label}**\n\n${mdText(t)}` : `**${f.label}**：${t}`);
       });
       const r = (store.replies || {})[s.id + "|" + st.mod];
-      if (!blank(r)) lines.push(`**AI 回覆**\n\n${demote(r)}`);
+      if (!blank(r)) lines.push(`**AI 回覆**\n\n${mdText(r)}`);
       if (lines.length) blocks.push(`### ${s.no ? `步驟 ${i + 1}　` : ""}${m.label}\n\n${lines.join("\n\n")}`);
     });
     if (blocks.length) out.push(`## ${s.no ? s.no + " " : ""}${s.title}\n\n${blocks.join("\n\n")}`);
