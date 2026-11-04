@@ -436,8 +436,55 @@ const DEFS = {
     empty: "（請貼上 NotebookLM 的回覆）",
     copyLabel: "複製結果",
     next: "下一步：貼進 Obsidian 的 .md 筆記，就會自動渲染成圖。"
+  },
+  // ─── 0.3 研究架構合理性檢核 ───
+  archx: {
+    label: "拆解研究架構圖", target: "ai",
+    hint: "手邊只有研究架構圖、沒有文字時使用：在一般 AI 對話上傳架構圖並貼上這段 Prompt，AI 會依圖整理出變數、角色與路徑，並列出看不清楚的地方。已有變數與假說的文字清單時，可略過這一步。",
+    fields: [
+      { id: "ax_note", type: "textarea", label: "圖例或補充說明", hint: "選填；圖中看不出來、但會影響判讀的資訊", rows: 2, placeholder: "例如：虛線代表調節效果；小方框為構面；H4 指向 H2 的箭頭" }
+    ],
+    build: p => T.arch_extract({ note: (p.ax_note || "").trim() }),
+    next: "下一步：在一般 AI 開新對話，先上傳架構圖再貼上這段 Prompt。逐行核對回覆中的變數與箭頭方向，依「無法確定之處」修正後，貼到{#archchk}的研究架構欄位。"
+  },
+  archchk: {
+    label: "依文獻檢核架構", target: "nlm",
+    hint: "把核對過的研究架構貼到已上傳文獻的 NotebookLM 對話，依勾選的制式項目檢核，並可一併提出自己的問題。回覆最後會逐條路徑總結文獻支持程度。",
+    fields: [
+      { id: "ac_arch", type: "textarea", label: "研究架構", hint: "貼上{#archx}核對過的回覆；也可直接輸入變數與假說清單", rows: 8, mono: true,
+        placeholder: "## 變數\n自變數｜品牌人格（Brand Personality）｜無\n中介變數｜自我一致性（Self-Congruity）｜真實自我一致性、理想自我一致性\n依變數｜品牌依附（Brand Attachment）｜無\n\n## 路徑\nH1｜品牌人格 → 自我一致性｜正向\nH2｜自我一致性 → 品牌依附｜正向" },
+      { id: "ac_theory", type: "text", label: "理論基礎", hint: "選填；架構圖上通常沒有，有採用特定理論時填入", placeholder: "例如：自我一致性理論（Self-Congruity Theory）" },
+      { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", hint: "選填", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
+      { id: "ac_checks", type: "checks", label: "制式檢核項目", hint: "可全部取消，只問自己的問題",
+        options: ARCH_CHECKS.map(c => [c.key, c.label]), value: ARCH_CHECKS.map(c => c.key) },
+      { id: "ac_qs", type: "textarea", label: "我的問題", hint: "選填；每行一題，會與制式項目一起送出", rows: 4,
+        placeholder: "我把品牌熟悉度設為調節變數，文獻中比較常把它當成調節變數、中介變數，還是前因？\n文獻支持 H2 的研究多半是哪些產品類別？" }
+    ],
+    rules: () => ["citation"],
+    build: (p, R) => {
+      const arch = (p.ac_arch || "").trim(), qs = splitLines(p.ac_qs);
+      if (!arch || (!p.ac_checks.length && !qs.length)) return "";
+      return T.arch_check({ arch, theory: (p.ac_theory || "").trim(), ctx: (p.as_ctx || "").trim(), checks: p.ac_checks, qs }) + R;
+    },
+    empty: "（請貼上研究架構，並至少勾選一個檢核項目或填入一個問題）",
+    next: "下一步：貼到已上傳文獻的 NotebookLM 對話。讀完回覆後若還有疑問，用{#archq}在同一個對話接著問，不必重貼架構。"
+  },
+  archq: {
+    label: "追問", target: "nlm",
+    hint: "讀完檢核回覆後，針對特定路徑或變數再提問。在同一個 NotebookLM 對話接續貼上，AI 會沿用前面貼過的研究架構。",
+    fields: [
+      { id: "aq_qs", type: "textarea", label: "我的問題", hint: "每行一題；一次問一到兩題，回答會比較深入", rows: 4,
+        placeholder: "H3 的支持證據是否都來自西方樣本？有沒有亞洲或台灣的研究？\n請扮演口試委員，針對 H2 提出三個最可能被質疑的問題，每題附文獻依據。" }
+    ],
+    rules: () => ["citation"],
+    build: (p, R) => { const qs = splitLines(p.aq_qs); return qs.length ? T.arch_followup({ qs }) + R : ""; },
+    empty: "（請填入至少一個問題）",
+    next: "下一步：貼到同一個 NotebookLM 對話接續提問；要換問題時，清空欄位重新填寫即可。"
   }
 };
+
+// 每行一項（去除行首的條列符號與空白）
+const splitLines = s => (s || "").split(/\r?\n/).map(v => v.replace(/^[\s\-*•]+/, "").trim()).filter(Boolean);
 
 // 問卷草稿：選定的架構（勾選組合／候選架構編號／其他）
 function archLabel(p) {
@@ -463,9 +510,7 @@ const OUTLINE = [
     { id: "q-var", no: "", title: "深入了解單一變數", desc: "對某個變數有興趣、想深入了解時使用：定義、維度、理論、操作型定義與量表、施測情境、前因與後果、相近構念，任何階段都可以。", steps: [
       { mod: "vdeep", note: "一次問一個變數；文獻不足時，先針對這個變數補上傳文獻再問。「施測情境」常因原文只簡短交代而標示「未提及」，請回到原文的方法章節或附錄查看。" }] },
     { id: "q-vcomp", no: "", title: "區辨相近變數", desc: "兩個以上的變數看起來很像，想分辨它們在研究架構上的異同時使用。", steps: [
-      { mod: "vcomp", note: "每行填一個變數；可直接從組合研究架構的勾選區複製名稱。" }] }
-  ] },
-  { ch: "文獻檢索", quick: true, secs: [
+      { mod: "vcomp", note: "每行填一個變數；可直接從組合研究架構的勾選區複製名稱。" }] },
     { id: "r-method", no: "", title: "方法導向檢索", desc: "找特定領域中、實際使用某種統計方法的實證論文作為模仿範例：產生精準的 Google Scholar 檢索式與 Scholar Labs 問句。", steps: [
       { mod: "smethod", note: "貼到有網路搜尋的 AI 對話，不需要上傳文獻。" }] }
   ] },
@@ -484,7 +529,11 @@ const OUTLINE = [
       { mod: "asmore", note: "提出架構後接著問：補齊變數，並列出每個變數可擔任的所有角色。" },
       { mod: "asmix", note: "從候選架構中自行挑選變數、跨架構混搭，組成自己的研究架構。" },
       { mod: "astat", note: "選定變數與資料之後：確認文獻用過的統計方法、本研究適用的方法，以及實證結果應揭露哪些項目。" },
-      { mod: "asq", note: "研究方法為問卷調查法或實驗設計法時使用：產出問卷草稿，並評估題數、樣本數、量表與施測風險；panel data 可跳過。" }] }
+      { mod: "asq", note: "研究方法為問卷調查法或實驗設計法時使用：產出問卷草稿，並評估題數、樣本數、量表與施測風險；panel data 可跳過。" }] },
+    { id: "s0-5", no: "0.3", title: "研究架構合理性檢核", desc: "可單獨使用，不需完成 0.1、0.2。已有研究架構圖、想依已上傳的文獻檢核其合理性時使用：一般 AI 讀圖拆出變數與路徑 → NotebookLM 依制式項目與你的問題檢核 → 同一對話追問。", steps: [
+      { mod: "archx", note: "只有架構圖時使用；已有變數與假說的文字清單，可直接到步驟 2。" },
+      { mod: "archchk", note: "NotebookLM 需先上傳與架構相關的文獻；文獻愈完整，檢核愈有意義。" },
+      { mod: "archq", note: "接在步驟 2 的同一個對話；可重複使用。" }] }
   ] },
   { ch: "第一章 緒論", secs: [
     { id: "s1-1", no: "1.1", title: "研究背景與動機", desc: "由產業現象收斂到文獻缺口。", steps: [
