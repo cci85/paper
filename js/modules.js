@@ -503,6 +503,7 @@ const DEFS = {
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", hint: "選填", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
       { id: "ac_checks", type: "checks", label: "制式檢核項目", hint: "可全部取消，只問自己的問題",
         options: ARCH_CHECKS.map(c => [c.key, c.label]), value: ARCH_CHECKS.map(c => c.key) },
+      { id: "ac_extra", type: "checks", label: "檢核之後", options: [["revise", "提出文獻支持更充分的修正架構"]], value: ["revise"] },
       { id: "ac_qs", type: "textarea", label: "我的問題", hint: "選填；每行一題，會與制式項目一起送出", rows: 4,
         placeholder: "我把品牌熟悉度設為調節變數，文獻中比較常把它當成調節變數、中介變數，還是前因？\n文獻支持 H2 的研究多半是哪些產品類別？" }
     ],
@@ -510,7 +511,7 @@ const DEFS = {
     build: (p, R) => {
       const raw = archSrcText(p).trim(), qs = splitLines(p.ac_qs);
       if (!raw || (!p.ac_checks.length && !qs.length)) return "";
-      return T.arch_check({ arch: archOut(p), theory: (p.ac_theory || "").trim(), ctx: (p.as_ctx || "").trim(), checks: p.ac_checks, qs }) + R;
+      return T.arch_check({ arch: archOut(p), theory: (p.ac_theory || "").trim(), ctx: (p.as_ctx || "").trim(), checks: p.ac_checks, qs, revise: (p.ac_extra || []).includes("revise") }) + R;
     },
     status: p => {
       const src = archSrcText(p);
@@ -530,7 +531,7 @@ const DEFS = {
       ].filter(Boolean).join("\n");
     },
     empty: "（請提供研究架構：貼上文字，或選擇 0.2 的架構；並至少勾選一個檢核項目或填入一個問題）",
-    next: "下一步：貼到已上傳文獻的 NotebookLM 對話。讀完回覆後若還有疑問，用{#archq}在同一個對話接著問，不必重貼架構。"
+    next: "下一步：貼到已上傳文獻的 NotebookLM 對話。讀完回覆後若還有疑問，用{#archq}在同一個對話接著問，不必重貼架構。要採用「修正後的研究架構」時，只複製其中「### 變數」與「### 路徑」兩節，在「研究架構來源」選「貼上文字」貼上，網頁會重新畫圖，可再檢核一次。"
   },
   archq: {
     label: "追問", target: "nlm",
