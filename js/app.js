@@ -109,7 +109,8 @@ function renderPane() {
     <div class="note" id="status"></div>
     ${m.target === "tool" ? "" : `<fieldset class="struct reply"><legend>AI 回覆</legend>
       <p class="hint" style="margin:0 0 6px">選填；貼上這一步的 AI 回覆，會一併存入研究存檔，不影響上方的 Prompt。</p>
-      <textarea data-reply="1" rows="5" placeholder="把 AI 的回覆貼在這裡">${esc((store.replies || {})[replyKey()] || "")}</textarea></fieldset>`}`;
+      <textarea data-reply="1" rows="5" placeholder="把 AI 的回覆貼在這裡">${esc((store.replies || {})[replyKey()] || "")}</textarea></fieldset>`}
+    ${step().after ? `<p class="stepnote after">${esc(ref(step().after))}</p>` : ""}`;
   const rf = $("pane").querySelector("fieldset.reply");
   rf ? $("pane").insertBefore(OUTBOX, rf) : $("pane").appendChild(OUTBOX);
   renderRules();

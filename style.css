@@ -206,3 +206,4 @@ fieldset.reply textarea { min-height: 96px; }
 .dg-tray button { padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; }
 .dg-tray button.del { color: var(--danger); border-color: var(--danger); }
 .tray-all { margin-top: 8px; display: flex; gap: 6px; }
+p.stepnote.after { margin: 14px 0 0; }
