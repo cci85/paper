@@ -211,7 +211,29 @@ window.onStoreSave = () => {
 };
 
 // ── 讀入 ──
+// 載入檔案前，先備份畫面上的內容（瀏覽器內一份；有存檔資料夾時另存「研究名稱_備份_時間.md」），可按「復原」取回
+const BACKUP_KEY = "research-prompts-backup";
+const hasContent = () => Object.values(store.values || {}).some(v => typeof v === "string" ? !blank(v) : Array.isArray(v) ? v.length : v && typeof v === "object" && Object.keys(v.edges || v.pos || {}).length)
+  || Object.values(store.replies || {}).some(v => !blank(v));
+function backupCurrent(d) {
+  if (!hasContent() || payloadOf() === payOf(d)) return;
+  const now = new Date(), pad = n => String(n).padStart(2, "0");
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const data = JSON.parse(payloadOf()), text = fileText("", []);
+  try { localStorage.setItem(BACKUP_KEY, JSON.stringify({ stamp, data })); } catch {}
+  if (proj.dir) {
+    const n = `${projName() || "未命名"}_備份_${stamp}.md`;
+    proj.dir.getFileHandle(n, { create: true }).then(h => h.createWritable()).then(async w => { await w.write(text); await w.close(); }).catch(() => {});
+    proj.backupFile = n;
+  } else proj.backupFile = "";
+  showUndo(stamp);
+}
+function showUndo(stamp) {
+  const b = $("pundo"); b.hidden = false; b.textContent = `復原載入前的內容（${stamp.slice(9, 11)}:${stamp.slice(11, 13)}）`;
+}
+
 function applyData(d, fileName, lastMod) {
+  backupCurrent(d);
   store.name = d.name || (fileName || "").replace(/\.md$/i, "");
   store.values = d.values || {}; store.rules = d.rules || {}; store.replies = migrateReplies(d.replies || {}); store.seeded = {};
   proj.file = fileName || ""; proj.lastMod = lastMod || 0; proj.lastPayload = payloadOf(); proj.pngSig = {}; proj.conflict = false;
@@ -257,9 +279,9 @@ async function showList() {
 }
 
 // ── 衝突處理 ──
-function showConflict(d) {
+function showConflict(d, msg) {
   const c = $("pconflict");
-  c.innerHTML = `「${esc(proj.file)}」已在其他地方更新（例如另一台電腦）。自動儲存已暫停。
+  c.innerHTML = `${msg || `「${esc(proj.file)}」已在其他地方更新（例如另一台電腦）。自動儲存已暫停。`}
     <button type="button" data-act="reload">載入檔案中的版本</button><button type="button" data-act="overwrite">以這個網頁的內容覆寫</button>`;
   c.hidden = false;
   c.dataset.has = d ? "1" : "";
@@ -284,7 +306,10 @@ async function pickDir() {
     renderProj();
     if (projName()) {
       const exists = await h.getFileHandle(projName() + ".md").then(() => true, () => false);
-      if (exists) pstat(`資料夾中已有「${projName()}.md」。請按「開啟存檔」載入，或改用其他研究名稱。`, "warn");
+      if (exists) {   // 同名檔案已存在：不自動覆寫，請研究者選擇
+        proj.file = projName() + ".md"; proj.conflict = true;
+        showConflict(null, `資料夾中已有「${esc(proj.file)}」。要用哪一個版本？（兩份都想留，請改研究名稱）`);
+      }
       else writeNow(false);
     } else pstat("請輸入研究名稱，才會自動存檔。", "warn");
   } catch (e) { if (e && e.name !== "AbortError") pstat("無法選擇資料夾：" + e.message, "warn"); }
@@ -316,6 +341,16 @@ $("pbar").addEventListener("click", async e => {
   if (b.id === "pdir") return b.dataset.mode === "download" ? downloadAll() : pickDir();
   if (b.id === "popen") return showList();
   if (b.id === "pnew") return newProject();
+  if (b.id === "pundo") {
+    let bk = null; try { bk = JSON.parse(localStorage.getItem(BACKUP_KEY) || "null"); } catch {}
+    if (!bk || !bk.data) { pstat("沒有可復原的備份。", "warn"); return; }
+    if (!confirm("以載入前備份的內容取代目前畫面？目前畫面的內容也會先備份。")) return;
+    const keepFile = proj.file, keepMod = proj.lastMod;
+    applyData(bk.data, keepFile, keepMod);
+    proj.lastPayload = "";   // 讓自動儲存把復原的內容寫回檔案
+    pstat("已復原載入前的內容" + (proj.dir ? "，稍後會自動存回檔案。" : "。"));
+    save(); return;
+  }
   if (b.id === "presume") { if (await permOk(true)) { b.hidden = true; pstat(`已連接資料夾：${proj.dirName}`); writeNow(false); } return; }
   if (b.dataset.open) { $("plist").hidden = true; return openFromDir(b.dataset.open); }
   if (b.dataset.act === "reload") {
