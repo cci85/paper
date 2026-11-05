@@ -195,3 +195,14 @@ fieldset.reply textarea { min-height: 96px; }
 .seedrow button { padding: 4px 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; margin-right: 6px; }
 #seedmsg { color: var(--warn); }
 .seedrow { margin: 12px 0 0; }
+
+/* 架構圖待選區 */
+.dg-tray { margin-top: 8px; padding: 10px 12px; border: 1.5px dashed var(--line); border-radius: 10px; background: var(--bg); min-height: 56px; }
+.dg-tray .tray-head { font-size: 13.5px; }
+.dg-tray .tray-head small { color: var(--muted); margin-left: 6px; }
+.tray-items { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tray-item { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); font-size: 13.5px; }
+.tray-item small { color: var(--muted); }
+.dg-tray button { padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; }
+.dg-tray button.del { color: var(--danger); border-color: var(--danger); }
+.tray-all { margin-top: 8px; display: flex; gap: 6px; }

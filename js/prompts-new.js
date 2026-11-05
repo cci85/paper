@@ -894,10 +894,15 @@ function archFromDiagram(vars, d, roleOf) {
     ...mods.map(m => { const [a, b] = m.edge.split(">"); return `H${++n}｜${nm(m.from)} × （${nm(a)} → ${nm(b)}）｜未標示`; })
   ].join("\n");
 }
-const mixArchText = () => {
-  const v = store.values, on = new Set(v.as_pick || []);
-  return archFromDiagram(parseVarList(v.as_vlist).filter(x => on.has(x.key)), v.as_diag, x => x.role);
-};
+// 待選區：暫時移出架構圖的變數，不列入 Prompt；最後由研究者決定放回或刪除
+const trayOf = id => { const d = store.values[id]; return d && Array.isArray(d.tray) ? d.tray : []; };
+const trayNote = id => trayOf(id).length ? `\n待選區還有 ${trayOf(id).length} 個變數尚未決定，不會列入 Prompt。` : "";
+// 路線 B 勾選的變數（all 為 true 時含待選區）
+function mixPicked(p, all) {
+  const on = new Set(p.as_pick || []), tr = all ? [] : trayOf("as_diag");
+  return parseVarList(p.as_vlist).filter(v => on.has(v.key) && !tr.includes(v.key));
+}
+const mixArchText = () => archFromDiagram(mixPicked(store.values), store.values.as_diag, x => x.role);
 // 路線 C：每行「角色｜變數名稱（英文）」；角色可省略，省略時依箭頭判斷
 function parseOwnVars(text) {
   const out = [], seen = new Set();
@@ -915,6 +920,11 @@ const ownRole = (v, d) => v.role || (() => {
   const e = (d && d.edges) || [], out = e.some(x => x.from === v.key), inn = e.some(x => x.to === v.key);
   return ((d && d.mods) || []).some(m => m.from === v.key) && !out && !inn ? "mod" : out && inn ? "med" : inn ? "dv" : "iv";
 })();
-const ownArchText = () => { const v = store.values, vars = parseOwnVars(v.ow_vars); return archFromDiagram(vars, v.ow_diag, x => ownRole(x, v.ow_diag)); };
+// 路線 C 的變數（all 為 true 時含待選區）
+function ownVars(p, all) {
+  const tr = all ? [] : trayOf("ow_diag");
+  return parseOwnVars(p.ow_vars).filter(v => !tr.includes(v.key)).map(v => ({ ...v, role: ownRole(v, store.values.ow_diag) }));
+}
+const ownArchText = () => { const v = store.values; return archFromDiagram(ownVars(v), v.ow_diag, x => ownRole(x, v.ow_diag)); };
 // 0.3 實際使用的架構文字
 const archSrcText = p => p.ac_src === "mix" ? mixArchText() : p.ac_src === "own" ? ownArchText() : (p.ac_arch || "");

@@ -200,20 +200,20 @@ const DEFS = {
       { id: "as_vlist", type: "textarea", label: "前面步驟的回覆", hint: "自動帶入{#asf}與{#asmore}貼在「AI 回覆」的內容；也可直接貼上各次回覆", rows: 6, mono: true },
       { id: "as_pick", type: "picker", label: "勾選要用的變數", source: p => parseVarList(p.as_vlist), roles: MIX_ROLES, value: [] },
       { id: "as_diag", type: "diagram", label: "研究架構圖", hint: "選填。拖曳方塊調整位置；點一個方塊再點另一個方塊，畫出箭頭；先點調節變數再點一條箭頭，畫出調節虛線，拖曳虛線末端的圓點可沿箭頭調整接點位置；未選方塊時點箭頭或虛線可刪除。有畫箭頭時，AI 會逐條檢核你的路徑",
-        source: p => { const on = new Set(p.as_pick || []); return parseVarList(p.as_vlist).filter(v => on.has(v.key)); } }
+        tray: true, all: p => mixPicked(p, true), source: p => mixPicked(p),
+        onRemove: k => { store.values.as_pick = (store.values.as_pick || []).filter(x => x !== k); } }
     ],
     seed: () => ({ as_vlist: ["s0-4|asf", "s0-4|asmore"].map(k => (store.replies || {})[k]).filter(v => !blank(v)).map(v => v.trim()).join("\n\n") }),
     seedFrom: "步驟 2、3 的 AI 回覆", seedNote: "「前面步驟的回覆」由步驟 2、3 的 AI 回覆帶入",
     rules: () => ["citation"],
     build: (p, R) => {
-      const vs = parseVarList(p.as_vlist), on = new Set(p.as_pick || []);
-      const picked = vs.filter(v => on.has(v.key));
+      const picked = mixPicked(p);
       return picked.length ? T.ask_mix({ picked, paths: diagramPathText(picked, p.as_diag) }) + R : "";
     },
     status: p => {
       if (blank(p.as_vlist)) return "";
       const n = parseVarList(p.as_vlist).length;
-      return n ? `已讀取 ${n} 個變數` : "沒有讀取到變數，請確認貼上的內容包含「變數清單」，且每行為「角色｜變數名稱｜出處｜架構」。";
+      return n ? `已讀取 ${n} 個變數` + trayNote("as_diag") : "沒有讀取到變數，請確認貼上的內容包含「變數清單」，且每行為「角色｜變數名稱｜出處｜架構」。";
     },
     empty: "（請貼上上一步的回覆，並勾選要用的變數）",
     next: "下一步：貼回同一個 NotebookLM 對話。回覆中的英文問題一次一個貼到 Google Scholar Labs（scholar.google.com 的 Labs），找到的文獻上傳到同一個 Notebook。接著到{#archchk}，選擇「0.2 組合研究架構」，檢核路徑是否合理；確認可行後，到{#astat}確認統計方法。要查實務面時，把本步驟的完整回覆貼到{#asp}。"
@@ -451,13 +451,14 @@ const DEFS = {
         placeholder: "自變數｜演算法推薦（Algorithmic Recommendation）\n中介變數｜顧客靈感（Customer Inspiration）\n調節變數｜說服知識（Persuasion Knowledge）\n依變數｜衝動購買意圖（Impulse Buying Intention）" },
       { id: "ow_diag", type: "diagram", label: "研究架構圖", hint: "拖曳方塊調整位置；點一個方塊再點另一個方塊，畫出箭頭；先點調節變數再點一條箭頭，畫出調節虛線；未選方塊時點箭頭或虛線可刪除",
         emptyHint: "（輸入變數後，這裡會出現方塊）",
-        source: p => parseOwnVars(p.ow_vars).map(v => ({ ...v, role: ownRole(v, store.values.ow_diag) })) }
+        tray: true, all: p => ownVars(p, true), source: p => ownVars(p),
+        onRemove: k => { store.values.ow_vars = (store.values.ow_vars || "").split(/\r?\n/).filter(l => { const v = parseOwnVars(l)[0]; return !v || v.key !== k; }).join("\n"); } }
     ],
     build: () => ownArchText(),
     status: p => {
       const n = parseOwnVars(p.ow_vars).length, d = store.values.ow_diag;
       if (!n) return "";
-      return `已讀取 ${n} 個變數` + (d && d.edges && d.edges.length ? `、${d.edges.length} 條路徑。` : "；請在圖上畫出路徑。");
+      return `已讀取 ${n} 個變數` + (d && d.edges && d.edges.length ? `、${d.edges.length} 條路徑。` : "；請在圖上畫出路徑。") + trayNote("ow_diag");
     },
     empty: "（請輸入變數，並在圖上畫出路徑）",
     copyLabel: "複製研究架構",

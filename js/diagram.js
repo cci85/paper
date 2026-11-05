@@ -5,8 +5,8 @@ const DG_FONT = "'Noto Sans TC','Microsoft JhengHei','PingFang TC',sans-serif";
 
 function dgData(id) {
   const d = store.values[id];
-  if (d && typeof d === "object" && !Array.isArray(d)) { d.pos ||= {}; d.edges ||= []; d.mods ||= []; return d; }
-  return (store.values[id] = { pos: {}, edges: [], mods: [] });
+  if (d && typeof d === "object" && !Array.isArray(d)) { d.pos ||= {}; d.edges ||= []; d.mods ||= []; d.tray ||= []; return d; }
+  return (store.values[id] = { pos: {}, edges: [], mods: [], tray: [] });
 }
 
 // 「中文（English）」拆成兩行
@@ -141,7 +141,8 @@ function renderDiagram(f, p) {
   const box = $("diag-" + f.id); if (!box) return;
   const vars = f.source(p), d = dgSeed(f, p);
   dgAutoPos(vars, d.pos, false);
-  if (!vars.length) { box.innerHTML = `<p class="hint">${esc(f.emptyHint || "（勾選變數後，這裡會出現方塊）")}</p>`; return; }
+  if (f.tray) renderTray(f, p, d);
+  if (!vars.length) { box.innerHTML = `<p class="hint">${esc(d.tray.length ? "（所有變數都在待選區）" : f.emptyHint || "（勾選變數後，這裡會出現方塊）")}</p>`; return; }
   if (dgSel[f.id] && !vars.some(v => v.key === dgSel[f.id])) dgSel[f.id] = null;
   box.innerHTML = dgSvg(vars, d, dgSel[f.id], false);
   if (box.dataset.wired) return;
@@ -185,7 +186,10 @@ function wireDiagram(box, f) {
     if (!drag) return;
     const { k, moved, mod: dm } = drag; drag = null;
     if (dm) { if (moved >= 4) save(); return; }   // 點接點不刪除；要刪除請點虛線
-    if (moved < 4) clickBox(k); else { save(); }
+    if (moved < 4) return clickBox(k);
+    const t = document.elementFromPoint(e.clientX, e.clientY);   // 拖到待選區
+    if (f.tray && t && t.closest("#tray-" + f.id)) return diagramAction(f, "tray", k);
+    save();
   });
   // 點箭頭、調節線、空白處
   box.addEventListener("click", e => {
@@ -223,8 +227,38 @@ function wireDiagram(box, f) {
 }
 
 // 工具列按鈕
-function diagramAction(f, act) {
-  const d = dgData(f.id), vars = f.source(valuesOf(mod()));
+// 待選區：列出暫時移出圖的變數，可放回或刪除（刪除＝取消勾選／移除該行）
+function renderTray(f, p, d) {
+  const el = $("tray-" + f.id); if (!el) return;
+  const all = f.all(p), keys = new Set(all.map(v => v.key));
+  d.tray = d.tray.filter(k => keys.has(k));   // 已取消勾選的變數不再列出
+  const items = all.filter(v => d.tray.includes(v.key)), zh = { iv: "自變數", med: "中介變數", mod: "調節變數", dv: "依變數", ctrl: "控制變數" };
+  el.innerHTML = `<div class="tray-head"><b>待選區</b><small>（${items.length ? `${items.length} 個變數，不列入 Prompt` : "空的"}）把方塊拖到這裡，或點選方塊後按「移到待選區」；最後再決定放回圖上或刪除。</small></div>` +
+    (items.length ? `<div class="tray-items">${items.map(v => `<span class="tray-item"><span>${esc(dgLabel(v.name)[0])}${v.role && zh[v.role] ? ` <small>${zh[v.role]}</small>` : ""}</span>` +
+      `<button type="button" data-dg="${f.id}" data-act="untray" data-key="${esc(v.key)}">放回</button><button type="button" class="del" data-dg="${f.id}" data-act="del" data-key="${esc(v.key)}">刪除</button></span>`).join("")}</div>
+      <div class="tray-all"><button type="button" data-dg="${f.id}" data-act="untrayall">全部放回</button><button type="button" class="del" data-dg="${f.id}" data-act="delall">全部刪除</button></div>` : "");
+}
+
+function diagramAction(f, act, key) {
+  const d = dgData(f.id);
+  if (act === "tray") {
+    const k = key || dgSel[f.id];
+    if (!k) { const s = $("status"); if (s) { s.textContent = "請先點選圖上要移到待選區的方塊，再按「移到待選區」。"; s.className = "note warn"; } return; }
+    if (!d.tray.includes(k)) d.tray.push(k);
+    dgSel[f.id] = null; return update();
+  }
+  if (act === "untray") { d.tray = d.tray.filter(k => k !== key); return update(); }
+  if (act === "untrayall") { d.tray = []; return update(); }
+  if (act === "del" || act === "delall") {
+    const ks = act === "del" ? [key] : d.tray.slice();
+    if (act === "delall" && !confirm(`刪除待選區的 ${ks.length} 個變數？`)) return;
+    ks.forEach(k => { f.onRemove(k); delete d.pos[k]; });
+    d.edges = d.edges.filter(e => !ks.includes(e.from) && !ks.includes(e.to));
+    d.mods = d.mods.filter(m => !ks.includes(m.from) && !ks.some(k => m.edge.split(">").includes(k)));
+    d.tray = d.tray.filter(k => !ks.includes(k));
+    renderPane(); return update();
+  }
+  const vars = f.source(valuesOf(mod()));
   if (act === "layout") dgAutoPos(vars, d.pos, true);
   if (act === "clear") { d.edges = []; d.mods = []; dgSel[f.id] = null; }
   if (act === "reset") { d.sig = null; dgSel[f.id] = null; dgAutoPos(vars, d.pos, true); }

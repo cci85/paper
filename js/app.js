@@ -96,7 +96,7 @@ function renderPane() {
     if (f.type === "checks") return lab + `<div class="chips">` + f.options.map(([v, t, locked]) =>
       `<label class="chip${locked ? " lock" : ""}"><input type="checkbox" data-c="${f.id}" value="${v}" ${locked || p[f.id].includes(v) ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(t)}</label>`).join("") + `</div>`;
     if (f.type === "picker") return lab + `<div class="picker" id="pick-${f.id}"></div>`;
-    if (f.type === "diagram") return lab + `<div class="dg-tools">${f.seed ? `<button type="button" data-dg="${f.id}" data-act="reset">依文字重畫</button>` : ""}<button type="button" data-dg="${f.id}" data-act="layout">重新排列</button><button type="button" data-dg="${f.id}" data-act="clear">清除箭頭</button><button type="button" data-dg="${f.id}" data-act="png">下載 PNG</button></div><div class="diagram" id="diag-${f.id}"></div>`;
+    if (f.type === "diagram") return lab + `<div class="dg-tools">${f.seed ? `<button type="button" data-dg="${f.id}" data-act="reset">依文字重畫</button>` : ""}<button type="button" data-dg="${f.id}" data-act="layout">重新排列</button><button type="button" data-dg="${f.id}" data-act="clear">清除箭頭</button><button type="button" data-dg="${f.id}" data-act="png">下載 PNG</button>${f.tray ? `<button type="button" data-dg="${f.id}" data-act="tray">移到待選區</button>` : ""}</div><div class="diagram" id="diag-${f.id}"></div>${f.tray ? `<div class="dg-tray" id="tray-${f.id}"></div>` : ""}`;
     if (f.type === "textarea") return lab + `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px" placeholder="${esc(f.placeholder || "")}">${esc(p[f.id])}</textarea>`;
     return lab + `<input type="text" data-f="${f.id}" value="${esc(p[f.id])}" placeholder="${esc(f.placeholder || "")}">`;
   }).join("");
@@ -204,7 +204,7 @@ $("pane").addEventListener("click", e => {
   }
   const b = e.target.closest("button[data-dg]"); if (!b) return;
   const f = mod().fields.find(x => x.id === b.dataset.dg);
-  if (f) diagramAction(f, b.dataset.act);
+  if (f) diagramAction(f, b.dataset.act, b.dataset.key);
 });
 
 $("copy").addEventListener("click", async () => {
