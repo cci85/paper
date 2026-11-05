@@ -39,7 +39,7 @@ const step = () => steps()[stepIdx()];
 const mod = () => DEFS[step().mod];
 const ref = s => fillRefs(s || "", sec());
 const OUTBOX = document.getElementById("outbox");   // 複製 Prompt 區塊：每次繪製欄位後放回「AI 回覆」上方
-const COPY_TO = { nlm: "貼到 NotebookLM", table: "貼到 NotebookLM 資料表", ai: "貼到一般 AI" };
+const COPY_TO = { nlm: "貼到 NotebookLM", table: "貼到 NotebookLM「資料表」，不是對話框", ai: "貼到一般 AI" };
 const replyKey = () => store.sec + "|" + step().mod;   // 每一步的 AI 回覆（存檔用）
 
 // 欄位值：此步驟固定的值優先，其次是使用者填的，再來是此步驟的預設（preset），最後是模組預設值

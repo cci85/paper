@@ -11,7 +11,7 @@ const RULES = [
 // 貼到哪裡
 const TARGETS = {
   nlm: "貼到 NotebookLM 對話",
-  table: "貼到 NotebookLM「資料表」的自訂指示",
+  table: "貼到 NotebookLM「資料表」的自訂指示，不是對話框",
   ai: "貼到一般 AI 對話（Claude、ChatGPT、Gemini），不是 NotebookLM",
   tool: "在本頁直接處理，不需貼到 AI"
 };
