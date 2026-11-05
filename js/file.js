@@ -89,6 +89,23 @@ function mdTable(rows) {
 // 存檔中的長文字：試算表內容轉成表格，其他文字的標題降級
 const mdText = t => { const r = parseTsv(t); return r ? mdTable(r) : demote(t); };
 
+// AI 回覆中沒有圍籬的 Mermaid 圖：就地補上 ```mermaid 圍籬（包成 subgraph 的大圖拆成每群一張），其餘文字不動
+const MM_LINE = /-->|---|-\.->|==>|^\s*(subgraph|end|classDef|class|style|linkStyle|direction|%%)\b|^\s*[A-Za-z_][\w-]*\s*[\[\(\{]/;
+function fenceMermaid(text) {
+  const t = String(text);
+  if (/```\s*mermaid/i.test(t)) return t;   // 已有圍籬
+  const L = t.replace(/\r\n?/g, "\n").split("\n"), out = [];
+  for (let i = 0; i < L.length; i++) {
+    if (!/^\s*(flowchart|graph)\s/.test(L[i])) { out.push(L[i]); continue; }
+    let j = i + 1, last = i;
+    while (j < L.length && (!L[j].trim() || MM_LINE.test(L[j]))) { if (L[j].trim()) last = j; j++; }
+    const r = fixFences(L.slice(i, last + 1).join("\n"));
+    if (r.count) out.push(r.text); else out.push(...L.slice(i, last + 1));
+    i = last;
+  }
+  return out.join("\n");
+}
+
 // 可閱讀的內容：依目錄列出有填寫的欄位與 AI 回覆；同一欄位只在第一次出現時列出
 function readable(pngs) {
   const shown = new Set(), out = [];
@@ -116,7 +133,7 @@ function readable(pngs) {
         lines.push(f.type === "textarea" ? `**${f.label}**\n\n${mdText(t)}` : `**${f.label}**：${t}`);
       });
       const r = (store.replies || {})[s.id + "|" + st.mod];
-      if (!blank(r)) lines.push(`**AI 回覆**\n\n${mdText(r)}`);
+      if (!blank(r)) lines.push(`**AI 回覆**\n\n${mdText(fenceMermaid(r))}`);
       if (lines.length) blocks.push(`### ${s.no ? `步驟 ${i + 1}　` : ""}${m.label}\n\n${lines.join("\n\n")}`);
     });
     if (blocks.length) out.push(`## ${s.no ? s.no + " " : ""}${s.title}\n\n${blocks.join("\n\n")}`);
