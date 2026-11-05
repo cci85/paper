@@ -78,15 +78,19 @@ function renderSection() {
 
 function renderPane() {
   const m = mod();
-  // seed：欄位第一次出現時，由前面步驟帶入內容（之後由研究者自行修改；按「重新帶入」可覆寫）
-  if (m.seed) {
-    const sd = m.seed(), done = (store.seeded ||= {});
-    Object.entries(sd).forEach(([k, v]) => { if (!done[k] && blank(store.values[k]) && !blank(v)) { store.values[k] = v; done[k] = true; } });
-  }
+  // seed：欄位空白時，由前面步驟帶入內容（之後由研究者自行修改；清空欄位或按「重新帶入」可再次帶入）
+  const sd = m.seed ? m.seed() : {};
+  Object.entries(sd).forEach(([k, v]) => { if (blank(store.values[k]) && !blank(v)) store.values[k] = v; });
+  let seedShown = false;
+  const seedRow = id => {
+    if (!m.seed || seedShown || !(id in sd)) return "";
+    seedShown = true;
+    return `<p class="hint seedrow"><button type="button" id="reseed">重新帶入</button> ${esc(m.seedNote)}；按「重新帶入」會清空欄位，改填${esc(m.seedFrom)}的最新內容。<span id="seedmsg"></span></p>`;
+  };
   const p = valuesOf(m), fixed = step().fixed || {};
   document.querySelector(".work main").classList.toggle("stack", !!m.stack);
   const fields = m.fields.filter(f => !(f.id in fixed) && (!f.when || f.when(p))).map(f => {   // when：依其他欄位決定是否顯示
-    const lab = `<label class="f">${esc(f.label)}${f.hint ? ` <small>${esc(ref(f.hint))}</small>` : ""}</label>`;
+    const lab = seedRow(f.id) + `<label class="f">${esc(f.label)}${f.hint ? ` <small>${esc(ref(f.hint))}</small>` : ""}</label>`;
     if (f.type === "radio") return lab + `<div class="chips">` + f.options.map(([v, t]) =>
       `<label class="chip"><input type="radio" name="${f.id}" data-f="${f.id}" value="${v}" ${p[f.id] === v ? "checked" : ""}>${esc(t)}</label>`).join("") + `</div>`;
     if (f.type === "checks") return lab + `<div class="chips">` + f.options.map(([v, t, locked]) =>
@@ -102,7 +106,6 @@ function renderPane() {
     <p class="hint">${esc(ref(m.hint))}</p>${fields}
     ${m.rules ? `<fieldset class="struct"><legend>附加共用規則</legend><div class="chips" id="rules"></div>
       <p class="hint" style="margin:8px 0 0">${step().rules ? "本節預設精簡組合；勾選會依本節分別記住。" : "預設沿用原本的組合；勾選會依模組分別記住。"}</p></fieldset>` : ""}
-    ${m.seed ? `<p class="hint seedrow"><button type="button" id="reseed">重新帶入</button> ${esc(m.seedNote)}；按「重新帶入」會以${esc(m.seedFrom)}的內容覆寫。</p>` : ""}
     <div class="note" id="status"></div>
     ${m.target === "tool" ? "" : `<fieldset class="struct reply"><legend>AI 回覆</legend>
       <p class="hint" style="margin:0 0 6px">選填；貼上這一步的 AI 回覆，會一併存入研究存檔，不影響上方的 Prompt。</p>
@@ -195,7 +198,7 @@ $("pane").addEventListener("input", e => {
 $("pane").addEventListener("click", e => {
   if (e.target.id === "reseed") {
     const sd = mod().seed(), got = Object.entries(sd).filter(([, v]) => !blank(v));
-    if (!got.length) { $("status").textContent = `${mod().seedFrom}還沒有可帶入的內容：請把該步驟的 AI 回覆貼到「AI 回覆」欄位。`; $("status").className = "note warn"; return; }
+    if (!got.length) { $("seedmsg").textContent = `　${mod().seedFrom}目前是空的：請先到該步驟，把 AI 的回覆貼到最下方的「AI 回覆」欄位。`; return; }
     got.forEach(([k, v]) => { store.values[k] = v; });
     renderPane(); update(); return;
   }
