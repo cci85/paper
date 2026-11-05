@@ -38,6 +38,8 @@ const stepIdx = () => Math.min(store.step[store.sec] || 0, steps().length - 1);
 const step = () => steps()[stepIdx()];
 const mod = () => DEFS[step().mod];
 const ref = s => fillRefs(s || "", sec());
+const OUTBOX = document.getElementById("outbox");   // 複製 Prompt 區塊：每次繪製欄位後放回「AI 回覆」上方
+const COPY_TO = { nlm: "貼到 NotebookLM", table: "貼到 NotebookLM 資料表", ai: "貼到一般 AI" };
 const replyKey = () => store.sec + "|" + step().mod;   // 每一步的 AI 回覆（存檔用）
 
 // 欄位值：此步驟固定的值優先，其次是使用者填的，再來是此步驟的預設（preset），最後是模組預設值
@@ -98,6 +100,8 @@ function renderPane() {
     ${m.target === "tool" ? "" : `<fieldset class="struct reply"><legend>AI 回覆</legend>
       <p class="hint" style="margin:0 0 6px">選填；貼上這一步的 AI 回覆，會一併存入研究存檔，不影響上方的 Prompt。</p>
       <textarea data-reply="1" rows="5" placeholder="把 AI 的回覆貼在這裡">${esc((store.replies || {})[replyKey()] || "")}</textarea></fieldset>`}`;
+  const rf = $("pane").querySelector("fieldset.reply");
+  rf ? $("pane").insertBefore(OUTBOX, rf) : $("pane").appendChild(OUTBOX);
   renderRules();
 }
 
@@ -130,10 +134,11 @@ function update() {
   m.fields.filter(f => f.type === "diagram").forEach(f => renderDiagram(f, p));
   const R = m.rules ? RULES.filter(r => activeRules(m, p).includes(r.key)).map(r => typeof r.text === "function" ? r.text(p) : r.text).join("") : "";
   const out = m.build(p, R);
-  $("out").textContent = out || m.empty || "";
+  $("out").textContent = out || "";
   $("copy").disabled = !out;
-  $("copy").textContent = m.copyLabel || "複製 Prompt";
-  $("count").textContent = out ? `${out.length.toLocaleString()} 字元` : "";
+  $("copy").textContent = m.copyLabel || `複製 Prompt（${COPY_TO[m.target] || "貼到 AI"}）`;
+  $("count").textContent = out ? `${out.length.toLocaleString()} 字元` : (m.empty || "");
+  $("outd").hidden = !out;
   $("next").textContent = ref(m.next);
   const st = m.status ? m.status(p) : "";
   $("status").textContent = st;
@@ -141,7 +146,9 @@ function update() {
   save();
 }
 
-function showAll() { renderToc(); renderSection(); renderPane(); update(); }
+// 換節或換步驟時，Prompt 收合（本頁處理的工具步驟則展開，結果就是要看的內容）
+const foldOut = () => { $("outd").open = mod().target === "tool"; };
+function showAll() { renderToc(); renderSection(); renderPane(); foldOut(); update(); }
 
 $("toc").addEventListener("click", e => {
   const b = e.target.closest("button[data-sec]"); if (!b) return;
@@ -150,7 +157,7 @@ $("toc").addEventListener("click", e => {
 });
 $("sechead").addEventListener("click", e => {
   const b = e.target.closest("button[data-step]"); if (!b) return;
-  store.step[store.sec] = +b.dataset.step; renderSection(); renderPane(); update();
+  store.step[store.sec] = +b.dataset.step; renderSection(); renderPane(); foldOut(); update();
 });
 $("pane").addEventListener("input", e => {
   const t = e.target;
@@ -183,8 +190,12 @@ $("copy").addEventListener("click", async () => {
     const ta = document.createElement("textarea");
     ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
   }
-  const b = $("copy"), old = b.textContent; b.textContent = "已複製 ✓";
+  const b = $("copy"), old = b.textContent, to = COPY_TO[mod().target];
+  b.textContent = to ? `已複製 ✓ 請${to}` : "已複製 ✓";
   setTimeout(() => (b.textContent = old), 1500);
 });
 
 showAll();
+$("outd").addEventListener("toggle", () => {
+  $("outd").querySelector("summary").textContent = $("outd").open ? "收合 Prompt" : "展開 Prompt";
+});
