@@ -138,6 +138,11 @@ const DEFS = {
     ],
     rules: () => ["citation"],
     seed: () => seedFrom01(),
+    status: p => {
+      const sd = seedFrom01(), lab = { as_ctx: "研究情境", as_con: "研究問題" };
+      const diff = Object.keys(lab).filter(k => !blank(sd[k]) && sd[k].trim() !== (p[k] || "").trim());
+      return diff.length ? "請確認：0.1 的" + diff.map(k => lab[k]).join("與") + "與這裡不同，要採用 0.1 的版本請按「重新從 0.1 帶入」。\n" + diff.map(k => `0.1 的${lab[k]}：${sd[k]}`).join("\n") : "";
+    },
     build: (p, R) => blank(p.as_ctx) ? "" : T.ask_frame({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), method: p.as_method, n: p.as_n }) + R,
     empty: "（請填入研究情境）",
     next: "下一步：到{#asmore}，在同一個對話補齊變數與各變數可擔任的角色，再到{#asmix}組合。"
