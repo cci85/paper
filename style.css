@@ -80,7 +80,7 @@ pre#out {
   line-height: 1.55; max-height: 480px; overflow: auto; margin-top: 8px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px;
 }
-.next { margin-top: 10px; font-size: 13px; color: var(--muted); }
+.next { margin-top: 10px; font-size: 13px; color: var(--muted); white-space: pre-line; }
 
 /* 回工具箱 */
 .toolbox-back { display: block; padding: 10px 16px; font-size: 14px; border-bottom: 1px solid var(--line); background: var(--panel); }
