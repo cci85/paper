@@ -197,14 +197,14 @@ const DEFS = {
     label: "組合研究架構", target: "nlm", stack: true,   // stack：欄位佔滿寬度，Prompt 放在下方
     hint: "在本頁貼上{#asf}與{#asmore}的回覆，依「變數清單」勾選要用的變數，可跨架構混搭；同一變數有多種角色時，會出現在各角色組中，由你決定位置；標示「推論」者為文獻尚未以此角色研究過的位置。產生的 Prompt 貼回同一個 NotebookLM 對話，整理各路徑的文獻支持與研究缺口，並產生 Google Scholar Labs 的英文檢索問題；路徑是否合理，到{#archchk}檢核。",
     fields: [
-      { id: "as_vlist", type: "textarea", label: "前面步驟的回覆", hint: "自動帶入{#asf}與{#asmore}貼在「AI 回覆」的內容；也可直接貼上各次回覆", rows: 6, mono: true },
+      { id: "as_vlist", type: "textarea", label: "前面步驟的回覆", hint: "自動帶入{#asf}、{#asmore}與{#amech}貼在「AI 回覆」的內容；也可直接貼上各次回覆", rows: 6, mono: true },
       { id: "as_pick", type: "picker", label: "勾選要用的變數", source: p => parseVarList(p.as_vlist), roles: MIX_ROLES, value: [] },
       { id: "as_diag", type: "diagram", label: "研究架構圖", hint: "選填。拖曳方塊調整位置；點一個方塊再點另一個方塊，畫出箭頭；先點調節變數再點一條箭頭，畫出調節虛線，拖曳虛線末端的圓點可沿箭頭調整接點位置；未選方塊時點箭頭或虛線可刪除。有畫箭頭時，AI 會逐條檢核你的路徑",
         tray: true, all: p => mixPicked(p, true), source: p => mixPicked(p),
         onRemove: k => { store.values.as_pick = (store.values.as_pick || []).filter(x => x !== k); } }
     ],
-    seed: () => ({ as_vlist: ["s0-4|asf", "s0-4|asmore"].map(k => (store.replies || {})[k]).filter(v => !blank(v)).map(v => v.trim()).join("\n\n") }),
-    seedFrom: "步驟 2、3 的 AI 回覆", seedNote: "「前面步驟的回覆」由步驟 2、3 的 AI 回覆帶入",
+    seed: () => ({ as_vlist: ["s0-4|asf", "s0-4|asmore", "s0-4|amech"].map(k => (store.replies || {})[k]).filter(v => !blank(v)).map(v => v.trim()).join("\n\n") }),
+    seedFrom: "步驟 2、3、6 的 AI 回覆", seedNote: "「前面步驟的回覆」由步驟 2、3（路線 B）與步驟 6（路線 D）的 AI 回覆帶入",
     rules: () => ["citation"],
     build: (p, R) => {
       const picked = mixPicked(p);
@@ -442,6 +442,20 @@ const DEFS = {
     copyLabel: "複製結果",
     next: "下一步：貼進 Obsidian 的 .md 筆記，就會自動渲染成圖。"
   },
+  // ─── 0.2 路線 D：篩選中介與調節變數 ───
+  amech: {
+    label: "篩選中介與調節變數", target: "nlm",
+    hint: "自變數與依變數已經確定時使用：依上傳文獻找出兩者之間的中介變數與調節變數候選，逐一評估證據強度、結果一致性、理論依據、情境適用性與彼此重疊，並判定建議納入、可考慮或不建議。上傳文獻中找不到時，會直接寫「未找到」，不做推論。",
+    fields: [
+      { id: "am_x", type: "text", label: "自變數", hint: "建議附英文原文", placeholder: "例如：從眾性（Conformity）" },
+      { id: "am_y", type: "text", label: "依變數", hint: "建議附英文原文", placeholder: "例如：衝動購買意向（Impulsive Buying Intention）" },
+      { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", hint: "選填；用來判斷文獻能否類推", placeholder: "例如：蝦皮電商平台" }
+    ],
+    rules: () => ["citation"],
+    build: (p, R) => blank(p.am_x) || blank(p.am_y) ? "" : T.ask_mech({ x: p.am_x.trim(), y: p.am_y.trim(), ctx: (p.as_ctx || "").trim() }) + R,
+    empty: "（請填入自變數與依變數）",
+    next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。回覆貼到下方「AI 回覆」後，到{#asmix}按「重新帶入」，依判定勾選變數、畫出路徑；不確定的變數先移到待選區。上傳文獻中找不到的機制，補上傳文獻後再問一次。"
+  },
   // ─── 0.2 路線 C：自行設計研究架構 ───
   own: {
     label: "自行設計研究架構", target: "tool", stack: true,
@@ -583,12 +597,13 @@ const OUTLINE = [
       { mod: "m5a", note: "選用（整批文獻全貌）：開新對話，盤點主題、理論與研究方法。" },
       { mod: "m5b", note: "選用（整批文獻全貌）：同一個對話接續，以文字說明各變數的定義、測量與角色，並畫關係圖；用來理解變數，挑選變數請用 0.2。" },
       { mod: "m5c", note: "選用（整批文獻全貌）：同一個對話接續，從變數、理論、情境與方法四個面向，找出整個領域的研究缺口與研究主題建議。" }] },
-    { id: "s0-4", no: "0.2", title: "形成研究架構", desc: "三條路線擇一使用，產出的架構都到 0.3 檢核。路線 A（步驟 1）從比較表選變數，適合還在摸索方向時；路線 B（步驟 2–4）由 NotebookLM 讀全文提出候選架構，再自行組合；路線 C（步驟 5）已有自己構想的架構時，直接輸入變數、畫出路徑。", steps: [
+    { id: "s0-4", no: "0.2", title: "形成研究架構", desc: "四條路線擇一使用，產出的架構都到 0.3 檢核。路線 A（步驟 1）從比較表選變數，適合還在摸索方向時；路線 B（步驟 2–4）由 NotebookLM 讀全文提出候選架構，再自行組合；路線 C（步驟 5）已有自己構想的架構時，直接輸入變數、畫出路徑；路線 D（步驟 6）自變數與依變數已確定時，依文獻篩選中介與調節變數，再到步驟 4 組合。", steps: [
       { mod: "gapsel", note: "路線 A：準備{#matrix}匯出的試算表。依提問逐步選擇依變數與其他變數，找出這組變數的研究缺口；搭橋檢索若發現已有研究，回到{#focus}補充關鍵字。" },
       { mod: "asf", note: "路線 B：由 AI 提出幾個合理的研究架構，再由你挑選。" },
       { mod: "asmore", note: "路線 B：提出架構後接著問，補齊變數，並列出每個變數可擔任的所有角色。" },
       { mod: "asmix", note: "路線 B：從候選架構中自行挑選變數、跨架構混搭，畫出路徑，組成自己的研究架構。" },
-      { mod: "own", note: "路線 C：已有自己構想的研究架構時使用，不需要 AI。" }] },
+      { mod: "own", note: "路線 C：已有自己構想的研究架構時使用，不需要 AI。" },
+      { mod: "amech", note: "路線 D：自變數與依變數已確定時使用，依上傳文獻篩選中介變數與調節變數；回覆可帶入步驟 4 組合。" }] },
     { id: "s0-5", no: "0.3", title: "研究架構合理性檢核", desc: "依已上傳的文獻檢核研究架構的合理性：0.2 三條路線產出的架構都在這裡檢核，也可單獨使用。手邊只有架構圖時，先用一般 AI 讀圖拆出變數與路徑 → NotebookLM 依制式項目與你的問題檢核 → 同一對話追問。", steps: [
       { mod: "archx", note: "只有架構圖、沒有文字時使用；架構來自 0.2，或已有變數與假說的文字清單，可直接到步驟 2。" },
       { mod: "archchk", note: "NotebookLM 需先上傳與架構相關的文獻；文獻愈完整，檢核愈有意義。" },
