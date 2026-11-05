@@ -192,3 +192,4 @@ fieldset.reply textarea { min-height: 96px; }
 #outd[open] summary { color: var(--muted); }
 #outd[hidden] { display: none; }
 .copy:disabled { opacity: .45; cursor: not-allowed; }
+.seedrow button { padding: 4px 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; margin-right: 6px; }

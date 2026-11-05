@@ -137,6 +137,7 @@ const DEFS = {
       { id: "as_n", type: "radio", label: "架構數量", options: [["2", "2 個"], ["3", "3 個"], ["4", "4 個"], ["5", "5 個"], ["6", "6 個"]], value: "4" }
     ],
     rules: () => ["citation"],
+    seed: () => seedFrom01(),
     build: (p, R) => blank(p.as_ctx) ? "" : T.ask_frame({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), method: p.as_method, n: p.as_n }) + R,
     empty: "（請填入研究情境）",
     next: "下一步：到{#asmore}，在同一個對話補齊變數與各變數可擔任的角色，再到{#asmix}組合。"
@@ -530,6 +531,15 @@ const DEFS = {
 // 0.3 步驟 2：架構圖資料（依文字建立，保留圖上的手動修改）與送出的架構文字
 const archDiag = p => dgSeed(DEFS.archchk.fields.find(f => f.id === "ac_diag"), p);
 const archOut = p => { const t = archSrcText(p), A = parseArch(t); return A.edges.length ? archText(A, archDiag(p)) : t.trim(); };
+
+// 0.2 路線 B：由 0.1「研究方向聚焦」帶入研究情境與研究問題
+// 取 AI 回覆中最後一次出現的「研究情境：」「研究問題：」；沒有回覆時，研究問題改用 0.1 填寫的「感興趣的現象」
+function seedFrom01() {
+  const r = String((store.replies || {})["s0-1|focus"] || "").replace(/\*\*/g, "");
+  const last = re => { const m = [...r.matchAll(re)]; return m.length ? m[m.length - 1][1].trim() : ""; };
+  const ctx = last(/研究情境[：:]\s*(.+)/g), con = last(/研究問題[：:]\s*(.+)/g) || (store.values.f_phen || "").trim();
+  return { as_ctx: ctx, as_con: con };
+}
 
 // 每行一項（去除行首的條列符號與空白）
 const splitLines = s => (s || "").split(/\r?\n/).map(v => v.replace(/^[\s\-*•]+/, "").trim()).filter(Boolean);

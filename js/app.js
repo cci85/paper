@@ -77,7 +77,13 @@ function renderSection() {
 }
 
 function renderPane() {
-  const m = mod(), p = valuesOf(m), fixed = step().fixed || {};
+  const m = mod();
+  // seed：欄位第一次出現時，由前面步驟帶入內容（之後由研究者自行修改；按「重新帶入」可覆寫）
+  if (m.seed) {
+    const sd = m.seed(), done = (store.seeded ||= {});
+    Object.entries(sd).forEach(([k, v]) => { if (!done[k] && blank(store.values[k]) && !blank(v)) { store.values[k] = v; done[k] = true; } });
+  }
+  const p = valuesOf(m), fixed = step().fixed || {};
   document.querySelector(".work main").classList.toggle("stack", !!m.stack);
   const fields = m.fields.filter(f => !(f.id in fixed) && (!f.when || f.when(p))).map(f => {   // when：依其他欄位決定是否顯示
     const lab = `<label class="f">${esc(f.label)}${f.hint ? ` <small>${esc(ref(f.hint))}</small>` : ""}</label>`;
@@ -96,6 +102,7 @@ function renderPane() {
     <p class="hint">${esc(ref(m.hint))}</p>${fields}
     ${m.rules ? `<fieldset class="struct"><legend>附加共用規則</legend><div class="chips" id="rules"></div>
       <p class="hint" style="margin:8px 0 0">${step().rules ? "本節預設精簡組合；勾選會依本節分別記住。" : "預設沿用原本的組合；勾選會依模組分別記住。"}</p></fieldset>` : ""}
+    ${m.seed ? `<p class="hint seedrow"><button type="button" id="reseed">重新從 0.1 帶入</button> 研究情境與研究問題由 0.1「研究方向聚焦」的 AI 回覆帶入，可自行修改；按此鈕會以 0.1 的內容覆寫。</p>` : ""}
     <div class="note" id="status"></div>
     ${m.target === "tool" ? "" : `<fieldset class="struct reply"><legend>AI 回覆</legend>
       <p class="hint" style="margin:0 0 6px">選填；貼上這一步的 AI 回覆，會一併存入研究存檔，不影響上方的 Prompt。</p>
@@ -178,6 +185,12 @@ $("pane").addEventListener("input", e => {
 });
 
 $("pane").addEventListener("click", e => {
+  if (e.target.id === "reseed") {
+    const sd = mod().seed(), got = Object.entries(sd).filter(([, v]) => !blank(v));
+    if (!got.length) { $("status").textContent = "0.1「研究方向聚焦」還沒有可帶入的內容：請把該步驟的 AI 回覆貼到「AI 回覆」欄位。"; $("status").className = "note warn"; return; }
+    got.forEach(([k, v]) => { store.values[k] = v; });
+    renderPane(); update(); return;
+  }
   const b = e.target.closest("button[data-dg]"); if (!b) return;
   const f = mod().fields.find(x => x.id === b.dataset.dg);
   if (f) diagramAction(f, b.dataset.act);

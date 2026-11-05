@@ -213,7 +213,7 @@ window.onStoreSave = () => {
 // ── 讀入 ──
 function applyData(d, fileName, lastMod) {
   store.name = d.name || (fileName || "").replace(/\.md$/i, "");
-  store.values = d.values || {}; store.rules = d.rules || {}; store.replies = migrateReplies(d.replies || {});
+  store.values = d.values || {}; store.rules = d.rules || {}; store.replies = migrateReplies(d.replies || {}); store.seeded = {};
   proj.file = fileName || ""; proj.lastMod = lastMod || 0; proj.lastPayload = payloadOf(); proj.pngSig = {}; proj.conflict = false;
   hideConflict();
   $("pname").value = store.name;
@@ -303,7 +303,7 @@ function downloadAll() {
 function newProject() {
   if (!confirm("開始新的研究？目前的內容" + (proj.dir && projName() ? "已存檔，" : "若未存檔將會清除，") + "欄位會全部清空。")) return;
   writeNow(false).finally(() => {
-    store.name = ""; store.values = {}; store.rules = {}; store.replies = {};
+    store.name = ""; store.values = {}; store.rules = {}; store.replies = {}; store.seeded = {};
     proj.file = ""; proj.lastMod = 0; proj.lastPayload = ""; proj.pngSig = {}; proj.conflict = false;
     hideConflict(); kvSet("file", ""); showAll(); renderProj();
     pstat("請輸入新研究的名稱。");
