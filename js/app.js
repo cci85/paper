@@ -28,6 +28,7 @@ function migrateReplies(r) {
   return r;
 }
 migrateReplies(store.replies);
+if (store.values.gs_mode === "upload") store.values.gs_mode = "source";   // 選定變數改到 NotebookLM
 if (store.layout !== 2) { delete store.step["s0-1"]; delete store.step["s0-4"]; store.layout = 2; }
 if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} if (window.onStoreSave) window.onStoreSave(); };

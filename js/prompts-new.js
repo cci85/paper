@@ -399,15 +399,22 @@ const GAPSEL_STEP4 = `最後，請我從上述研究缺口候選中選擇一個�
 const matrixReply = () => Object.entries(store.replies || {}).filter(([k, v]) => k.endsWith("|matrix") && !blank(v)).map(([, v]) => v)[0] || "";
 function buildGapsel(p) {
   const tbl = blank(p.gs_table) ? matrixReply() : p.gs_table;
-  const table = p.gs_mode === "paste"
-    ? (blank(tbl) ? "" : "\n\n" + tbl.trim() + "\n\n")
-    : "（見上傳的表格檔案）";
-  if (p.gs_mode === "paste" && !table) return "";
+  const paste = p.gs_mode === "paste";
+  if (paste && blank(tbl)) return "";
+  // NotebookLM 版：表格作為索引，判斷與引用回到全文查證（原文保存於 T.gapsel_orig）
   return T.gapsel_orig
-    .replace("【上傳表格檔案，或在此貼上表格】", table)
-    .replace("分三個步驟", "分四個步驟")
+    .replace("以下是我的文獻綜述表格，每一列是一篇文獻：【上傳表格檔案，或在此貼上表格】",
+      paste ? "以下是我的文獻綜述表格，每一列是一篇文獻：\n\n" + tbl.trim() + "\n"
+            : "本筆記本中名為「文獻比較表」的來源，是我的文獻綜述表格，每一列是一篇文獻。")
+    .replace("請只依據這份表格的內容，分三個步驟撰寫文獻概況摘要。", "請以這份表格作為索引，並回到筆記本中各篇文獻的全文查證，分四個步驟撰寫文獻概況摘要。")
     .replace("   - 可行性：表格中是否有測量這些變數的量表；若沒有，標示「表格未載」。\n",
-             "   - 可行性：表格中是否有測量這些變數的量表；若沒有，標示「表格未載」。\n" + GAPSEL_STEP4);
+             "   - 可行性：表格中是否有測量這些變數的量表；若沒有，標示「表格未載」。\n" + GAPSEL_STEP4)
+    .replace("只能依據我提供的表格內容；表格中沒有的資訊，請標示「表格未載」，不得以你自己的知識補充或推測。",
+      "只能依據筆記本中的文獻；以表格作為索引，判斷與引用一律回到全文查證；表格與全文不一致時，以全文為準，並在該處註明「表格與全文不一致」。表格與全文都沒有的資訊，請標示「文獻未載」，不得以你自己的知識補充或推測。")
+    .replace("只能依據表格內容與上述判準", "只能依據文獻內容與上述判準")
+    .replace(/表格中尚無文獻檢驗/g, "上傳文獻中尚無檢驗").replace(/表格中已有文獻檢驗/g, "上傳文獻中已有檢驗")
+    .replace(/表格中/g, "上傳文獻中").replace(/表格未載/g, "文獻未載").replace(/非出自表格/g, "非出自文獻")
+    .replace(/所依據的表格內容/g, "所依據的文獻內容").replace("其他表格以外的因素", "其他文獻以外的因素").replace(/依表格結果/g, "依文獻結果");
 }
 
 // 0.2 向文獻提問：附加在「完成後自我核對」之後的支持程度總結（可在網頁上取消）
