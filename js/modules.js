@@ -141,7 +141,7 @@ const DEFS = {
     seedNote: "研究情境與研究問題由 0.1「研究方向聚焦」的 AI 回覆帶入，可自行修改",
     build: (p, R) => blank(p.as_ctx) ? "" : T.ask_frame({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), method: p.as_method, n: p.as_n }) + R,
     empty: "（請填入研究情境）",
-    next: "下一步：到{#asmore}，在同一個對話補齊變數與各變數可擔任的角色，再到{#asmix}組合。"
+    next: "下一步：回覆貼到下方「AI 回覆」，再到{#asmore}，在同一個對話補齊變數與各變數可擔任的角色。"
   },
   asmore: {
     label: "補充變數清單", target: "nlm",
@@ -149,7 +149,7 @@ const DEFS = {
     fields: [],
     rules: () => ["citation"],
     build: (p, R) => T.ask_more({}) + R,
-    next: "下一步：若回覆最後寫「未完」，輸入「繼續」。把{#asf}與本步驟（含「繼續」）的各次回覆一起貼到{#asmix}，網頁會自動合併、去除重複。"
+    next: "下一步：若回覆最後寫「未完」，輸入「繼續」。各次回覆（含「繼續」之後的）依序貼到下方「AI 回覆」，到{#asmix}會自動帶入、合併並去除重複。"
   },
   vdeep: {
     label: "深入了解單一變數", target: "nlm",
@@ -195,7 +195,7 @@ const DEFS = {
   },
   asmix: {
     label: "組合研究架構", target: "nlm", stack: true,   // stack：欄位佔滿寬度，Prompt 放在下方
-    hint: "在本頁貼上{#asf}與{#asmore}的回覆，依「變數清單」勾選要用的變數，可跨架構混搭；同一變數有多種角色時，會出現在各角色組中，由你決定位置；標示「推論」者為文獻尚未以此角色研究過的位置。產生的 Prompt 貼回同一個 NotebookLM 對話，整理各路徑的文獻支持與研究缺口，並產生 Google Scholar Labs 的英文檢索問題；路徑是否合理，到{#archchk}檢核。",
+    hint: "「前面步驟的回覆」會自動帶入{#asf}、{#asmore}或{#amech}貼在「AI 回覆」的內容。依「變數清單」勾選要用的變數，可跨架構混搭；同一變數有多種角色時，會出現在各角色組中，由你決定位置；標示「推論」者為文獻尚未以此角色研究過的位置。產生的 Prompt 貼回產生變數清單的同一個 NotebookLM 對話，整理各路徑的文獻支持與研究缺口，並產生 Google Scholar Labs 的英文檢索問題；路徑是否合理，到{#archchk}檢核。",
     fields: [
       { id: "as_vlist", type: "textarea", label: "前面步驟的回覆", hint: "自動帶入{#asf}、{#asmore}與{#amech}貼在「AI 回覆」的內容；也可直接貼上各次回覆", rows: 6, mono: true },
       { id: "as_pick", type: "picker", label: "勾選要用的變數", source: p => parseVarList(p.as_vlist), roles: MIX_ROLES, value: [] },
@@ -216,7 +216,7 @@ const DEFS = {
       return n ? `已讀取 ${n} 個變數` + trayNote("as_diag") : "沒有讀取到變數，請確認貼上的內容包含「變數清單」，且每行為「角色｜變數名稱｜出處｜架構」。";
     },
     empty: "（請貼上上一步的回覆，並勾選要用的變數）",
-    next: "下一步：貼回同一個 NotebookLM 對話。回覆中的英文問題一次一個貼到 Google Scholar Labs（scholar.google.com 的 Labs），找到的文獻上傳到同一個 Notebook。接著到{#archchk}，選擇「0.2 組合研究架構」，檢核路徑是否合理；確認可行後，到{#astat}確認統計方法。要查實務面時，把本步驟的完整回覆貼到{#asp}。"
+    next: "下一步：\n1. 貼回產生變數清單的同一個 NotebookLM 對話：路線 B 為{#asf}的對話，路線 D 為{#amech}的對話。回覆貼到下方「AI 回覆」。\n2. 回覆中標示「尚無實證」或【待補文獻】的路徑，把對應的英文問題一次一個貼到 Google Scholar Labs（scholar.google.com 的 Labs），找到的文獻上傳到同一個 Notebook。\n3. 到{#archchk}，在「研究架構來源」選「0.2 組合研究架構」檢核；要採用回覆中的修正架構時，回到本步驟調整勾選與路徑，再檢核一次。\n4. 架構確定後，到{#astat}確認統計方法；要查實務面時，先依確定的架構重新產生本步驟的回覆，再把完整回覆貼到{#asp}。"
   },
   astat: {
     label: "統計方法與結果揭露", target: "nlm",
