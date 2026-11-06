@@ -145,11 +145,11 @@ function readable(pngs) {
 function fileText(notes, pngs) {
   const now = new Date(), ts = now.toLocaleString("zh-TW", { hour12: false });
   return [
-    "---", `title: ${store.name || ""}`, `updated: ${ts}`, "source: 論文 Prompt 產生器", "---", "",
+    "---", `title: ${store.name || ""}`, `updated: ${ts}`, "source: 論文工作台", "---", "",
     `# ${store.name || ""}`, "",
     "## 我的筆記", NOTE_START, notes || NOTE_EMPTY, NOTE_END, "",
     readable(pngs) || "（尚未填寫任何欄位）", "",
-    "---", "以下資料區塊供論文 Prompt 產生器讀回原始設定，請勿修改。", "",
+    "---", "以下資料區塊供論文工作台讀回原始設定，請勿修改。", "",
     "```json " + DATA_TAG, payloadOf(), "```", ""
   ].join("\n");
 }
