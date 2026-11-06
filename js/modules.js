@@ -8,6 +8,10 @@ const RULES = [
   { key: "support", label: "文獻支持程度總結", text: T.support, opt: true }
 ];
 
+// 共用規則中的引用格式（欄位內第二個 Prompt 使用）
+const citeText = () => { const r = RULES.find(x => x.key === "citation"); return typeof r.text === "function" ? r.text({}) : r.text; };
+const isOn = v => Array.isArray(v) && v.includes("on");
+
 // 貼到哪裡
 const TARGETS = {
   nlm: "貼到 NotebookLM 對話",
@@ -135,14 +139,19 @@ const DEFS = {
       { id: "as_con", type: "text", label: "研究問題", hint: "選填；以一句話描述要探討的現象或問題，可幫助 AI 聚焦", placeholder: "例如：使用者滑 TikTok 或 Instagram Reels 時看到平台推薦的產品開箱影片，是否會因此產生衝動購買？" },
       { id: "as_dv", type: "text", label: "已確定的依變數", hint: "選填；填了之後，所有候選架構都以它為依變數", placeholder: "例如：衝動購買意向（Impulsive Buying Intention）" },
       { id: "as_method", type: "radio", label: "研究方法", options: [["any", "不限"], ["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "panel data"]], value: "survey" },
-      { id: "as_n", type: "radio", label: "架構數量", options: [["2", "2 個"], ["3", "3 個"], ["4", "4 個"], ["5", "5 個"], ["6", "6 個"]], value: "4" }
+      { id: "as_n", type: "radio", label: "架構數量", options: [["2", "2 個"], ["3", "3 個"], ["4", "4 個"], ["5", "5 個"], ["6", "6 個"]], value: "4" },
+      { id: "as_more_on", type: "checks", below: true, label: "補充變數清單", options: [["on", "接著在同一個對話補充變數清單（列出每個變數可擔任的所有角色）"]], value: [] },
+      { id: "as_more_prompt", type: "promptbox", below: true, label: "補充變數清單 Prompt", when: p => isOn(p.as_more_on),
+        hint: "貼到同一個 NotebookLM 對話；回覆最後若寫「未完」，輸入「繼續」",
+        copyLabel: "複製補充 Prompt（貼到 NotebookLM 同一個對話）", build: () => T.ask_more({}) + citeText() },
+      { id: "as_morereply", type: "textarea", below: true, label: "補充變數清單的 AI 回覆", hint: "各次回覆（含「繼續」之後的）依序貼上；有勾選才會帶到組合步驟", rows: 5, when: p => isOn(p.as_more_on) },
     ],
     rules: () => ["citation"],
     seed: () => seedFrom01(), seedFrom: "0.1「研究方向聚焦」",
     seedNote: "研究情境與研究問題由 0.1「研究方向聚焦」的 AI 回覆帶入，可自行修改",
     build: (p, R) => blank(p.as_ctx) ? "" : T.ask_frame({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), dv: (p.as_dv || "").trim(), method: p.as_method, n: p.as_n }) + R,
     empty: "（請填入研究情境）",
-    next: "下一步：回覆貼到下方「AI 回覆」，再到{#asmore}，在同一個對話補齊變數與各變數可擔任的角色。"
+    next: "下一步：回覆貼到下方「AI 回覆」。需要更完整的變數時，勾選最下方的「補充變數清單」，在同一個對話接著問。完成後到{#asmix}。"
   },
   asmore: {
     label: "補充變數清單", target: "nlm",
@@ -196,16 +205,26 @@ const DEFS = {
   },
   asmix: {
     label: "組合研究架構", target: "nlm", stack: true,   // stack：欄位佔滿寬度，Prompt 放在下方
-    hint: "「前面步驟的回覆」會自動帶入{#asf}、{#asmore}或{#amech}貼在「AI 回覆」的內容。依「變數清單」勾選要用的變數，可跨架構混搭；同一變數有多種角色時，會出現在各角色組中，由你決定位置；標示「推論」者為文獻尚未以此角色研究過的位置。產生的 Prompt 貼回產生變數清單的同一個 NotebookLM 對話，整理各路徑的文獻支持與研究缺口，並產生 Google Scholar Labs 的英文檢索問題；路徑是否合理，到{#archchk}檢核。",
+    hint: "依「前面步驟的回覆」中的變數清單勾選要用的變數，可跨架構混搭，再畫出路徑；不確定的變數先移到待選區。自變數與依變數已確定時，勾選上方「篩選中介與調節變數」，依文獻找出兩者之間的候選。產生的 Prompt 貼回 NotebookLM 對話，整理各路徑的文獻支持與研究缺口，並產生 Google Scholar Labs 的英文檢索問題；路徑是否合理，到{#archchk}檢核。",
     fields: [
-      { id: "as_vlist", type: "textarea", label: "前面步驟的回覆", hint: "自動帶入{#asf}、{#asmore}與{#amech}貼在「AI 回覆」的內容；也可直接貼上各次回覆", rows: 6, mono: true },
+      { id: "am_on", type: "checks", label: "篩選中介與調節變數", options: [["on", "自變數與依變數已確定：依文獻篩選兩者之間的中介與調節變數"]], value: [] },
+      { id: "am_x", type: "text", label: "自變數", hint: "建議附英文原文", placeholder: "例如：從眾性（Conformity）", when: p => isOn(p.am_on) },
+      { id: "am_y", type: "text", label: "依變數", hint: "建議附英文原文", placeholder: "例如：衝動購買意向（Impulsive Buying Intention）", when: p => isOn(p.am_on) },
+      { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", hint: "選填；用來判斷文獻能否類推", placeholder: "例如：蝦皮電商平台", when: p => isOn(p.am_on) },
+      { id: "am_prompt", type: "promptbox", label: "篩選 Prompt", when: p => isOn(p.am_on),
+        hint: "貼到已上傳相關文獻的 NotebookLM 對話；AI 會判定每個候選為建議納入、可考慮或不建議，找不到時直接寫「未找到」",
+        copyLabel: "複製篩選 Prompt（貼到 NotebookLM）", empty: "（請先填入自變數與依變數）",
+        build: p => blank(p.am_x) || blank(p.am_y) ? "" : T.ask_mech({ x: p.am_x.trim(), y: p.am_y.trim(), ctx: (p.as_ctx || "").trim() }) + citeText() },
+      { id: "am_reply", type: "textarea", label: "篩選的 AI 回覆", hint: "貼上後按下方「重新帶入」，候選變數會出現在勾選清單，並標示判定", rows: 5, when: p => isOn(p.am_on) },
+      { id: "as_vlist", type: "textarea", label: "前面步驟的回覆", hint: "自動帶入步驟 1 與上方篩選的 AI 回覆；也可直接貼上各次回覆", rows: 6, mono: true },
       { id: "as_pick", type: "picker", label: "勾選要用的變數", source: p => parseVarList(p.as_vlist), roles: MIX_ROLES, value: [] },
       { id: "as_diag", type: "diagram", label: "研究架構圖", hint: "選填。拖曳方塊調整位置；點一個方塊再點另一個方塊，畫出箭頭；先點調節變數再點一條箭頭，畫出調節虛線，拖曳虛線末端的圓點可沿箭頭調整接點位置；未選方塊時點箭頭或虛線可刪除。有畫箭頭時，AI 會逐條檢核你的路徑",
         tray: true, all: p => mixPicked(p, true), source: p => mixPicked(p),
         onRemove: k => { store.values.as_pick = (store.values.as_pick || []).filter(x => x !== k); } }
     ],
-    seed: () => ({ as_vlist: ["s0-4|asf", "s0-4|asmore", "s0-4|amech"].map(k => (store.replies || {})[k]).filter(v => !blank(v)).map(v => v.trim()).join("\n\n") }),
-    seedFrom: "路線 A、B 的 AI 回覆", seedNote: "「前面步驟的回覆」由步驟 1、2（路線 A）與步驟 3（路線 B）的 AI 回覆帶入",
+    seed: () => { const v = store.values, r = store.replies || {};
+      return { as_vlist: [r["s0-4|asf"], isOn(v.as_more_on) ? v.as_morereply : "", isOn(v.am_on) ? v.am_reply : ""].filter(x => !blank(x)).map(x => x.trim()).join("\n\n") }; },
+    seedFrom: "步驟 1 與篩選的 AI 回覆", seedNote: "「前面步驟的回覆」由步驟 1 的 AI 回覆（含勾選的補充變數清單），以及上方「篩選中介與調節變數」的回覆帶入",
     rules: () => ["citation"],
     build: (p, R) => {
       const picked = mixPicked(p);
@@ -217,7 +236,7 @@ const DEFS = {
       return n ? `已讀取 ${n} 個變數` + trayNote("as_diag") : "沒有讀取到變數，請確認貼上的內容包含「變數清單」，且每行為「角色｜變數名稱｜出處｜架構」。";
     },
     empty: "（請貼上上一步的回覆，並勾選要用的變數）",
-    next: "下一步：\n1. 貼回產生變數清單的同一個 NotebookLM 對話（路線 A 為{#asf}的對話，路線 B 為{#amech}的對話），回覆貼到下方「AI 回覆」。\n2. 回覆中標示「尚無實證」或【待補文獻】的路徑，用回覆中的英文問題到 Google Scholar Labs（scholar.google.com 的 Labs）補文獻，上傳到同一個 Notebook。\n3. 到{#archchk}檢核，AI 會提出修改後的架構與理由。"
+    next: "下一步：\n1. 貼回 NotebookLM 對話（步驟 1 或篩選所用的同一個對話），回覆貼到下方「AI 回覆」。\n2. 回覆中標示「尚無實證」或【待補文獻】的路徑，用回覆中的英文問題到 Google Scholar Labs（scholar.google.com 的 Labs）補文獻，上傳到同一個 Notebook。\n3. 到{#archchk}檢核，AI 會提出修改後的架構與理由。"
   },
   astat: {
     label: "統計方法與結果揭露", target: "nlm",
@@ -457,40 +476,6 @@ const DEFS = {
     empty: "（請填入自變數與依變數）",
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。回覆貼到下方「AI 回覆」後，到{#asmix}按「重新帶入」，依判定勾選變數、畫出路徑；不確定的變數先移到待選區。上傳文獻中找不到的機制，補上傳文獻後再問一次。"
   },
-  // ─── 0.2 路線 C：自行設計研究架構 ───
-  own: {
-    label: "自行設計研究架構", target: "tool", stack: true,
-    hint: "已有自己構想的研究架構，或手上只有一張架構圖圖片（例如口試、審閱他人論文）時使用。選「直接畫」：輸入變數後在圖上畫出路徑；選「從圖片或文字匯入」：用一般 AI 讀圖，或貼上 0.3 修正後的架構，匯入後在圖上核對、修改。不需要貼到 NotebookLM；完成後到{#archchk}檢核。",
-    fields: [
-      { id: "ow_mode", type: "radio", label: "開始方式", options: [["draw", "直接畫"], ["import", "從圖片或文字匯入"]], value: "draw" },
-      { id: "ax_note", type: "textarea", label: "圖例或補充說明", hint: "選填；圖中看不出來、但會影響判讀的資訊，會加入下方的讀圖 Prompt", rows: 2, placeholder: "例如：虛線代表調節效果；小方框為構面；H4 指向 H2 的箭頭", when: p => p.ow_mode === "import" },
-      { id: "ax_prompt", type: "promptbox", label: "讀圖 Prompt", when: p => p.ow_mode === "import",
-        hint: "有架構圖圖片時：在一般 AI（Claude、ChatGPT、Gemini）開新對話，先上傳架構圖，再貼上這段 Prompt",
-        copyLabel: "複製讀圖 Prompt（貼到一般 AI，並上傳架構圖）", build: p => T.arch_extract({ note: (p.ax_note || "").trim() }) },
-      { id: "ow_imp", type: "textarea", label: "要匯入的架構", hint: "貼上一般 AI 讀圖的回覆，或 0.3 修正後架構的「### 變數」「### 路徑」兩節", rows: 6, mono: true, when: p => p.ow_mode === "import" },
-      { id: "ow_go", type: "button", label: "匯入到圖上", hint: "會取代下方目前的變數與箭頭", when: p => p.ow_mode === "import",
-        run: p => {
-          const r = importArch(p.ow_imp || "");
-          if (!r) return "沒有讀到變數，請確認貼上的內容包含「變數」與「路徑」兩節。";
-          return `已匯入 ${r.n} 個變數、${r.e} 條路徑，請在下方圖上核對。` + (r.unsure.length ? `\n讀圖時無法確定之處：${r.unsure.join("；")}` : "");
-        } },
-      { id: "ow_vars", type: "textarea", label: "變數", hint: "每行一個：角色｜變數名稱（英文原文）。角色為自變數、中介變數、調節變數、依變數或控制變數；省略角色時，依圖上的箭頭判斷", rows: 6, mono: true,
-        placeholder: "自變數｜演算法推薦（Algorithmic Recommendation）\n中介變數｜顧客靈感（Customer Inspiration）\n調節變數｜說服知識（Persuasion Knowledge）\n依變數｜衝動購買意圖（Impulse Buying Intention）" },
-      { id: "ow_diag", type: "diagram", label: "研究架構圖", hint: "拖曳方塊調整位置；點一個方塊再點另一個方塊，畫出箭頭；先點調節變數再點一條箭頭，畫出調節虛線；未選方塊時點箭頭或虛線可刪除",
-        emptyHint: "（輸入變數後，這裡會出現方塊）",
-        tray: true, all: p => ownVars(p, true), source: p => ownVars(p),
-        onRemove: k => { store.values.ow_vars = (store.values.ow_vars || "").split(/\r?\n/).filter(l => { const v = parseOwnVars(l)[0]; return !v || v.key !== k; }).join("\n"); } }
-    ],
-    build: () => ownArchText(),
-    status: p => {
-      const n = parseOwnVars(p.ow_vars).length, d = store.values.ow_diag;
-      if (!n) return "";
-      return `已讀取 ${n} 個變數` + (d && d.edges && d.edges.length ? `、${d.edges.length} 條路徑。` : "；請在圖上畫出路徑。") + trayNote("ow_diag");
-    },
-    empty: "（請輸入變數，並在圖上畫出路徑）",
-    copyLabel: "複製研究架構",
-    next: "下一步：到{#archchk}，在「研究架構來源」選擇「0.2 自行設計研究架構」，不需要複製貼上。"
-  },
   // ─── 0.3 研究架構合理性檢核 ───
   archx: {
     label: "拆解研究架構圖", target: "ai",
@@ -503,10 +488,28 @@ const DEFS = {
   },
   archchk: {
     label: "依文獻檢核架構", target: "nlm", stack: true,
-    hint: "選擇 0.2 的研究架構後，下方會自動畫出架構圖。產生的 Prompt 貼到已上傳文獻的 NotebookLM 對話，依勾選的制式項目檢核，並可一併提出自己的問題；回覆最後會逐條路徑總結文獻支持程度，並提出文獻支持更充分的修正架構。",
+    hint: "選擇研究架構來源：「0.2 組合研究架構」會自動帶入並畫出架構圖；「自行設計或匯入」可直接畫，或從架構圖圖片、0.3 修正後的架構匯入。產生的 Prompt 貼到已上傳文獻的 NotebookLM 對話，依勾選的制式項目檢核，並可一併提出自己的問題；回覆最後會逐條路徑總結文獻支持程度，並提出文獻支持更充分的修正架構。",
     fields: [
-      { id: "ac_src", type: "radio", label: "研究架構來源", options: [["mix", "0.2 組合研究架構（路線 A、B）"], ["own", "0.2 自行設計研究架構（路線 C）"]], value: "mix" },
-      { id: "ac_diag", type: "diagram", label: "研究架構圖", hint: "依 0.2 的架構自動畫出，請核對是否正確；要修改請回到 0.2。在此圖上的修改只用於這次檢核",
+      { id: "ac_src", type: "radio", label: "研究架構來源", options: [["mix", "0.2 組合研究架構"], ["own", "自行設計或匯入（不經 0.2）"]], value: "mix" },
+      { id: "ow_mode", type: "radio", label: "開始方式", options: [["draw", "直接畫"], ["import", "從圖片或文字匯入"]], value: "draw", when: p => p.ac_src === "own" },
+      { id: "ax_note", type: "textarea", label: "圖例或補充說明", hint: "選填；圖中看不出來、但會影響判讀的資訊，會加入下方的讀圖 Prompt", rows: 2, placeholder: "例如：虛線代表調節效果；小方框為構面；H4 指向 H2 的箭頭", when: p => p.ac_src === "own" && p.ow_mode === "import" },
+      { id: "ax_prompt", type: "promptbox", label: "讀圖 Prompt", when: p => p.ac_src === "own" && p.ow_mode === "import",
+        hint: "有架構圖圖片時：在一般 AI（Claude、ChatGPT、Gemini）開新對話，先上傳架構圖，再貼上這段 Prompt",
+        copyLabel: "複製讀圖 Prompt（貼到一般 AI，並上傳架構圖）", build: p => T.arch_extract({ note: (p.ax_note || "").trim() }) },
+      { id: "ow_imp", type: "textarea", label: "要匯入的架構", hint: "貼上一般 AI 讀圖的回覆，或 0.3 修正後架構的「### 變數」「### 路徑」兩節", rows: 6, mono: true, when: p => p.ac_src === "own" && p.ow_mode === "import" },
+      { id: "ow_go", type: "button", label: "匯入到圖上", hint: "會取代下方目前的變數與箭頭", when: p => p.ac_src === "own" && p.ow_mode === "import",
+        run: p => {
+          const r = importArch(p.ow_imp || "");
+          if (!r) return "沒有讀到變數，請確認貼上的內容包含「變數」與「路徑」兩節。";
+          return `已匯入 ${r.n} 個變數、${r.e} 條路徑，請在下方圖上核對。` + (r.unsure.length ? `\n讀圖時無法確定之處：${r.unsure.join("；")}` : "");
+        } },
+      { id: "ow_vars", type: "textarea", when: p => p.ac_src === "own", label: "變數", hint: "每行一個：角色｜變數名稱（英文原文）。角色為自變數、中介變數、調節變數、依變數或控制變數；省略角色時，依圖上的箭頭判斷", rows: 6, mono: true,
+        placeholder: "自變數｜演算法推薦（Algorithmic Recommendation）\n中介變數｜顧客靈感（Customer Inspiration）\n調節變數｜說服知識（Persuasion Knowledge）\n依變數｜衝動購買意圖（Impulse Buying Intention）" },
+      { id: "ow_diag", type: "diagram", when: p => p.ac_src === "own", label: "研究架構圖", hint: "拖曳方塊調整位置；點一個方塊再點另一個方塊，畫出箭頭；先點調節變數再點一條箭頭，畫出調節虛線；未選方塊時點箭頭或虛線可刪除",
+        emptyHint: "（輸入變數後，這裡會出現方塊）",
+        tray: true, all: p => ownVars(p, true), source: p => ownVars(p),
+        onRemove: k => { store.values.ow_vars = (store.values.ow_vars || "").split(/\r?\n/).filter(l => { const v = parseOwnVars(l)[0]; return !v || v.key !== k; }).join("\n"); } },
+      { id: "ac_diag", type: "diagram", when: p => p.ac_src !== "own", label: "研究架構圖", hint: "依 0.2 的架構自動畫出，請核對是否正確；要修改請回到 0.2。在此圖上的修改只用於這次檢核",
         emptyHint: "（0.2 還沒有架構：請先在 0.2 勾選變數並畫出路徑）",
         source: p => parseArch(archSrcText(p)).vars,
         seed: p => { const A = parseArch(archSrcText(p)); return { sig: JSON.stringify([A.edges, A.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: A.edges.map(({ from, to }) => ({ from, to })), mods: A.mods.map(({ from, edge }) => ({ from, edge })) }; } },
@@ -525,14 +528,15 @@ const DEFS = {
       return T.arch_check({ arch: archOut(p), theory: (p.ac_theory || "").trim(), ctx: (p.as_ctx || "").trim(), checks: p.ac_checks, qs, revise: (p.ac_extra || []).includes("revise") }) + R;
     },
     status: p => {
-      const src = archSrcText(p);
-      if (blank(src)) return p.ac_src === "own" ? "0.2「自行設計研究架構」還沒有變數。" : "0.2「組合研究架構」還沒有勾選變數。";
+      const src = archSrcText(p), own = p.ac_src === "own";
+      if (blank(src)) return own ? "請輸入變數，或從圖片、文字匯入。" : "0.2「組合研究架構」還沒有勾選變數。";
       const A = parseArch(src);
-      if (!A.edges.length) return "0.2 的架構圖還沒有畫箭頭，請回到 0.2 畫好路徑。";
-      return `已讀取 0.2 的架構：${A.vars.length} 個變數、${A.edges.length} 條路徑` + (A.mods.length ? `、${A.mods.length} 條調節路徑` : "") + "。要修改請回到 0.2；在下方圖上的修改只用於這次檢核。";
+      if (!A.edges.length) return own ? "請在下方圖上畫出路徑。" : "0.2 的架構圖還沒有畫箭頭，請回到 0.2 畫好路徑。";
+      return `已讀取 ${A.vars.length} 個變數、${A.edges.length} 條路徑` + (A.mods.length ? `、${A.mods.length} 條調節路徑` : "") + "。" +
+        (own ? trayNote("ow_diag") : "要修改請回到 0.2；在下方圖上的修改只用於這次檢核。");
     },
     empty: "（請提供研究架構：貼上文字，或選擇 0.2 的架構；並至少勾選一個檢核項目或填入一個問題）",
-    next: "下一步：貼到已上傳文獻的 NotebookLM 對話，回覆貼到下方「AI 回覆」。還有疑問時，用{#archq}在同一個對話接著問。要採用「修正後的研究架構」時，把其中「### 變數」「### 路徑」兩節貼到{#own}的「從圖片或文字匯入」，再回來檢核一次。"
+    next: "下一步：貼到已上傳文獻的 NotebookLM 對話，回覆貼到下方「AI 回覆」。還有疑問時，用{#archq}在同一個對話接著問。要採用「修正後的研究架構」時：研究架構來源選「自行設計或匯入」→「從圖片或文字匯入」，貼上其中「### 變數」「### 路徑」兩節，按「匯入到圖上」，再檢核一次。"
   },
   archq: {
     label: "追問", target: "nlm",
@@ -600,14 +604,11 @@ const OUTLINE = [
       { mod: "m5a", note: "選用（整批文獻全貌）：開新對話，盤點主題、理論與研究方法。" },
       { mod: "m5b", note: "選用（整批文獻全貌）：同一個對話接續，以文字說明各變數的定義、測量與角色，並畫關係圖；用來理解變數，挑選變數請用 0.2。" },
       { mod: "m5c", note: "選用（整批文獻全貌）：同一個對話接續，從變數、理論、情境與方法四個面向，找出整個領域的研究缺口與研究主題建議。" }] },
-    { id: "s0-4", no: "0.2", title: "形成研究架構", desc: "三條路線擇一使用，產出的架構都到 0.3 檢核。路線 A（步驟 1、2、4）：有研究主題與情境，由 AI 提出候選架構，再自行組合。路線 B（步驟 3、4）：自變數與依變數已確定，依文獻篩選中介與調節變數，再組合。路線 C（步驟 5）：已有自己的架構，或手上只有架構圖圖片，直接畫出或匯入。", steps: [
-      { mod: "asf", note: "路線 A：由 AI 提出幾個合理的研究架構，再由你挑選；已確定依變數時可填入。" },
-      { mod: "asmore", note: "路線 A：同一個對話接續，補齊變數，並列出每個變數可擔任的所有角色。" },
-      { mod: "amech", note: "路線 B：自變數與依變數已確定時使用，依上傳文獻篩選中介變數與調節變數。" },
-      { mod: "asmix", note: "路線 A、B 共用：依 AI 回覆的變數清單勾選變數、畫出路徑，組成研究架構；不確定的變數先移到待選區。" },
-      { mod: "own", note: "路線 C：已有自己構想的架構，或手上只有架構圖圖片（例如口試）時使用。" }] },
+    { id: "s0-4", no: "0.2", title: "形成研究架構", desc: "兩種做法：有研究主題與情境時，先由 AI 提出候選架構（步驟 1），再到步驟 2 勾選變數、畫出路徑；自變數與依變數已確定時，直接到步驟 2，勾選「篩選中介與調節變數」。組合好的架構到 0.3 檢核；已有自己的架構或只有架構圖圖片，直接到 0.3 選「自行設計或匯入」。", steps: [
+      { mod: "asf", note: "由 AI 提出幾個合理的研究架構，再由你挑選；已確定依變數時可填入。需要更完整的變數時，勾選最下方的「補充變數清單」。" },
+      { mod: "asmix", note: "依 AI 回覆的變數清單勾選變數、畫出路徑，組成研究架構；自變數與依變數已確定時，先勾選上方的「篩選中介與調節變數」。" }] },
     { id: "s0-5", no: "0.3", title: "研究架構合理性檢核", desc: "依已上傳的文獻檢核研究架構的合理性，並提出文獻支持更充分的修正架構：0.2 各路線產出的架構都在這裡檢核，也可單獨使用（例如只有一張架構圖）。NotebookLM 依制式項目與你的問題檢核 → 同一對話追問。", steps: [
-      { mod: "archchk", note: "選擇研究架構來源：路線 A、B 選「0.2 組合研究架構」，路線 C 選「0.2 自行設計研究架構」，會自動帶入。NotebookLM 需先上傳與架構相關的文獻；文獻愈完整，檢核愈有意義。" },
+      { mod: "archchk", note: "選擇研究架構來源：在 0.2 組合的架構選「0.2 組合研究架構」，會自動帶入；已有自己的架構或只有架構圖圖片，選「自行設計或匯入」。NotebookLM 需先上傳與架構相關的文獻；文獻愈完整，檢核愈有意義。" },
       { mod: "archq", note: "接在步驟 1 的同一個對話；可重複使用。" }] },
     { id: "s0-6", no: "0.4", title: "研究設計", desc: "研究架構確定之後：確認文獻用過的統計方法、本研究適用的方法與應揭露的實證結果；研究方法為問卷調查法或實驗設計法時，再產出問卷草稿。", steps: [
       { mod: "astat", note: "選定變數與資料之後：確認統計方法，以及實證結果應揭露哪些項目。可接在 0.2 組合研究架構的同一個對話。" },

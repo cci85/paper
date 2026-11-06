@@ -51,6 +51,7 @@ function modVals(m) {
 function diagramsToSave() {
   return Object.values(DEFS).flatMap(m => m.fields.filter(f => f.type === "diagram" && PNG_NAME[f.id]).map(f => {
     const p = modVals(m), vars = f.source(p), d = dgSeed(f, p);
+    dgAutoPos(vars, d.pos, false);   // 從未在畫面上出現過的變數也要有位置，否則無法畫成 PNG
     return { f, vars, d, file: `${projName()}_${PNG_NAME[f.id]}.png`, sig: JSON.stringify([vars, d.pos, d.edges, d.mods]) };
   })).filter(x => x.vars.length && x.d.edges.length);
 }

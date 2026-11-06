@@ -40,6 +40,13 @@ if (store.layout !== 4) {   // 0.2 路線改為 A、B、C；0.3 只保留 0.2 �
   }
   store.layout = 4;
 }
+if (store.layout !== 5) {   // 0.2 併成兩步：補充變數清單併入步驟 1，篩選中介與調節併入組合；自行設計移到 0.3
+  delete store.step["s0-4"]; delete store.step["s0-5"];
+  const v = store.values, r = store.replies || {};
+  if (!blank(r["s0-4|asmore"]) && blank(v.as_morereply)) { v.as_morereply = r["s0-4|asmore"]; v.as_more_on = ["on"]; }
+  if (!blank(r["s0-4|amech"]) && blank(v.am_reply)) { v.am_reply = r["s0-4|amech"]; v.am_on = ["on"]; }
+  store.layout = 5;
+}
 if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} if (window.onStoreSave) window.onStoreSave(); };
 
@@ -100,7 +107,7 @@ function renderPane() {
   };
   const p = valuesOf(m), fixed = step().fixed || {};
   document.querySelector(".work main").classList.toggle("stack", !!m.stack);
-  const fields = m.fields.filter(f => !(f.id in fixed) && (!f.when || f.when(p))).map(f => {   // when：依其他欄位決定是否顯示
+  const fieldHtml = f => {
     const lab = seedRow(f.id) + `<label class="f">${esc(f.label)}${f.hint ? ` <small>${esc(ref(f.hint))}</small>` : ""}</label>`;
     if (f.type === "radio") return lab + `<div class="chips">` + f.options.map(([v, t]) =>
       `<label class="chip"><input type="radio" name="${f.id}" data-f="${f.id}" value="${v}" ${p[f.id] === v ? "checked" : ""}>${esc(t)}</label>`).join("") + `</div>`;
@@ -113,7 +120,11 @@ function renderPane() {
       <details><summary>展開 Prompt</summary><pre class="pboxpre" id="pbox-${f.id}"></pre></details></div>`;
     if (f.type === "textarea") return lab + `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px" placeholder="${esc(f.placeholder || "")}">${esc(p[f.id])}</textarea>`;
     return lab + `<input type="text" data-f="${f.id}" value="${esc(p[f.id])}" placeholder="${esc(f.placeholder || "")}">`;
-  }).join("");
+  };
+  // when：依其他欄位決定是否顯示；below：放在「AI 回覆」下方
+  const shown = m.fields.filter(f => !(f.id in fixed) && (!f.when || f.when(p)));
+  const fields = shown.filter(f => !f.below).map(fieldHtml).join("");
+  const below = shown.filter(f => f.below).map(fieldHtml).join("");
   $("pane").innerHTML = `<h3>${sec().no ? `步驟 ${stepIdx() + 1}　` : ""}${esc(m.label)}</h3>
     <p class="target t-${m.target}">${esc(TARGETS[m.target])}</p>
     <p class="stepnote">${esc(ref(step().note))}</p>
@@ -124,6 +135,7 @@ function renderPane() {
     ${m.target === "tool" ? "" : `<fieldset class="struct reply"><legend>AI 回覆</legend>
       <p class="hint" style="margin:0 0 6px">選填；貼上這一步的 AI 回覆，會一併存入研究存檔，不影響上方的 Prompt。</p>
       <textarea data-reply="1" rows="5" placeholder="把 AI 的回覆貼在這裡">${esc((store.replies || {})[replyKey()] || "")}</textarea></fieldset>`}
+    ${below ? `<div class="below">${below}</div>` : ""}
     ${step().after ? `<p class="stepnote after">${esc(ref(step().after))}</p>` : ""}`;
   const rf = $("pane").querySelector("fieldset.reply");
   rf ? $("pane").insertBefore(OUTBOX, rf) : $("pane").appendChild(OUTBOX);
@@ -165,7 +177,12 @@ function update() {
   $("count").textContent = out ? `${out.length.toLocaleString()} 字元` : (m.empty || "");
   $("outd").hidden = !out;
   $("next").textContent = ref(m.next);
-  m.fields.filter(f => f.type === "promptbox").forEach(f => { const el = $("pbox-" + f.id); if (el) el.textContent = f.build(p); });
+  m.fields.filter(f => f.type === "promptbox").forEach(f => {
+    const el = $("pbox-" + f.id); if (!el) return;
+    const t = f.build(p), btn = document.querySelector(`button[data-pcopy="${f.id}"]`);
+    el.textContent = t || f.empty || "";
+    if (btn) btn.disabled = !t;
+  });
   // 帶入來源已有不同內容時提醒（短欄位列出來源的內容）
   let sdiff = "";
   if (m.seed) {

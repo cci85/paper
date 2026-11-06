@@ -921,7 +921,7 @@ function mixPicked(p, all) {
   return parseVarList(p.as_vlist).filter(v => on.has(v.key) && !tr.includes(v.key));
 }
 const mixArchText = () => archFromDiagram(mixPicked(store.values), store.values.as_diag, x => x.role);
-// 路線 C：每行「角色｜變數名稱（英文）」；角色可省略，省略時依箭頭判斷
+// 自行設計（0.3）：每行「角色｜變數名稱（英文）」；角色可省略，省略時依箭頭判斷
 function parseOwnVars(text) {
   const out = [], seen = new Set();
   (text || "").split(/\r?\n/).forEach(raw => {
