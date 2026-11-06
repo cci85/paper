@@ -127,7 +127,8 @@ function renderPane() {
   };
   // when：依其他欄位決定是否顯示；below：放在「AI 回覆」下方
   const shown = m.fields.filter(f => !(f.id in fixed) && (!f.when || f.when(p)));
-  const fields = shown.filter(f => !f.below).map(fieldHtml).join("");
+  const fields = shown.filter(f => !f.below && !f.afterOut).map(fieldHtml).join("");
+  const afterOut = shown.filter(f => f.afterOut).map(fieldHtml).join("");
   const below = shown.filter(f => f.below).map(fieldHtml).join("");
   $("pane").innerHTML = `<h3>${sec().no ? `步驟 ${stepIdx() + 1}　` : ""}${esc(m.label)}</h3>
     <p class="target t-${m.target}">${esc(TARGETS[m.target])}</p>
@@ -136,13 +137,14 @@ function renderPane() {
     ${m.rules ? `<fieldset class="struct"><legend>附加共用規則</legend><div class="chips" id="rules"></div>
       <p class="hint" style="margin:8px 0 0">${step().rules ? "本節預設精簡組合；勾選會依本節分別記住。" : "預設沿用原本的組合；勾選會依模組分別記住。"}</p></fieldset>` : ""}
     <div class="note" id="status"></div>
+    ${afterOut ? `<div id="afterout" class="afterout">${afterOut}</div>` : ""}
     ${m.target === "tool" ? "" : `<fieldset class="struct reply"><legend>AI 回覆</legend>
       <p class="hint" style="margin:0 0 6px">選填；貼上這一步的 AI 回覆，會一併存入研究存檔，不影響上方的 Prompt。</p>
       <textarea data-reply="1" rows="5" placeholder="把 AI 的回覆貼在這裡">${esc((store.replies || {})[replyKey()] || "")}</textarea></fieldset>`}
     ${m.replyView ? `<div id="replyview"></div>` : ""}
     ${below ? `<div class="below">${below}</div>` : ""}
     ${step().after ? `<p class="stepnote after">${esc(ref(step().after))}</p>` : ""}`;
-  const rf = $("pane").querySelector("fieldset.reply");
+  const rf = $("afterout") || $("pane").querySelector("fieldset.reply");
   rf ? $("pane").insertBefore(OUTBOX, rf) : $("pane").appendChild(OUTBOX);
   renderRules();
 }
@@ -179,7 +181,8 @@ function update() {
   $("out").textContent = out || "";
   $("copy").disabled = !out;
   $("copy").textContent = m.copyLabel || `複製 Prompt（${COPY_TO[m.target] || "貼到 AI"}）`;
-  $("count").textContent = out ? `${out.length.toLocaleString()} 字元` : (m.empty || "");
+  $("count").textContent = out ? `${out.length.toLocaleString()} 字元` + (out.length > 3000 ? "（可能超過 NotebookLM 單次輸入上限）" : "") : (m.empty || "");
+  $("count").classList.toggle("over", !!out && out.length > 3000);
   $("outd").hidden = !out;
   $("next").textContent = ref(m.next);
   renderReplyView();

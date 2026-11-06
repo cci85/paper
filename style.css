@@ -259,3 +259,5 @@ p.stepnote.after { white-space: pre-line; }
 .qview { border-color: var(--warn); background: var(--warn-soft); }
 .qview .mv b { display: block; margin-bottom: 4px; }
 .qview .miss { color: var(--warn); }
+#count.over { color: var(--warn); font-weight: 600; }
+.afterout { margin-top: 12px; }

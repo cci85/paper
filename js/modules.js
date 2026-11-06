@@ -236,7 +236,11 @@ const DEFS = {
       { id: "fin_diag", type: "diagram", label: "選定的研究架構", hint: "可在圖上微調：點一個方塊再點另一個方塊加上箭頭；未選方塊時點箭頭可刪除；按「依文字重畫」回到 AI 的版本",
         when: p => !blank(store.values.cf_text), emptyHint: "（尚未選定）",
         source: p => parseArch(store.values.cf_text).vars,
-        seed: p => { const A = parseArch(store.values.cf_text); return { sig: JSON.stringify([A.edges, A.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: A.edges.map(({ from, to }) => ({ from, to })), mods: A.mods.map(({ from, edge }) => ({ from, edge })) }; } }
+        seed: p => { const A = parseArch(store.values.cf_text); return { sig: JSON.stringify([A.edges, A.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: A.edges.map(({ from, to }) => ({ from, to })), mods: A.mods.map(({ from, edge }) => ({ from, edge })) }; } },
+      { id: "cf_detail", type: "promptbox", afterOut: true, label: "第二則 Prompt：路徑依據與變數衡量", when: () => !blank(store.values.cf_text),
+        hint: "第一則的回覆完成後，在同一個對話接著送出；兩則回覆依序貼到下方「AI 回覆」",
+        copyLabel: "複製第二則 Prompt（同一個對話接著送出）",
+        build: () => T.ask_detail({ target: "針對我選定的研究架構" }) }
     ],
     replyView: t => pathView(t) + measureView(t, "下一步：到「依文獻檢核架構」（目錄 0.3 研究架構合理性檢核），研究架構來源選「0.2 組合研究架構」，檢核這個架構的合理性。"),
     init: () => autoPickDV(),
@@ -538,7 +542,11 @@ const DEFS = {
         options: ARCH_CHECKS.map(c => [c.key, c.label]), value: ARCH_CHECKS.map(c => c.key) },
       { id: "ac_extra", type: "checks", label: "檢核之後", options: [["revise", "提出文獻支持更充分的修正架構"]], value: ["revise"] },
       { id: "ac_qs", type: "textarea", label: "我的問題", hint: "選填；每行一題，會與制式項目一起送出", rows: 4,
-        placeholder: "我把品牌熟悉度設為調節變數，文獻中比較常把它當成調節變數、中介變數，還是前因？\n文獻支持 H2 的研究多半是哪些產品類別？" }
+        placeholder: "我把品牌熟悉度設為調節變數，文獻中比較常把它當成調節變數、中介變數，還是前因？\n文獻支持 H2 的研究多半是哪些產品類別？" },
+      { id: "ac_detail", type: "promptbox", afterOut: true, label: "第二則 Prompt：路徑依據與變數衡量",
+        hint: "第一則的回覆完成後，在同一個對話接著送出；兩則回覆依序貼到下方「AI 回覆」",
+        copyLabel: "複製第二則 Prompt（同一個對話接著送出）",
+        build: p => T.ask_detail({ target: (p.ac_extra || []).includes("revise") ? "針對上述研究架構（若已提出修正後的研究架構，以修正後的架構為準）" : "針對上述研究架構" }) }
     ],
     replyView: t => revisedView(t) + qaView(t, splitLines(store.values.ac_qs)) + pathView(t) + measureView(t, ""),
     rules: () => ["citation"],
