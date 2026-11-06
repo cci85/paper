@@ -263,7 +263,7 @@ const DEFS = {
       { id: "as_data", type: "textarea", label: "資料描述", hint: "選填；資料來源、分析單位與特性", rows: 2, placeholder: "例如：非營利組織的捐款紀錄，捐款日期巢套於捐款者，很多人只有一筆捐款" }
     ],
     rules: () => ["citation"],
-    build: (p, R) => T.ask_stats({ rm: p.as_rmethod, data: (p.as_data || "").trim() }) + R,
+    build: (p, R) => T.ask_stats({ rm: p.as_rmethod, data: (p.as_data || "").trim(), arch: mixArchText().trim() }) + R,
     next: "下一步：研究方法為問卷調查法或實驗設計法時，到{#asq}；panel data 不需要問卷，可跳過。正式撰寫時，第三章用{#analysis}，第四章用{#stats}。"
   },
   asq: {
@@ -272,7 +272,7 @@ const DEFS = {
     fields: [
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
       { id: "as_rmethod", type: "radio", label: "研究方法", options: [["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "panel data"]], value: "survey" },
-      { id: "as_archm", type: "radio", label: "選定的架構", options: [["mine", "我勾選組合的架構"], ["num", "候選架構編號"], ["other", "其他"]], value: "mine" },
+      { id: "as_archm", type: "radio", label: "選定的架構", options: [["mine", "0.2 選定的研究架構"], ["num", "候選架構編號"], ["other", "其他"]], value: "mine" },
       { id: "as_archno", type: "text", label: "架構編號", hint: "填數字即可", placeholder: "例如：2", when: p => p.as_archm === "num" },
       { id: "as_arch", type: "textarea", label: "其他架構", hint: "簡短描述即可，不要貼上整段回覆", rows: 2, placeholder: "例如：架構一加上消費者創新性作為調節變數", when: p => p.as_archm === "other" },
       { id: "as_target", type: "text", label: "研究對象", hint: "選填", placeholder: "例如：過去三個月曾在抖音購物的消費者" },
@@ -618,7 +618,8 @@ function archLabel(p) {
     return `上述候選研究架構中的架構${zh}`;
   }
   if (p.as_archm === "other") return (p.as_arch || "").trim();
-  return "前述我自行勾選組合的研究架構";
+  const t = mixArchText();   // 0.2 選定（或勾選組合）的架構，帶入完整的變數與路徑
+  return t ? "\n\n" + t.trim() + "\n\n" : "前述我自行勾選組合的研究架構";
 }
 
 // ── 論文目錄：章 → 節 → 步驟 ──
