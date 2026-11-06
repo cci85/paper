@@ -244,3 +244,4 @@ pre.pboxpre { margin: 8px 0 0; white-space: pre-wrap; word-break: break-word; fo
 .needbox ul { margin: 6px 0 4px; padding-left: 20px; white-space: pre-line; }
 .mv p.need span { color: var(--warn); }
 .mv p.need { white-space: pre-line; }
+p.stepnote.after { white-space: pre-line; }
