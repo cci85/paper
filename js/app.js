@@ -269,6 +269,14 @@ $("pane").addEventListener("click", async e => {
     }
     pc.textContent = "已複製 ✓"; setTimeout(() => (pc.textContent = old), 1500); return;
   }
+  const ct = e.target.closest("button[data-copytext]");
+  if (ct) {   // 複製單一文字（例如 Scholar Labs 問句）
+    const text = ct.dataset.copytext;
+    try { await navigator.clipboard.writeText(text); } catch {
+      const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+    }
+    ct.textContent = "已複製 ✓"; setTimeout(() => (ct.textContent = "複製"), 1500); return;
+  }
   const rs = e.target.closest("button[data-reseed]");
   if (rs) {   // 重新帶入（欄位上方，或欄位下方的第二顆按鈕）
     const sd = mod().seed(), got = Object.entries(sd).filter(([, v]) => !blank(v));

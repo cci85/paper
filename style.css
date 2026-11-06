@@ -252,3 +252,7 @@ p.stepnote.after { white-space: pre-line; }
 .mv em.sign.neg { background: var(--danger); color: var(--panel); }
 .mv em.sign.mod { background: var(--warn); color: var(--panel); }
 .mv p.ev { white-space: pre-line; }
+.needbox button, .mv p.q button { padding: 1px 9px; border: 1px solid var(--accent); border-radius: 999px; background: var(--panel); color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; margin-left: 4px; }
+.needbox ol { margin: 6px 0 4px; padding-left: 22px; }
+.needbox li { margin-bottom: 6px; }
+.mv p.q span { color: var(--warn); }

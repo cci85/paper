@@ -14,6 +14,7 @@ const PATHS = scope => [
   "預期方向：正向（＋）、負向（−）或未定，並以一句話說明理由。",
   "理論基礎：理論名稱（英文原文），以一至兩句說明此理論如何解釋這條路徑，附出處。",
   "實證支持：支持程度（充分／部分／不足）；列出主要研究的出處、研究情境與結果（方向、顯著性），相反或不顯著的結果一併列出；上傳文獻未檢驗者，寫「上傳文獻未檢驗」。",
+  "補充檢索：理論基礎或實證支持不足時（實證支持為部分、不足或上傳文獻未檢驗，或找不到合適的理論），寫一個可直接貼入 Google Scholar Labs 的完整英文問句，包含變數的英文學術名稱、變數之間的關係與研究情境；下一行以「說明：」開頭，用一句中文說明要找哪一類文獻。理論與實證都充分者省略此項。",
   "調節路徑的標題寫成「### H5｜調節變數 × （起點 → 終點）」，預期方向說明調節變數會強化或減弱該關係。此節不使用表格。"
 ];
 // 解析「路徑的預期方向與依據」一節 → [{ head, sign, theory, evidence }]
@@ -23,12 +24,15 @@ function parsePaths(text) {
   if (!m) return [];
   return m[1].split(/^(?=#{3,4}\s)/m).filter(b => /^#{3,4}\s/.test(b)).map(b => {
     const lines = b.split("\n"), head = lines[0].replace(/^#+\s*/, "").trim();
-    const o = { head, sign: "", theory: "", evidence: "" }; let mode = "";
+    const o = { head, sign: "", theory: "", evidence: "", query: "", qnote: "" }; let mode = "";
     lines.slice(1).forEach(l => {
       const x = l.trim(); if (!x) return; let mm;
       if ((mm = x.match(/^[-*•\d.、\s]*預期(?:方向|符號)[：:]\s*(.*)$/))) { o.sign = mm[1]; mode = "sign"; return; }
       if ((mm = x.match(/^[-*•\d.、\s]*理論(?:基礎|依據)[：:]\s*(.*)$/))) { o.theory = mm[1]; mode = "theory"; return; }
       if ((mm = x.match(/^[-*•\d.、\s]*實證(?:支持|證據)[：:]\s*(.*)$/))) { o.evidence = mm[1]; mode = "evidence"; return; }
+      if ((mm = x.match(/^[-*•\d.、\s]*(?:補充檢索|Scholar Labs[^：:]*)[：:]\s*(.*)$/i))) { o.query = mm[1]; mode = "query"; return; }
+      if ((mm = x.match(/^[-*•\s]*說明[：:]\s*(.*)$/)) && mode === "query") { o.qnote = mm[1]; mode = "qnote"; return; }
+      if (mode === "query" && !o.query) { o.query = x; return; }
       if (mode) o[mode] += "\n" + x;
     });
     return o;

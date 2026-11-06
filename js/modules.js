@@ -599,12 +599,17 @@ function pathView(text) {
   const ps = parsePaths(text);
   if (!ps.length) return `<p class="hint">（回覆中沒有找到「## 路徑的預期方向與依據」一節；可在同一個對話輸入「請依格式補上路徑的預期方向與依據」）</p>`;
   const badge = s => /負|−|-/.test(s) && !/正/.test(s.slice(0, 4)) ? ["neg", "−"] : /強化|減弱|調節/.test(s) ? ["mod", "調節"] : /正|＋|\+/.test(s) ? ["pos", "＋"] : ["", "？"];
-  return `<div class="mview pview"><h3>路徑的預期方向與依據</h3>` + ps.map(x => {
+  const qs = ps.filter(x => x.query);
+  const qbox = qs.length ? `<div class="needbox"><b>理論或實證不足的路徑：到 Google Scholar Labs 補充文獻</b>
+    <ol>${qs.map(x => `<li><b>${esc(x.head)}</b><br>${esc(x.query)} <button type="button" data-copytext="${esc(x.query)}">複製</button>${x.qnote ? `<br><small>${esc(x.qnote)}</small>` : ""}</li>`).join("")}</ol>
+    <p class="hint">逐一複製問句，貼到 <a href="https://scholar.google.com/" target="_blank" rel="noopener">Google Scholar</a> 的 Labs；找到的文獻上傳到同一個 Notebook 後，再檢核一次。</p></div>` : "";
+  return `<div class="mview pview"><h3>路徑的預期方向與依據</h3>${qbox}` + ps.map(x => {
     const [c, b] = badge(x.sign);
     return `<div class="mv"><b>${esc(x.head)}</b> <em class="sign ${c}">${b}</em>
       <p><span>預期方向</span>${esc(x.sign || "（回覆未提供）")}</p>
       <p><span>理論基礎</span>${esc(x.theory || "（回覆未提供）")}</p>
-      <p class="ev"><span>實證支持</span>${esc(x.evidence || "（回覆未提供）")}</p></div>`;
+      <p class="ev"><span>實證支持</span>${esc(x.evidence || "（回覆未提供）")}</p>
+      ${x.query ? `<p class="q"><span>補充檢索</span>${esc(x.query)} <button type="button" data-copytext="${esc(x.query)}">複製</button>${x.qnote ? `<br><small>${esc(x.qnote)}</small>` : ""}</p>` : ""}</div>`;
   }).join("") + `</div>`;
 }
 
