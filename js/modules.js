@@ -539,6 +539,7 @@ const DEFS = {
       { id: "ac_qs", type: "textarea", label: "我的問題", hint: "選填；每行一題，會與制式項目一起送出", rows: 4,
         placeholder: "我把品牌熟悉度設為調節變數，文獻中比較常把它當成調節變數、中介變數，還是前因？\n文獻支持 H2 的研究多半是哪些產品類別？" }
     ],
+    replyView: t => revisedView(t) + measureView(t, ""),
     rules: () => ["citation"],
     build: (p, R) => {
       const raw = archSrcText(p).trim(), qs = splitLines(p.ac_qs);
@@ -554,7 +555,7 @@ const DEFS = {
         (own ? trayNote("ow_diag") : "要修改請回到 0.2；在下方圖上的修改只用於這次檢核。");
     },
     empty: "（請提供研究架構：貼上文字，或選擇 0.2 的架構；並至少勾選一個檢核項目或填入一個問題）",
-    next: "下一步：貼到已上傳文獻的 NotebookLM 對話，回覆貼到下方「AI 回覆」。還有疑問時，用{#archq}在同一個對話接著問。要採用「修正後的研究架構」時：研究架構來源選「自行設計或匯入」→「從圖片或文字匯入」，貼上其中「### 變數」「### 路徑」兩節，按「匯入到圖上」，再檢核一次。"
+    next: "下一步：貼到已上傳文獻的 NotebookLM 對話，回覆貼到下方「AI 回覆」，網頁會畫出 AI 修正後的架構，並整理變數定義與衡量。還有疑問時，用{#archq}在同一個對話接著問。"
   },
   archq: {
     label: "追問", target: "nlm",
@@ -583,9 +584,29 @@ function measureView(text, nextHint) {
     return `<h4>${label}</h4>` + g.map(v => `<div class="mv"><b>${esc(v.name)}</b>
       <p><span>理論定義</span>${esc(v.def || "（回覆未提供）")}</p>
       <p><span>量表出處</span>${esc(v.scale || "（回覆未提供）")}</p>
+      ${v.need ? `<p class="need"><span>補齊文獻</span>${esc(v.need)}</p>` : ""}
       <div><span>代表題項</span>${v.items.length === 1 && /未列題項/.test(v.items[0]) ? esc(v.items[0]) : v.items.length ? `<ol>${v.items.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : "（回覆未提供）"}</div></div>`).join("");
   }).join("");
-  return `<div class="mview"><h3>變數定義與衡量</h3>${html}</div>` + (nextHint ? `<p class="stepnote after">${esc(nextHint)}</p>` : "");
+  const needs = vs.filter(v => v.need && !/^無|省略/.test(v.need));
+  const needBox = needs.length ? `<div class="needbox"><b>量表或題項缺失，建議補齊的文獻</b><ul>${needs.map(v => `<li><b>${esc(dgLabel(v.name)[0])}</b>：${esc(v.need)}</li>`).join("")}</ul><p class="hint">找到後上傳到同一個 Notebook，再請 AI 補上該變數的量表與題項。</p></div>` : "";
+  return `<div class="mview"><h3>變數定義與衡量</h3>${needBox}${html}</div>` + (nextHint ? `<p class="stepnote after">${esc(nextHint)}</p>` : "");
+}
+
+// 0.3 貼上回覆後：畫出 AI 的修正架構
+function revisedView(text) {
+  if (blank(text)) return "";
+  if (/^\s*(以下是我提出的研究架構|## 制式檢核)/.test(text)) return `<p class="note warn">這裡貼的似乎是 Prompt 本身，不是 NotebookLM 的回覆；請貼上 AI 回答的內容。</p>`;
+  const r = parseRevised(text);
+  if (!r) return `<p class="hint">（回覆中沒有找到「修正後的研究架構」的「### 變數」「### 路徑」兩節，無法畫圖）</p>`;
+  const d = { pos: {}, edges: r.A.edges.map(({ from, to }) => ({ from, to })), mods: r.A.mods.map(({ from, edge }) => ({ from, edge })) };
+  dgAutoPos(r.A.vars, d.pos, true);
+  return `<div class="rview"><div class="cand-head"><h3>AI 修正後的研究架構</h3><button type="button" class="copy" data-adopt="1">採用此修正架構</button></div>
+    <div class="cand-svg">${dgSvg(r.A.vars, d, null, false)}</div>
+    <p class="hint">按「採用此修正架構」後，研究架構來源會改為「自行設計或匯入」並載入此架構，可在圖上微調，再複製 Prompt 檢核一次。</p></div>`;
+}
+function adoptRevised() {
+  const r = parseRevised((store.replies || {})[replyKey()] || ""); if (!r) return;
+  importArch(r.src); store.values.ac_src = "own"; store.values.ow_mode = "draw";
 }
 
 // 組合研究架構：選定架構的圖（依 cf_text 建立，保留圖上微調）

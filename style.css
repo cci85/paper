@@ -237,3 +237,10 @@ pre.pboxpre { margin: 8px 0 0; white-space: pre-wrap; word-break: break-word; fo
 .mv span { display: inline-block; min-width: 64px; margin-right: 8px; color: var(--muted); font-size: 12.5px; font-weight: 600; vertical-align: top; }
 .mv div > span { display: block; margin-top: 4px; }
 .mv ol { margin: 2px 0 0; padding-left: 22px; }
+.rview { margin-top: 14px; padding: 12px 14px; border: 2px solid var(--accent); border-radius: 12px; }
+.rview h3 { margin: 0; font-size: 15px; }
+.needbox { margin: 6px 0 10px; padding: 10px 12px; border-radius: 10px; background: var(--warn-soft); color: var(--text); font-size: 13.5px; }
+.needbox > b { color: var(--warn); }
+.needbox ul { margin: 6px 0 4px; padding-left: 20px; white-space: pre-line; }
+.mv p.need span { color: var(--warn); }
+.mv p.need { white-space: pre-line; }

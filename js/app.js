@@ -241,6 +241,10 @@ $("pane").addEventListener("input", e => {
 });
 
 $("pane").addEventListener("click", async e => {
+  if (e.target.closest("button[data-adopt]")) {   // 0.3：採用 AI 修正後的架構
+    adoptRevised(); save(); renderPane(); update();
+    $("pane").scrollIntoView({ behavior: "smooth" }); return;
+  }
   const cb = e.target.closest("button[data-cand]");
   if (cb) {   // 候選架構：選定
     const f = mod().fields.find(x => x.type === "cands"); f.choose(+cb.dataset.cand);

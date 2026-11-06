@@ -14,6 +14,7 @@ const MEASURE = scope => [
   "代表題項：",
   "1. 原文題項（中文翻譯）——出處（作者, 年份）",
   "2. ……",
+  "補齊文獻：量表出處或題項在上傳文獻中找不到時，依上傳文獻的參考文獻清單，列出原始量表文獻的完整書目（APA 第七版：作者、年份、篇名、期刊或書名、卷期、頁碼、DOI），以便我另行取得；參考文獻清單中也找不到者，寫「需另行查證」，不得編造書目。量表與題項齊全者省略此行。",
   "代表題項列 2–3 題；上傳文獻未列出題項者，寫「上傳文獻未列題項，需查閱原始量表」，不得自行編寫題項。此節不使用表格。"
 ];
 // 解析回覆中的「變數定義與衡量」一節 → [{ name, role, def, scale, items }]
@@ -25,17 +26,19 @@ function parseMeasures(text) {
     const lines = b.split("\n"), head = lines[0].replace(/^#+\s*/, "").trim();
     const [name, roleTxt = ""] = head.split(/\s*[｜|]\s*/);
     const r = ARCH_ROLE.find(x => x[2].test(roleTxt));
-    let def = "", scale = "", items = [], mode = "";
+    let def = "", scale = "", items = [], need = "", mode = "";
     lines.slice(1).forEach(l => {
       const x = l.trim(); if (!x) return;
       let mm;
       if ((mm = x.match(/^[-*•\d.、\s]*定義[：:]\s*(.*)$/))) { def = mm[1]; mode = "def"; return; }
       if ((mm = x.match(/^[-*•\d.、\s]*量表(?:出處)?[：:]\s*(.*)$/))) { scale = mm[1]; mode = "scale"; return; }
       if ((mm = x.match(/^[-*•\d.、\s]*代表題項[：:]?\s*(.*)$/))) { mode = "items"; if (mm[1]) items.push(mm[1]); return; }
+      if ((mm = x.match(/^[-*•\d.、\s]*補齊文獻[：:]\s*(.*)$/))) { need = mm[1]; mode = "need"; return; }
+      if (mode === "need") { need += (need ? "\n" : "") + x; return; }
       if (mode === "items") items.push(x.replace(/^[-*•]\s*|^\d+[.、)]\s*/, ""));
       else if (mode === "def") def += x; else if (mode === "scale") scale += x;
     });
-    return { name: name.trim(), role: r ? r[0] : "", def, scale, items };
+    return { name: name.trim(), role: r ? r[0] : "", def, scale, items, need };
   }).filter(v => v.name);
 }
 
@@ -824,7 +827,6 @@ T.arch_check = p => {
     parts.push("", "## 我的問題", "請另起一節，逐題回答以下問題，每題以題號開頭：");
     qs.forEach((q, i) => parts.push(`Q${i + 1}. ${q}`));
   }
-  parts.push("", ...MEASURE("此架構中的所有變數，"));
   parts.push("",
     "## 檢核總結",
     "最後另起一節，每條路徑各以一行總結，格式為：編號｜路徑｜文獻支持程度（充分／部分／不足）｜主要依據（作者, 年份），最多三篇｜主要風險或建議修改。",
@@ -839,6 +841,8 @@ T.arch_check = p => {
       "4. 依下列格式輸出修正後的架構，供我貼回網頁畫圖：另起「### 變數」，每行一個變數，格式為：角色｜中文名稱（英文原文），角色為自變數、中介變數、調節變數、依變數或控制變數；另起「### 路徑」，每行一條路徑，格式為：H1｜起點 → 終點｜方向（正向／負向／未標示）；調節路徑寫成：H5｜調節變數 × （起點 → 終點）｜方向。這兩節不使用表格、條列符號或程式碼區塊。",
       "5. 若原架構的每條路徑都已有充分支持，說明不需修改，並列出可選的強化方向及其文獻依據。"
     ] : []),
+    "",
+    ...MEASURE(p.revise ? "最後，將此架構（若提出修正架構，以修正後的架構為準）中的所有變數，" : "最後，將此架構中的所有變數，"),
     "",
     "規則：",
     "1. 只能依據上傳文獻；上傳文獻未提及者，明確寫「來源中未找到依據」，不得以上傳文獻以外的知識補足，也不得自行推論後當成文獻結論。",
@@ -1160,3 +1164,16 @@ T.ask_gap = p => [
   "",
   "限制：只能使用上傳文獻中出現的理論與證據；若某條路徑需要上傳文獻以外的支持，請標示【待補文獻】。前四節以正式學術段落撰寫。用詞一律使用「變數」，不得使用「變項」；變數關係一律以純文字箭頭「→」表示。"
 ].join("\n");
+
+// 0.3 回覆中的「修正後的研究架構」→ { A, src }（只取「### 變數」「### 路徑」兩節）
+function parseRevised(text) {
+  const t = String(text || "").replace(/\r\n?/g, "\n").replace(/\*\*/g, "");
+  const m = t.match(/^#{1,3}\s*修正後的研究架構[^\n]*\n([\s\S]*?)(?=^#{1,2}\s(?!#)|(?![\s\S]))/m);
+  if (!m) return null;
+  const secs = []; let cur = { head: "", lines: [] };
+  m[1].split("\n").forEach(l => { const h = l.match(/^#{3,4}\s*(.+)$/); if (h) { secs.push(cur); cur = { head: h[1].trim(), lines: [] }; } else cur.lines.push(l); });
+  secs.push(cur);
+  const src = [...secs.filter(s => /^變數\s*$/.test(s.head)).map(s => "## 變數\n" + s.lines.join("\n")), ...secs.filter(s => /^(路徑|假說)\s*$/.test(s.head)).map(s => "## 路徑\n" + s.lines.join("\n"))].join("\n");
+  const A = parseArch(src);
+  return A.vars.length ? { A, src } : null;
+}
