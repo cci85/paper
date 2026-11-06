@@ -8,6 +8,8 @@ const VAR_NOT_DESIGN = "由兩個變數配對或交互作用所形成的效果�
 const INDEX_NOTE = "若來源中有名稱含「文獻比較表」的來源，請以它作為快速對照各篇文獻之變數、理論與量表的索引；判斷與引用一律回到各篇文獻全文，並標註原始文獻（作者, 年份），不得以文獻比較表作為引用出處。";
 // 分兩則送出時，第一則請 AI 在回覆最後提醒研究者送出第二則
 const SECOND_NOTE = "回覆最後另起一行，只寫：「（請接著送出第二則 Prompt：路徑依據與變數衡量）」。";
+// 回覆中同一節出現多次時（新回覆接在舊回覆後面），以最後一次為準
+function lastSection(t, re) { const all = [...t.matchAll(re)]; return all.length ? all[all.length - 1] : null; }
 // 檢驗研究架構的 Prompt 共用：每條路徑的預期方向、理論基礎與實證支持
 const PATHS = scope => [
   "## 路徑的預期方向與依據",
@@ -22,7 +24,7 @@ const PATHS = scope => [
 // 解析「路徑的預期方向與依據」一節 → [{ head, sign, theory, evidence }]
 function parsePaths(text) {
   const t = String(text || "").replace(/\r\n?/g, "\n").replace(/\*\*/g, "");
-  const m = t.match(/^#{1,3}\s*路徑的預期方向與依據[^\n]*\n([\s\S]*?)(?=^#{1,2}\s(?!#)|(?![\s\S]))/m);
+  const m = lastSection(t, /^#{1,3}\s*路徑的預期方向與依據[^\n]*\n([\s\S]*?)(?=^#{1,2}\s(?!#)|(?![\s\S]))/gm);
   if (!m) return [];
   return m[1].split(/^(?=#{3,4}\s)/m).filter(b => /^#{3,4}\s/.test(b)).map(b => {
     const lines = b.split("\n"), head = lines[0].replace(/^#+\s*/, "").trim();
@@ -56,7 +58,7 @@ const MEASURE = scope => [
 // 解析回覆中的「變數定義與衡量」一節 → [{ name, role, def, scale, items }]
 function parseMeasures(text) {
   const t = String(text || "").replace(/\r\n?/g, "\n").replace(/\*\*/g, "");
-  const m = t.match(/^#{1,3}\s*變數定義與衡量[^\n]*\n([\s\S]*?)(?=^#{1,2}\s(?!#)|(?![\s\S]))/m);
+  const m = lastSection(t, /^#{1,3}\s*變數定義與衡量[^\n]*\n([\s\S]*?)(?=^#{1,2}\s(?!#)|(?![\s\S]))/gm);
   if (!m) return [];
   return m[1].split(/^(?=#{3,4}\s)/m).filter(b => /^#{3,4}\s/.test(b)).map(b => {
     const lines = b.split("\n"), head = lines[0].replace(/^#+\s*/, "").trim();
@@ -1200,7 +1202,7 @@ T.ask_gap = p => [
 // 0.3 回覆中的「修正後的研究架構」→ { A, src }（只取「### 變數」「### 路徑」兩節）
 function parseRevised(text) {
   const t = String(text || "").replace(/\r\n?/g, "\n").replace(/\*\*/g, "");
-  const m = t.match(/^#{1,3}\s*修正後的研究架構[^\n]*\n([\s\S]*?)(?=^#{1,2}\s(?!#)|(?![\s\S]))/m);
+  const m = lastSection(t, /^#{1,3}\s*修正後的研究架構[^\n]*\n([\s\S]*?)(?=^#{1,2}\s(?!#)|(?![\s\S]))/gm);
   if (!m) return null;
   const secs = []; let cur = { head: "", lines: [] };
   m[1].split("\n").forEach(l => { const h = l.match(/^#{3,4}\s*(.+)$/); if (h) { secs.push(cur); cur = { head: h[1].trim(), lines: [] }; } else cur.lines.push(l); });
@@ -1218,7 +1220,7 @@ function parseAnswers(text) {
   hits.forEach((h, i) => {
     const end = i + 1 < hits.length ? hits[i + 1].index : (() => { const r = t.slice(h.index + h[0].length).search(/^#{1,2}\s(?!#)/m); return r < 0 ? t.length : h.index + h[0].length + r; })();
     const body = (h[2] + "\n" + t.slice(h.index + h[0].length, end)).trim();
-    if (!out[h[1]]) out[h[1]] = body;
+    if (body) out[h[1]] = body;   // 同一題出現多次時，以最後一次的回答為準
   });
   return out;
 }
@@ -1226,6 +1228,7 @@ function parseAnswers(text) {
 // 第二則（同一個對話接著送出）：每條路徑的預期方向與依據、變數定義與衡量；與第一則分開，避免超過 NotebookLM 單次輸入上限
 T.ask_detail = p => [
   `延續上一段回覆，${p.target}，請僅依據上傳文獻完成以下兩節。` + INDEX_NOTE,
+  ...(p.arch ? ["", "研究架構如下（以此為準，不得沿用先前對話中的其他版本）：", "", p.arch.trim()] : []),
   "",
   ...PATHS("此架構的"),
   "",

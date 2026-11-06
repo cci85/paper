@@ -240,7 +240,7 @@ const DEFS = {
       { id: "cf_detail", type: "promptbox", afterOut: true, label: "第二則 Prompt：路徑依據與變數衡量", when: () => !blank(store.values.cf_text),
         hint: "第一則的回覆完成後，在同一個對話接著送出；兩則回覆依序貼到下方「AI 回覆」",
         copyLabel: "② 複製第二則 Prompt（同一個對話接著送出）",
-        build: () => T.ask_detail({ target: "針對我選定的研究架構" }) }
+        build: () => T.ask_detail({ target: "針對我選定的研究架構", arch: mixArchText() }) }
     ],
     replyView: t => secondMissing(t) ? secondView(t) : pathView(t) + measureView(t, "下一步：到「依文獻檢核架構」（目錄 0.3 研究架構合理性檢核），研究架構來源選「0.2 組合研究架構」，檢核這個架構的合理性。"),
     init: () => autoPickDV(),
@@ -546,7 +546,7 @@ const DEFS = {
       { id: "ac_detail", type: "promptbox", afterOut: true, label: "第二則 Prompt：路徑依據與變數衡量",
         hint: "第一則的回覆完成後，在同一個對話接著送出；兩則回覆依序貼到下方「AI 回覆」",
         copyLabel: "② 複製第二則 Prompt（同一個對話接著送出）",
-        build: p => T.ask_detail({ target: (p.ac_extra || []).includes("revise") ? "針對上述研究架構（若已提出修正後的研究架構，以修正後的架構為準）" : "針對上述研究架構" }) }
+        build: p => T.ask_detail({ target: (p.ac_extra || []).includes("revise") ? "若上一則已提出修正後的研究架構，以修正後的架構為準；否則針對下列研究架構" : "針對下列研究架構", arch: archOut(p) }) }
     ],
     replyView: t => revisedView(t) + qaView(t, splitLines(store.values.ac_qs)) + (secondMissing(t) ? secondView(t) : pathView(t) + measureView(t, "")),
     rules: () => ["citation"],
