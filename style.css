@@ -245,3 +245,4 @@ pre.pboxpre { margin: 8px 0 0; white-space: pre-wrap; word-break: break-word; fo
 .mv p.need span { color: var(--warn); }
 .mv p.need { white-space: pre-line; }
 p.stepnote.after { white-space: pre-line; }
+.seedmsg { color: var(--warn); }

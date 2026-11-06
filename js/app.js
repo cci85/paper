@@ -104,7 +104,7 @@ function renderPane() {
   const seedRow = id => {
     if (!m.seed || seedShown || !(id in sd)) return "";
     seedShown = true;
-    return `<p class="hint seedrow"><button type="button" id="reseed">重新帶入</button> ${esc(m.seedNote)}；按「重新帶入」會清空欄位，改填${esc(m.seedFrom)}的最新內容。<span id="seedmsg"></span></p>`;
+    return `<p class="hint seedrow"><button type="button" id="reseed" data-reseed="top">重新帶入</button> ${esc(m.seedNote)}；按「重新帶入」會清空欄位，改填${esc(m.seedFrom)}的最新內容。<span id="seedmsg"></span></p>`;
   };
   const p = valuesOf(m), fixed = step().fixed || {};
   document.querySelector(".work main").classList.toggle("stack", !!m.stack);
@@ -120,6 +120,8 @@ function renderPane() {
     if (f.type === "cands") return lab + `<div class="cands" id="cands-${f.id}"></div>`;
     if (f.type === "promptbox") return lab + `<div class="pbox"><button type="button" class="copy pcopy" data-pcopy="${f.id}">${esc(f.copyLabel || "複製")}</button>
       <details><summary>展開 Prompt</summary><pre class="pboxpre" id="pbox-${f.id}"></pre></details></div>`;
+    if (f.type === "textarea" && f.reseed) return lab + `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px" placeholder="${esc(f.placeholder || "")}">${esc(p[f.id])}</textarea>` +
+      `<p class="hint seedrow"><button type="button" data-reseed="field" data-jump="${esc(f.reseed.jump || "")}">重新帶入</button> ${esc(f.reseed.note || "")}<span class="seedmsg"></span></p>`;
     if (f.type === "textarea") return lab + `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px" placeholder="${esc(f.placeholder || "")}">${esc(p[f.id])}</textarea>`;
     return lab + `<input type="text" data-f="${f.id}" value="${esc(p[f.id])}" placeholder="${esc(f.placeholder || "")}">`;
   };
@@ -267,11 +269,16 @@ $("pane").addEventListener("click", async e => {
     }
     pc.textContent = "已複製 ✓"; setTimeout(() => (pc.textContent = old), 1500); return;
   }
-  if (e.target.id === "reseed") {
+  const rs = e.target.closest("button[data-reseed]");
+  if (rs) {   // 重新帶入（欄位上方，或欄位下方的第二顆按鈕）
     const sd = mod().seed(), got = Object.entries(sd).filter(([, v]) => !blank(v));
-    if (!got.length) { $("seedmsg").textContent = `　${mod().seedFrom}目前是空的：請先到該步驟，把 AI 的回覆貼到最下方的「AI 回覆」欄位。`; return; }
+    const msg = rs.parentElement.querySelector(".seedmsg, #seedmsg");
+    if (!got.length) { if (msg) msg.textContent = `　${mod().seedFrom}目前是空的：請先到該步驟，把 AI 的回覆貼到最下方的「AI 回覆」欄位。`; return; }
     got.forEach(([k, v]) => { store.values[k] = v; });
-    renderPane(); update(); return;
+    const jump = rs.dataset.reseed !== "top" && rs.dataset.jump;
+    renderPane(); update();
+    const el = jump && $(jump); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
   }
   const b = e.target.closest("button[data-dg]"); if (!b) return;
   const f = mod().fields.find(x => x.id === b.dataset.dg);
