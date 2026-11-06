@@ -148,7 +148,13 @@ const DEFS = {
     ],
     rules: () => ["citation"],
     seed: () => seedFrom01(), seedFrom: "0.1「研究方向聚焦」",
-    seedNote: "研究情境與研究問題由 0.1「研究方向聚焦」的 AI 回覆帶入，可自行修改",
+    status: () => {
+      const r = String((store.replies || {})["s0-1|focus"] || "");
+      if (blank(r)) return "0.1「研究方向聚焦」的 AI 回覆欄位是空的，所以沒有內容可帶入；請先把 0.1 的對話貼到該步驟最下方的「AI 回覆」。";
+      if (!/研究情境[：:]/.test(r)) return "0.1 的 AI 回覆中沒有「研究情境：」「研究問題：」「依變數：」這三行（較早的 Prompt 不會產生）。請在 0.1 的同一個 NotebookLM 或 AI 對話輸入：「請以純文字另起三行寫出：研究情境：……、研究問題：……、依變數：……」，把新回覆接在 0.1 的「AI 回覆」最後，再回來按「重新帶入」。";
+      return "";
+    },
+    seedNote: "研究情境、研究問題與依變數由 0.1「研究方向聚焦」的 AI 回覆帶入，可自行修改",
     build: (p, R) => blank(p.as_ctx) ? "" : T.ask_frame({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), dv: (p.as_dv || "").trim(), method: p.as_method, n: p.as_n }) + R,
     empty: "（請填入研究情境）",
     next: "下一步：回覆貼到下方「AI 回覆」。需要更完整的變數時，勾選最下方的「補充變數清單」，在同一個對話接著問。完成後到{#asmix}。"
@@ -561,7 +567,8 @@ function seedFrom01() {
   const r = String((store.replies || {})["s0-1|focus"] || "").replace(/\*\*/g, "");
   const last = re => { const m = [...r.matchAll(re)]; return m.length ? m[m.length - 1][1].trim() : ""; };
   const ctx = last(/研究情境[：:]\s*(.+)/g), con = last(/研究問題[：:]\s*(.+)/g) || (store.values.f_phen || "").trim();
-  return { as_ctx: ctx, as_con: con };
+  const dv = last(/^\s*依變數[：:]\s*(.+)$/gm);
+  return { as_ctx: ctx, as_con: con, as_dv: dv };
 }
 
 // 每行一項（去除行首的條列符號與空白）
