@@ -246,3 +246,9 @@ pre.pboxpre { margin: 8px 0 0; white-space: pre-wrap; word-break: break-word; fo
 .mv p.need { white-space: pre-line; }
 p.stepnote.after { white-space: pre-line; }
 .seedmsg { color: var(--warn); }
+.pview { border-color: var(--line); background: var(--bg); }
+.mv em.sign { font-style: normal; display: inline-block; min-width: 22px; text-align: center; padding: 0 8px; border-radius: 999px; font-size: 13px; font-weight: 700; margin-left: 6px; background: var(--line); }
+.mv em.sign.pos { background: var(--accent); color: var(--panel); }
+.mv em.sign.neg { background: var(--danger); color: var(--panel); }
+.mv em.sign.mod { background: var(--warn); color: var(--panel); }
+.mv p.ev { white-space: pre-line; }

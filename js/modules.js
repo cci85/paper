@@ -238,7 +238,7 @@ const DEFS = {
         source: p => parseArch(store.values.cf_text).vars,
         seed: p => { const A = parseArch(store.values.cf_text); return { sig: JSON.stringify([A.edges, A.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: A.edges.map(({ from, to }) => ({ from, to })), mods: A.mods.map(({ from, edge }) => ({ from, edge })) }; } }
     ],
-    replyView: t => measureView(t, "下一步：到「依文獻檢核架構」（目錄 0.3 研究架構合理性檢核），研究架構來源選「0.2 組合研究架構」，檢核這個架構的合理性。"),
+    replyView: t => pathView(t) + measureView(t, "下一步：到「依文獻檢核架構」（目錄 0.3 研究架構合理性檢核），研究架構來源選「0.2 組合研究架構」，檢核這個架構的合理性。"),
     init: () => autoPickDV(),
     seed: () => { const v = store.values, r = store.replies || {};
       return { as_vlist: [r["s0-4|asf"], isOn(v.as_more_on) ? v.as_morereply : "", isOn(v.am_on) ? v.am_reply : ""].filter(x => !blank(x)).map(x => x.trim()).join("\n\n") }; },
@@ -540,7 +540,7 @@ const DEFS = {
       { id: "ac_qs", type: "textarea", label: "我的問題", hint: "選填；每行一題，會與制式項目一起送出", rows: 4,
         placeholder: "我把品牌熟悉度設為調節變數，文獻中比較常把它當成調節變數、中介變數，還是前因？\n文獻支持 H2 的研究多半是哪些產品類別？" }
     ],
-    replyView: t => revisedView(t) + measureView(t, ""),
+    replyView: t => revisedView(t) + pathView(t) + measureView(t, ""),
     rules: () => ["citation"],
     build: (p, R) => {
       const raw = archSrcText(p).trim(), qs = splitLines(p.ac_qs);
@@ -593,12 +593,28 @@ function measureView(text, nextHint) {
   return `<div class="mview"><h3>變數定義與衡量</h3>${needBox}${html}</div>` + (nextHint ? `<p class="stepnote after">${esc(nextHint)}</p>` : "");
 }
 
+// 貼上回覆後：每條路徑的預期方向、理論基礎與實證支持
+function pathView(text) {
+  if (blank(text)) return "";
+  const ps = parsePaths(text);
+  if (!ps.length) return `<p class="hint">（回覆中沒有找到「## 路徑的預期方向與依據」一節；可在同一個對話輸入「請依格式補上路徑的預期方向與依據」）</p>`;
+  const badge = s => /負|−|-/.test(s) && !/正/.test(s.slice(0, 4)) ? ["neg", "−"] : /強化|減弱|調節/.test(s) ? ["mod", "調節"] : /正|＋|\+/.test(s) ? ["pos", "＋"] : ["", "？"];
+  return `<div class="mview pview"><h3>路徑的預期方向與依據</h3>` + ps.map(x => {
+    const [c, b] = badge(x.sign);
+    return `<div class="mv"><b>${esc(x.head)}</b> <em class="sign ${c}">${b}</em>
+      <p><span>預期方向</span>${esc(x.sign || "（回覆未提供）")}</p>
+      <p><span>理論基礎</span>${esc(x.theory || "（回覆未提供）")}</p>
+      <p class="ev"><span>實證支持</span>${esc(x.evidence || "（回覆未提供）")}</p></div>`;
+  }).join("") + `</div>`;
+}
+
 // 0.3 貼上回覆後：畫出 AI 的修正架構
 function revisedView(text) {
   if (blank(text)) return "";
   if (/^\s*(以下是我提出的研究架構|## 制式檢核)/.test(text)) return `<p class="note warn">這裡貼的似乎是 Prompt 本身，不是 NotebookLM 的回覆；請貼上 AI 回答的內容。</p>`;
   const r = parseRevised(text);
-  if (!r) return `<p class="hint">（回覆中沒有找到「修正後的研究架構」的「### 變數」「### 路徑」兩節，無法畫圖）</p>`;
+  if (!r) return (store.values.ac_extra || ["revise"]).includes("revise") && /修正後的研究架構/.test(text)
+    ? `<p class="hint">（回覆中的「修正後的研究架構」沒有「### 變數」「### 路徑」兩節，無法畫圖；維持原架構時可忽略）</p>` : "";
   const d = { pos: {}, edges: r.A.edges.map(({ from, to }) => ({ from, to })), mods: r.A.mods.map(({ from, edge }) => ({ from, edge })) };
   dgAutoPos(r.A.vars, d.pos, true);
   return ref(`<div class="rview"><div class="cand-head"><h3>AI 修正後的研究架構</h3><button type="button" class="copy" data-adopt="1">採用此修正架構</button></div>
