@@ -143,7 +143,8 @@ function renderPane() {
       <textarea data-reply="1" rows="5" placeholder="把 AI 的回覆貼在這裡">${esc((store.replies || {})[replyKey()] || "")}</textarea></fieldset>`}
     ${m.replyView ? `<div id="replyview"></div>` : ""}
     ${below ? `<div class="below">${below}</div>` : ""}
-    ${step().after ? `<p class="stepnote after">${esc(ref(step().after))}</p>` : ""}`;
+    ${step().after ? `<p class="stepnote after">${esc(ref(step().after))}</p>` : ""}
+    ${goNext()}`;
   const rf = $("afterout") || $("pane").querySelector("fieldset.reply");
   rf ? $("pane").insertBefore(OUTBOX, rf) : $("pane").appendChild(OUTBOX);
   renderRules();
@@ -215,6 +216,21 @@ function renderReplyView() {
   el.innerHTML = m.replyView(deLatex((store.replies || {})[replyKey()] || ""));
 }
 function showAll() { renderToc(); renderSection(); renderPane(); foldOut(); update(); }
+
+// 每一步最下方的「建議下一步」：可直接跳到目標節與步驟
+function goNext() {
+  const go = step().go; if (!go || !go.length) return "";
+  return `<div class="gonext"><b>建議下一步</b>` + go.map(g => {
+    const s = ALL_SECS.find(x => x.id === g.to); if (!s) return "";
+    const st = stepsOf(s)[g.step || 0], label = `${s.no ? s.no + " " : ""}${s.title}${stepsOf(s).length > 1 ? `・步驟 ${(g.step || 0) + 1}「${DEFS[st.mod].label}」` : ""}`;
+    return `<div class="go"><button type="button" data-go="${g.to}" data-gostep="${g.step || 0}">前往 ${esc(label)} →</button>${g.when ? `<small>${esc(g.when)}</small>` : ""}</div>`;
+  }).join("") + `</div>`;
+}
+$("pane").addEventListener("click", e => {
+  const b = e.target.closest("button[data-go]"); if (!b) return;
+  store.sec = b.dataset.go; store.step[store.sec] = +b.dataset.gostep; showAll();
+  $("sechead").scrollIntoView({ behavior: "smooth" });
+});
 
 $("toc").addEventListener("click", e => {
   const b = e.target.closest("button[data-sec]"); if (!b) return;
