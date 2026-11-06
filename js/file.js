@@ -7,7 +7,7 @@ const DATA_TAG = "paper-data";
 const NOTE_START = "<!-- 我的筆記：以下可自由編輯，網頁存檔時會保留 -->";
 const NOTE_END = "<!-- 我的筆記結束 -->";
 const NOTE_EMPTY = "（在這裡寫下你的筆記）";
-const PNG_NAME = { ac_diag: "架構圖", as_diag: "組合架構圖", ow_diag: "自訂架構圖" };
+const PNG_NAME = { ac_diag: "架構圖", as_diag: "組合草圖", fin_diag: "組合架構圖", ow_diag: "自訂架構圖" };
 
 const proj = { dir: null, dirName: "", file: "", lastMod: 0, lastPayload: "", pngSig: {}, conflict: false, busy: false, timer: 0 };
 

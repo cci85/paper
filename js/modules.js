@@ -211,7 +211,7 @@ const DEFS = {
   },
   asmix: {
     label: "組合研究架構", target: "nlm", stack: true,   // stack：欄位佔滿寬度，Prompt 放在下方
-    hint: "依「前面步驟的回覆」中的變數清單勾選要用的變數，可跨架構混搭，再畫出路徑；不確定的變數先移到待選區。自變數與依變數已確定時，勾選上方「已確定」，在清單勾選自變數與依變數，再請 AI 建議兩者之間的中介與調節變數。產生的 Prompt 貼回 NotebookLM 對話，整理各路徑的文獻支持與研究缺口，並產生 Google Scholar Labs 的英文檢索問題；路徑是否合理，到{#archchk}檢核。",
+    hint: "依「前面步驟的回覆」中的變數清單勾選變數，同一角色可勾多個候選；自變數與依變數已確定時，勾選上方「已確定」，先請 AI 建議中介與調節變數。接著請 AI 依你勾選的變數提出幾個候選架構，網頁會畫出每個候選，比較後按「選這個」；最後產生的 Prompt 會針對選定的架構說明研究缺口與學術貢獻。",
     fields: [
       { id: "am_on", type: "checks", label: "自變數與依變數已確定", options: [["on", "已確定：先在清單勾選自變數與依變數，再請 AI 建議中介與調節變數"]], value: [] },
       { id: "as_vlist", type: "textarea", label: "前面步驟的回覆", hint: "自動帶入步驟 1 與下方篩選的 AI 回覆；也可直接貼上各次回覆", rows: 6, mono: true },
@@ -222,9 +222,20 @@ const DEFS = {
         copyLabel: "複製篩選 Prompt（貼到 NotebookLM）", empty: "（請先在上方清單勾選自變數與依變數）",
         build: p => { const { xs, ys } = mechXY(p); return xs.length && ys.length ? T.ask_mech({ x: xs.join("、"), y: ys.join("、"), ctx: (p.as_ctx || "").trim() }) + citeText() : ""; } },
       { id: "am_reply", type: "textarea", label: "篩選的 AI 回覆", hint: "貼上後按上方「重新帶入」，AI 建議的中介與調節變數會出現在勾選清單，並標示判定", rows: 5, when: p => isOn(p.am_on) },
-      { id: "as_diag", type: "diagram", label: "研究架構圖", hint: "選填。拖曳方塊調整位置；點一個方塊再點另一個方塊，畫出箭頭；先點調節變數再點一條箭頭，畫出調節虛線，拖曳虛線末端的圓點可沿箭頭調整接點位置；未選方塊時點箭頭或虛線可刪除。有畫箭頭時，AI 會逐條檢核你的路徑",
+      { id: "as_diag", type: "diagram", label: "我的草圖", hint: "選填。畫了路徑的話，會列為「候選架構一（我的版本）」。拖曳方塊調整位置；點一個方塊再點另一個方塊，畫出箭頭；先點調節變數再點一條箭頭，畫出調節虛線；未選方塊時點箭頭或虛線可刪除",
         tray: true, all: p => mixPicked(p, true), source: p => mixPicked(p),
-        onRemove: k => { store.values.as_pick = (store.values.as_pick || []).filter(x => x !== k); } }
+        onRemove: k => { store.values.as_pick = (store.values.as_pick || []).filter(x => x !== k); } },
+      { id: "cf_n", type: "radio", label: "候選架構數量", options: [["2", "2 個"], ["3", "3 個"], ["4", "4 個"]], value: "3" },
+      { id: "cf_prompt", type: "promptbox", label: "請 AI 提出候選架構",
+        hint: "依你勾選的變數（與草圖的路徑）產生；貼到 NotebookLM（步驟 1 或篩選所用的同一個對話）",
+        copyLabel: "複製候選架構 Prompt（貼到 NotebookLM）", empty: "（請先在上方清單勾選變數）",
+        build: p => { const picked = mixPicked(p); return picked.length ? T.ask_cands({ picked, paths: diagramPathText(picked, p.as_diag), ctx: (p.as_ctx || "").trim(), n: +(p.cf_n || 3) }) + citeText() : ""; } },
+      { id: "cf_reply", type: "textarea", label: "候選架構的 AI 回覆", hint: "整段貼上；下方會畫出每個候選架構", rows: 6 },
+      { id: "cf_view", type: "cands", label: "比較候選架構", hint: "比較各架構的圖與理由，按「選這個」設為你的研究架構", render: p => renderCands(p), choose: i => chooseCand(i) },
+      { id: "fin_diag", type: "diagram", label: "選定的研究架構", hint: "可在圖上微調：點一個方塊再點另一個方塊加上箭頭；未選方塊時點箭頭可刪除；按「依文字重畫」回到 AI 的版本",
+        when: p => !blank(store.values.cf_text), emptyHint: "（尚未選定）",
+        source: p => parseArch(store.values.cf_text).vars,
+        seed: p => { const A = parseArch(store.values.cf_text); return { sig: JSON.stringify([A.edges, A.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: A.edges.map(({ from, to }) => ({ from, to })), mods: A.mods.map(({ from, edge }) => ({ from, edge })) }; } }
     ],
     init: () => autoPickDV(),
     seed: () => { const v = store.values, r = store.replies || {};
@@ -232,16 +243,17 @@ const DEFS = {
     seedFrom: "步驟 1 與篩選的 AI 回覆", seedNote: "「前面步驟的回覆」由步驟 1 的 AI 回覆（含勾選的補充變數清單），以及下方「篩選的 AI 回覆」帶入",
     rules: () => ["citation"],
     build: (p, R) => {
-      const picked = mixPicked(p);
-      return picked.length ? T.ask_mix({ picked, paths: diagramPathText(picked, p.as_diag) }) + R : "";
+      if (blank(store.values.cf_text)) return "";
+      const A = parseArch(store.values.cf_text), arch = A.edges.length ? archText(A, finDiag(p)) : store.values.cf_text.trim();
+      return T.ask_gap({ arch, ctx: (p.as_ctx || "").trim() }) + R;
     },
     status: p => {
       if (blank(p.as_vlist)) return "";
       const n = parseVarList(p.as_vlist).length;
-      return n ? `已讀取 ${n} 個變數` + trayNote("as_diag") : "沒有讀取到變數，請確認貼上的內容包含「變數清單」，且每行為「角色｜變數名稱｜出處｜架構」。";
+      return n ? `已讀取 ${n} 個變數` + trayNote("as_diag") + (blank(store.values.cf_text) ? "" : `\n已選定：${store.values.cf_title || "候選架構"}`) : "沒有讀取到變數，請確認貼上的內容包含「變數清單」，且每行為「角色｜變數名稱｜出處｜架構」。";
     },
-    empty: "（請貼上上一步的回覆，並勾選要用的變數）",
-    next: "下一步：\n1. 貼回 NotebookLM 對話（步驟 1 或篩選所用的同一個對話），回覆貼到下方「AI 回覆」。\n2. 回覆中標示「尚無實證」或【待補文獻】的路徑，用回覆中的英文問題到 Google Scholar Labs（scholar.google.com 的 Labs）補文獻，上傳到同一個 Notebook。\n3. 到{#archchk}檢核，AI 會提出修改後的架構與理由。"
+    empty: "（請先在上方選定一個候選架構）",
+    next: "下一步：\n1. 貼回同一個 NotebookLM 對話，回覆貼到下方「AI 回覆」。\n2. 回覆中標示「尚無實證」或【待補文獻】的路徑，用英文問題到 Google Scholar Labs（scholar.google.com 的 Labs）補文獻，上傳到同一個 Notebook。\n3. 到{#archchk}檢核選定的架構。"
   },
   astat: {
     label: "統計方法與結果揭露", target: "nlm",
@@ -557,6 +569,29 @@ const DEFS = {
   }
 };
 
+// 組合研究架構：選定架構的圖（依 cf_text 建立，保留圖上微調）
+const finDiag = p => dgSeed(DEFS.asmix.fields.find(f => f.id === "fin_diag"), p);
+// 候選架構卡片：每個候選畫成一張圖，附新增變數與理由
+function renderCands(p) {
+  if (blank(p.cf_reply)) return `<p class="hint">（貼上候選架構的 AI 回覆後，這裡會畫出每個候選架構）</p>`;
+  const cs = parseCands(p.cf_reply);
+  if (!cs.length) return `<p class="note warn">沒有讀到候選架構，請確認回覆中有「## 候選架構一」以及「### 變數」「### 路徑」兩節。</p>`;
+  return cs.map((c, i) => {
+    const d = { pos: {}, edges: c.A.edges.map(({ from, to }) => ({ from, to })), mods: c.A.mods.map(({ from, edge }) => ({ from, edge })) };
+    dgAutoPos(c.A.vars, d.pos, true);
+    const on = (store.values.cf_sel ?? -1) === i && !blank(store.values.cf_text);
+    return `<div class="cand${on ? " on" : ""}"><div class="cand-head"><b>${esc(c.title)}</b><button type="button" class="copy" data-cand="${i}">${on ? "已選定 ✓" : "選這個"}</button></div>
+      <div class="cand-svg">${dgSvg(c.A.vars, d, null, false)}</div>
+      ${c.fresh.length ? `<p class="hint">新增變數：${esc(c.fresh.join("、"))}</p>` : ""}
+      <details><summary>理由與文獻支持</summary><div class="cand-reason">${esc(c.reason || "（回覆中沒有理由說明）")}</div></details></div>`;
+  }).join("");
+}
+function chooseCand(i) {
+  const c = parseCands(store.values.cf_reply)[i]; if (!c) return;
+  store.values.cf_text = candText(c.A); store.values.cf_sel = i; store.values.cf_title = c.title;
+  const d = dgData("fin_diag"); d.sig = null; d.pos = {};
+}
+
 // 0.3 步驟 2：架構圖資料（依文字建立，保留圖上的手動修改）與送出的架構文字
 const archDiag = p => dgSeed(DEFS.archchk.fields.find(f => f.id === "ac_diag"), p);
 const archOut = p => { const t = archSrcText(p), A = parseArch(t); return A.edges.length ? archText(A, archDiag(p)) : t.trim(); };
@@ -612,7 +647,7 @@ const OUTLINE = [
       { mod: "m5c", note: "選用（整批文獻全貌）：同一個對話接續，從變數、理論、情境與方法四個面向，找出整個領域的研究缺口與研究主題建議。" }] },
     { id: "s0-4", no: "0.2", title: "形成研究架構", desc: "兩種做法：有研究主題與情境時，先由 AI 提出候選架構（步驟 1），再到步驟 2 勾選變數、畫出路徑；自變數與依變數已確定時，直接到步驟 2，勾選「自變數與依變數已確定」。組合好的架構到 0.3 檢核；已有自己的架構或只有架構圖圖片，直接到 0.3 選「自行設計或匯入」。", steps: [
       { mod: "asf", note: "由 AI 提出幾個合理的研究架構，再由你挑選；已確定依變數時可填入。需要更完整的變數時，勾選最下方的「補充變數清單」。" },
-      { mod: "asmix", note: "依 AI 回覆的變數清單勾選變數、畫出路徑，組成研究架構；自變數與依變數已確定時，先勾選上方的「已確定」，在清單勾選自變數與依變數，再請 AI 建議中介與調節變數。" }] },
+      { mod: "asmix", note: "勾選變數（同一角色可勾多個候選）→ 請 AI 提出候選架構 → 網頁畫出各候選，選定最適合者 → 請 AI 說明選定架構的研究缺口與學術貢獻。自變數與依變數已確定時，先勾選上方的「已確定」，請 AI 建議中介與調節變數。" }] },
     { id: "s0-5", no: "0.3", title: "研究架構合理性檢核", desc: "依已上傳的文獻檢核研究架構的合理性，並提出文獻支持更充分的修正架構：0.2 各路線產出的架構都在這裡檢核，也可單獨使用（例如只有一張架構圖）。NotebookLM 依制式項目與你的問題檢核 → 同一對話追問。", steps: [
       { mod: "archchk", note: "選擇研究架構來源：在 0.2 組合的架構選「0.2 組合研究架構」，會自動帶入；已有自己的架構或只有架構圖圖片，選「自行設計或匯入」。NotebookLM 需先上傳與架構相關的文獻；文獻愈完整，檢核愈有意義。" },
       { mod: "archq", note: "接在步驟 1 的同一個對話；可重複使用。" }] },

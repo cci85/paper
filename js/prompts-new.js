@@ -920,7 +920,12 @@ function mixPicked(p, all) {
   const on = new Set(p.as_pick || []), tr = all ? [] : trayOf("as_diag");
   return parseVarList(p.as_vlist).filter(v => on.has(v.key) && !tr.includes(v.key));
 }
-const mixArchText = () => archFromDiagram(mixPicked(store.values), store.values.as_diag, x => x.role);
+// 0.3 取用的組合架構：已選定候選架構時用選定版本（含圖上微調），否則用勾選的變數與草圖
+const mixArchText = () => {
+  const v = store.values;
+  if (!blank(v.cf_text)) { const A = parseArch(v.cf_text); return A.edges.length ? archText(A, finDiag(v)) : v.cf_text; }
+  return archFromDiagram(mixPicked(v), v.as_diag, x => x.role);
+};
 // 自行設計（0.3）：每行「角色｜變數名稱（英文）」；角色可省略，省略時依箭頭判斷
 function parseOwnVars(text) {
   const out = [], seen = new Set();
@@ -1016,3 +1021,101 @@ function autoPickDV() {
   v.as_pick = [...new Set([...(v.as_pick || []), ...hit.map(x => x.key)])];
   v.as_dvauto = dv;
 }
+
+// ── 組合研究架構：依勾選的變數請 AI 提出候選架構 → 網頁畫出各候選 → 選定後說明研究缺口與學術貢獻 ──
+const ZH_NUM = ["一", "二", "三", "四", "五", "六"];
+T.ask_cands = p => {
+  const line = ([role, label]) => {
+    const vs = p.picked.filter(v => v.role === role);
+    return vs.length ? `${label}：` + vs.map(v => v.name).join("、") : `${label}：無`;
+  };
+  const mine = (p.paths || []).length;
+  return [
+    `請依據上傳文獻，以我勾選的變數為基礎，提出 ${p.n} 個候選研究架構，供我比較選擇。` + (p.ctx ? `研究情境為${p.ctx}。` : ""),
+    "",
+    "我勾選的變數（同一角色可能有多個候選，不必全部採用）：",
+    ...MIX_ROLES.map(line),
+    "",
+    ...(mine ? [
+      "以下是我自行畫出的路徑：",
+      ...p.paths.map(x => "- " + x),
+      `請將它列為「候選架構一（我的版本）」，路徑照我畫的列出，並在理由中評估其文獻支持與建議修正之處；其餘 ${p.n - 1} 個候選架構由你依文獻提出，可包含修正後的版本。`,
+      ""
+    ] : []),
+    "要求：",
+    "1. 架構之間須有明顯差異，例如採用的自變數不同、中介機制不同或調節位置不同，不得僅替換單一變數。",
+    "2. 同一角色的候選若概念重疊，或描述層次不同（例如消費者特質與外部刺激），須說明如何取捨，或如何安排在不同位置。",
+    "3. 可以加入我未勾選、但上傳文獻支持更充分的變數，須在變數一節第三欄標示「新增」，並在理由中說明；只能使用上傳文獻中實際出現的變數。",
+    "4. 變數總數須維持可執行的規模。",
+    "",
+    "每個候選架構依下列格式輸出：",
+    "## 候選架構一：以一句話概括的架構名稱",
+    "### 變數",
+    "每行一個：角色｜中文名稱（英文原文）｜勾選或新增。角色為自變數、中介變數、調節變數、依變數或控制變數。",
+    "### 路徑",
+    "每行一條：H1｜起點 → 終點｜方向（正向／負向／未標示）；調節路徑寫成：H5｜調節變數 × （起點 → 終點）｜方向；中介路徑拆成兩條直接路徑列出。",
+    "### 理由",
+    "說明此架構的邏輯、所依據的理論，以及相較其他候選架構的優點與限制。",
+    "### 文獻支持",
+    "逐條路徑說明文獻支持程度（充分／部分／不足）與主要出處（作者, 年份）。",
+    "",
+    "「### 變數」與「### 路徑」兩節不使用表格、條列符號或程式碼區塊。各候選架構依序編為候選架構一、二、三……。",
+    "最後另起「## 比較」，以一段文字比較各候選架構在文獻支持、理論貢獻與可行性上的差異，但不替我做出選擇。",
+    "",
+    "規則：只能依據上傳文獻；上傳文獻未提及者，寫「來源中未找到依據」，不得以上傳文獻以外的知識補足。用詞一律使用「變數」，不得使用「變項」；變數關係一律以純文字箭頭「→」表示。"
+  ].join("\n");
+};
+
+// 解析候選架構：只把「變數」「路徑」兩節交給 parseArch，其餘各節作為理由顯示
+function parseCands(text) {
+  const t = String(text || "").replace(/\r\n?/g, "\n");
+  const end = t.search(/^#{1,3}\s*比較/m), body = end >= 0 ? t.slice(0, end) : t;
+  const parts = body.split(/^(?=#{1,2}\s*候選架構)/m).filter(x => /^#{1,2}\s*候選架構/.test(x));
+  return parts.map(part => {
+    const lines = part.split("\n"), title = lines[0].replace(/^#+\s*/, "").replace(/\*\*/g, "").trim();
+    const secs = []; let cur = { head: "", lines: [] };
+    lines.slice(1).forEach(l => {
+      const m = l.match(/^#{3,4}\s*(.+)$/);
+      if (m) { secs.push(cur); cur = { head: m[1].replace(/\*\*/g, "").trim(), lines: [] }; } else cur.lines.push(l);
+    });
+    secs.push(cur);
+    const pick = re => secs.filter(s => re.test(s.head));
+    const archSrc = [...pick(/變數/).map(s => "## 變數\n" + s.lines.join("\n")), ...pick(/路徑|假說/).map(s => "## 路徑\n" + s.lines.join("\n"))].join("\n");
+    const A = parseArch(archSrc);
+    const reason = secs.filter(s => s.head && !/^(變數|路徑|假說)/.test(s.head)).map(s => `【${s.head}】\n${s.lines.join("\n").trim()}`).join("\n\n");
+    return { title, A, reason, fresh: A.vars.filter(v => /新增/.test(v.frames)).map(v => dgLabel(v.name)[0]) };
+  }).filter(c => c.A.vars.length);
+}
+// 候選架構 → 0.3 的文字格式
+function candText(A) {
+  const zh = Object.fromEntries(ARCH_ROLE.map(r => [r[0], r[1]])), nm = k => dgLabel(A.vars.find(v => v.key === k).name)[0];
+  let n = 0;
+  return ["## 變數", ...A.vars.map(v => `${zh[v.role] || "自變數"}｜${v.name}`), "", "## 路徑",
+    ...A.edges.map(e => `${e.id || "H" + (n + 1)}｜${nm(e.from)} → ${nm(e.to)}｜${e.dir || "未標示"}`).map(l => (n++, l)),
+    ...A.mods.map(m => { const [a, b] = m.edge.split(">"); n++; return `${m.id || "H" + n}｜${nm(m.from)} × （${nm(a)} → ${nm(b)}）｜${m.dir || "未標示"}`; })].join("\n");
+}
+
+T.ask_gap = p => [
+  "我從上述候選架構中選定了以下研究架構（可能經我微調）：",
+  "",
+  p.arch,
+  "",
+  (p.ctx ? `研究情境為${p.ctx}。` : "") + "請依據上傳文獻完成以下各節：",
+  "",
+  "## 研究缺口",
+  "說明此架構可回應的研究缺口：逐一指出哪些路徑或變數組合在上傳文獻中尚未被檢驗、結果不一致，或尚未在此研究情境中驗證，並附判斷所依據的文獻；缺口須具體指向此架構中的變數或路徑，不得為一般性的缺口。",
+  "",
+  "## 學術貢獻",
+  "說明此研究完成後可能的理論貢獻，例如延伸既有理論的適用情境、釐清中介機制、提出新的調節條件或整合不同理論觀點；每一項須連回具體的研究缺口與路徑，並附文獻依據，不得誇大。",
+  "",
+  "## 文獻支持",
+  "逐條列出各路徑，說明上傳文獻中是否已有實證研究支持，已有者附上出處，尚無者標示「尚無實證」。",
+  "",
+  "## Scholar Labs 檢索問題",
+  "依上述路徑，以英文撰寫可直接貼入 Google Scholar Labs 的研究問題：先寫一個涵蓋整體架構的問題，再為每一條路徑各寫一個問題；標示「尚無實證」或【待補文獻】的路徑必須涵蓋，並排在前面。每個問題須為一個完整英文問句，包含變數的英文學術名稱、變數之間的關係（影響、中介或調節）與研究情境，下方以一行中文說明此問題要找的文獻。",
+  "",
+  "## 無法由上傳文獻回答之事項",
+  "逐行列出說明此架構的研究情境、實務問題與實務缺口時所需、但上傳文獻未提供的資訊（例如研究情境中的實際運作方式、相關做法、產業數據），每行一項，格式為：事項｜需要此資訊的原因。",
+  "",
+  "限制：只能使用上傳文獻中出現的理論與證據；若某條路徑需要上傳文獻以外的支持，請標示【待補文獻】。前四節以正式學術段落撰寫。用詞一律使用「變數」，不得使用「變項」；變數關係一律以純文字箭頭「→」表示。"
+].join("\n");

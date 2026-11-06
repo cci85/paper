@@ -214,3 +214,15 @@ pre.pboxpre { margin: 8px 0 0; white-space: pre-wrap; word-break: break-word; fo
 .fbtn { margin-top: 10px; }
 .fbtn .note:empty { display: none; }
 .below { margin-top: 14px; padding-top: 4px; border-top: 1px dashed var(--line); }
+
+/* 候選架構卡片 */
+.cands { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 12px; margin-top: 8px; }
+.cand { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--panel); }
+.cand.on { border: 2px solid var(--accent); background: var(--accent-soft); }
+.cand-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.cand-head b { font-size: 14px; }
+.cand-head .copy { padding: 5px 12px; font-size: 13px; white-space: nowrap; }
+.cand-svg svg { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; margin-top: 8px; background: #fff; }
+.cand summary { cursor: pointer; color: var(--accent); font-size: 13px; margin-top: 6px; }
+.cand-reason { white-space: pre-line; font-size: 13px; line-height: 1.6; margin-top: 6px; max-height: 320px; overflow: auto; }
+@media (max-width: 600px) { .cands { grid-template-columns: 1fr; } }

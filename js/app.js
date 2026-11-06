@@ -117,6 +117,7 @@ function renderPane() {
     if (f.type === "picker") return lab + `<div class="picker" id="pick-${f.id}"></div>`;
     if (f.type === "diagram") return lab + `<div class="dg-tools">${f.seed ? `<button type="button" data-dg="${f.id}" data-act="reset">依文字重畫</button>` : ""}<button type="button" data-dg="${f.id}" data-act="layout">重新排列</button><button type="button" data-dg="${f.id}" data-act="clear">清除箭頭</button><button type="button" data-dg="${f.id}" data-act="png">下載 PNG</button>${f.tray ? `<button type="button" data-dg="${f.id}" data-act="tray">移到待選區</button>` : ""}</div><div class="diagram" id="diag-${f.id}"></div>${f.tray ? `<div class="dg-tray" id="tray-${f.id}"></div>` : ""}`;
     if (f.type === "button") return `<div class="fbtn"><button type="button" class="copy" data-fbtn="${f.id}">${esc(f.label)}</button>${f.hint ? ` <small class="hint">${esc(f.hint)}</small>` : ""}<div class="note" id="fmsg-${f.id}"></div></div>`;
+    if (f.type === "cands") return lab + `<div class="cands" id="cands-${f.id}"></div>`;
     if (f.type === "promptbox") return lab + `<div class="pbox"><button type="button" class="copy pcopy" data-pcopy="${f.id}">${esc(f.copyLabel || "複製")}</button>
       <details><summary>展開 Prompt</summary><pre class="pboxpre" id="pbox-${f.id}"></pre></details></div>`;
     if (f.type === "textarea") return lab + `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px" placeholder="${esc(f.placeholder || "")}">${esc(p[f.id])}</textarea>`;
@@ -178,6 +179,7 @@ function update() {
   $("count").textContent = out ? `${out.length.toLocaleString()} 字元` : (m.empty || "");
   $("outd").hidden = !out;
   $("next").textContent = ref(m.next);
+  m.fields.filter(f => f.type === "cands").forEach(f => { const el = $("cands-" + f.id); if (el) el.innerHTML = f.render(p); });
   m.fields.filter(f => f.type === "promptbox").forEach(f => {
     const el = $("pbox-" + f.id); if (!el) return;
     const t = f.build(p), btn = document.querySelector(`button[data-pcopy="${f.id}"]`);
@@ -232,6 +234,13 @@ $("pane").addEventListener("input", e => {
 });
 
 $("pane").addEventListener("click", async e => {
+  const cb = e.target.closest("button[data-cand]");
+  if (cb) {   // 候選架構：選定
+    const f = mod().fields.find(x => x.type === "cands"); f.choose(+cb.dataset.cand);
+    save(); renderPane(); update();
+    const fin = $("diag-fin_diag"); if (fin) fin.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
   const fb = e.target.closest("button[data-fbtn]");
   if (fb) {   // 欄位中的動作按鈕（例如匯入到圖上）
     const m = mod(), f = m.fields.find(x => x.id === fb.dataset.fbtn), msg = f.run(valuesOf(m));
