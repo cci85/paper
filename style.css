@@ -269,3 +269,6 @@ p.stepnote.after { white-space: pre-line; }
 .gonext button { padding: 6px 12px; border: 1px solid var(--accent); border-radius: 8px; background: var(--panel); color: var(--accent); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
 .gonext button:hover { background: var(--accent); color: var(--panel); }
 .gonext small { color: var(--muted); font-size: 12.5px; }
+@keyframes pulse2 { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 6px var(--warn-soft); border-color: var(--warn); } }
+.pbox.attn { animation: pulse2 1s ease-in-out 4; border-style: solid; }
+.needbox.second .copy { background: var(--warn); color: var(--panel); border: 0; padding: 6px 14px; font-size: 13.5px; }

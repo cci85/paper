@@ -181,7 +181,8 @@ function update() {
   const out = m.build(p, R);
   $("out").textContent = out || "";
   $("copy").disabled = !out;
-  $("copy").textContent = m.copyLabel || `複製 Prompt（${COPY_TO[m.target] || "貼到 AI"}）`;
+  const two = m.fields.some(f => f.afterOut && (!f.when || f.when(p)));   // 分兩則送出
+  $("copy").textContent = m.copyLabel || `${two ? "① 複製第一則 Prompt" : "複製 Prompt"}（${COPY_TO[m.target] || "貼到 AI"}）`;
   $("count").textContent = out ? `${out.length.toLocaleString()} 字元` + (out.length > 3000 ? "（可能超過 NotebookLM 單次輸入上限）" : "") : (m.empty || "");
   $("count").classList.toggle("over", !!out && out.length > 3000);
   $("outd").hidden = !out;
@@ -322,6 +323,8 @@ $("copy").addEventListener("click", async () => {
   const b = $("copy"), old = b.textContent, to = COPY_TO[mod().target];
   b.textContent = to ? `已複製 ✓ 請${to}` : "已複製 ✓";
   setTimeout(() => (b.textContent = old), 1500);
+  const second = document.querySelector("#afterout .pbox");   // 分兩則：提醒第二則
+  if (second) { second.classList.remove("attn"); void second.offsetWidth; second.classList.add("attn"); }
 });
 
 showAll();

@@ -239,10 +239,10 @@ const DEFS = {
         seed: p => { const A = parseArch(store.values.cf_text); return { sig: JSON.stringify([A.edges, A.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: A.edges.map(({ from, to }) => ({ from, to })), mods: A.mods.map(({ from, edge }) => ({ from, edge })) }; } },
       { id: "cf_detail", type: "promptbox", afterOut: true, label: "第二則 Prompt：路徑依據與變數衡量", when: () => !blank(store.values.cf_text),
         hint: "第一則的回覆完成後，在同一個對話接著送出；兩則回覆依序貼到下方「AI 回覆」",
-        copyLabel: "複製第二則 Prompt（同一個對話接著送出）",
+        copyLabel: "② 複製第二則 Prompt（同一個對話接著送出）",
         build: () => T.ask_detail({ target: "針對我選定的研究架構" }) }
     ],
-    replyView: t => pathView(t) + measureView(t, "下一步：到「依文獻檢核架構」（目錄 0.3 研究架構合理性檢核），研究架構來源選「0.2 組合研究架構」，檢核這個架構的合理性。"),
+    replyView: t => secondMissing(t) ? secondView(t) : pathView(t) + measureView(t, "下一步：到「依文獻檢核架構」（目錄 0.3 研究架構合理性檢核），研究架構來源選「0.2 組合研究架構」，檢核這個架構的合理性。"),
     init: () => autoPickDV(),
     seed: () => { const v = store.values, r = store.replies || {};
       return { as_vlist: [r["s0-4|asf"], isOn(v.as_more_on) ? v.as_morereply : "", isOn(v.am_on) ? v.am_reply : ""].filter(x => !blank(x)).map(x => x.trim()).join("\n\n") }; },
@@ -545,10 +545,10 @@ const DEFS = {
         placeholder: "我把品牌熟悉度設為調節變數，文獻中比較常把它當成調節變數、中介變數，還是前因？\n文獻支持 H2 的研究多半是哪些產品類別？" },
       { id: "ac_detail", type: "promptbox", afterOut: true, label: "第二則 Prompt：路徑依據與變數衡量",
         hint: "第一則的回覆完成後，在同一個對話接著送出；兩則回覆依序貼到下方「AI 回覆」",
-        copyLabel: "複製第二則 Prompt（同一個對話接著送出）",
+        copyLabel: "② 複製第二則 Prompt（同一個對話接著送出）",
         build: p => T.ask_detail({ target: (p.ac_extra || []).includes("revise") ? "針對上述研究架構（若已提出修正後的研究架構，以修正後的架構為準）" : "針對上述研究架構" }) }
     ],
-    replyView: t => revisedView(t) + qaView(t, splitLines(store.values.ac_qs)) + pathView(t) + measureView(t, ""),
+    replyView: t => revisedView(t) + qaView(t, splitLines(store.values.ac_qs)) + (secondMissing(t) ? secondView(t) : pathView(t) + measureView(t, "")),
     rules: () => ["citation"],
     build: (p, R) => {
       const raw = archSrcText(p).trim(), qs = splitLines(p.ac_qs);
@@ -582,6 +582,16 @@ const DEFS = {
 };
 
 // 貼上回覆後：依角色整理「變數定義與衡量」
+// 分兩則送出時：回覆中還沒有第二則的內容，就提醒並附上複製按鈕
+function secondMissing(text) { return !blank(text) && !parsePaths(text).length && !parseMeasures(text).length; }
+function secondView(text) {
+  if (!secondMissing(text)) return "";
+  const m = mod(), f = m.fields.find(x => x.afterOut && x.type === "promptbox"); if (!f) return "";
+  const t = f.build(valuesOf(m));
+  return `<div class="needbox second"><b>第二則尚未送出</b>：回覆中還沒有「路徑的預期方向與依據」與「變數定義與衡量」。請在同一個 NotebookLM 對話送出第二則，再把回覆接在上方「AI 回覆」的最後。
+    <p><button type="button" class="copy" data-copytext="${esc(t)}">② 複製第二則 Prompt</button></p></div>`;
+}
+
 function measureView(text, nextHint) {
   if (blank(text)) return "";
   const vs = parseMeasures(text);
