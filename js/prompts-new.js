@@ -7,11 +7,37 @@ const VAR_NOT_DESIGN = "由兩個變數配對或交互作用所形成的效果�
 // 檢驗研究架構的 Prompt 共用：變數定義與衡量（代表題項 2–3 題，不得自行編寫）
 const MEASURE = scope => [
   "## 變數定義與衡量",
-  `${scope}逐一列出，每個變數一小段：`,
-  `1. 定義：中文名稱（英文原文）與一句話定義，附出處；${VAR_DEF}。`,
-  "2. 量表出處：上傳文獻中衡量此變數所用的量表（原始作者, 年份）、構面與題數；以分組或操弄形成的變數，說明操弄方式。",
-  "3. 代表題項：列出 2–3 題，保留原文並附中文翻譯，註明出自哪一篇文獻；上傳文獻未列出題項者，標示「上傳文獻未列題項，需查閱原始量表」，不得自行編寫題項。"
+  `${scope}依自變數、中介變數、調節變數、依變數、控制變數的順序逐一列出，每個變數依下列格式：`,
+  "### 中文名稱（英文原文）｜角色",
+  `定義：一句話理論定義，附出處；${VAR_DEF}。`,
+  "量表出處：上傳文獻中衡量此變數所用的量表（原始作者, 年份）、構面與題數；以分組或操弄形成的變數，說明操弄方式。",
+  "代表題項：",
+  "1. 原文題項（中文翻譯）——出處（作者, 年份）",
+  "2. ……",
+  "代表題項列 2–3 題；上傳文獻未列出題項者，寫「上傳文獻未列題項，需查閱原始量表」，不得自行編寫題項。此節不使用表格。"
 ];
+// 解析回覆中的「變數定義與衡量」一節 → [{ name, role, def, scale, items }]
+function parseMeasures(text) {
+  const t = String(text || "").replace(/\r\n?/g, "\n").replace(/\*\*/g, "");
+  const m = t.match(/^#{1,3}\s*變數定義與衡量[^\n]*\n([\s\S]*?)(?=^#{1,2}\s(?!#)|(?![\s\S]))/m);
+  if (!m) return [];
+  return m[1].split(/^(?=#{3,4}\s)/m).filter(b => /^#{3,4}\s/.test(b)).map(b => {
+    const lines = b.split("\n"), head = lines[0].replace(/^#+\s*/, "").trim();
+    const [name, roleTxt = ""] = head.split(/\s*[｜|]\s*/);
+    const r = ARCH_ROLE.find(x => x[2].test(roleTxt));
+    let def = "", scale = "", items = [], mode = "";
+    lines.slice(1).forEach(l => {
+      const x = l.trim(); if (!x) return;
+      let mm;
+      if ((mm = x.match(/^[-*•\d.、\s]*定義[：:]\s*(.*)$/))) { def = mm[1]; mode = "def"; return; }
+      if ((mm = x.match(/^[-*•\d.、\s]*量表(?:出處)?[：:]\s*(.*)$/))) { scale = mm[1]; mode = "scale"; return; }
+      if ((mm = x.match(/^[-*•\d.、\s]*代表題項[：:]?\s*(.*)$/))) { mode = "items"; if (mm[1]) items.push(mm[1]); return; }
+      if (mode === "items") items.push(x.replace(/^[-*•]\s*|^\d+[.、)]\s*/, ""));
+      else if (mode === "def") def += x; else if (mode === "scale") scale += x;
+    });
+    return { name: name.trim(), role: r ? r[0] : "", def, scale, items };
+  }).filter(v => v.name);
+}
 
 // 文獻資料表：欄位可在網頁上勾選，文字為原文
 const MATRIX_COLS = [

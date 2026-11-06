@@ -137,6 +137,7 @@ function renderPane() {
     ${m.target === "tool" ? "" : `<fieldset class="struct reply"><legend>AI 回覆</legend>
       <p class="hint" style="margin:0 0 6px">選填；貼上這一步的 AI 回覆，會一併存入研究存檔，不影響上方的 Prompt。</p>
       <textarea data-reply="1" rows="5" placeholder="把 AI 的回覆貼在這裡">${esc((store.replies || {})[replyKey()] || "")}</textarea></fieldset>`}
+    ${m.replyView ? `<div id="replyview"></div>` : ""}
     ${below ? `<div class="below">${below}</div>` : ""}
     ${step().after ? `<p class="stepnote after">${esc(ref(step().after))}</p>` : ""}`;
   const rf = $("pane").querySelector("fieldset.reply");
@@ -179,6 +180,7 @@ function update() {
   $("count").textContent = out ? `${out.length.toLocaleString()} 字元` : (m.empty || "");
   $("outd").hidden = !out;
   $("next").textContent = ref(m.next);
+  renderReplyView();
   m.fields.filter(f => f.type === "cands").forEach(f => { const el = $("cands-" + f.id); if (el) el.innerHTML = f.render(p); });
   m.fields.filter(f => f.type === "promptbox").forEach(f => {
     const el = $("pbox-" + f.id); if (!el) return;
@@ -202,6 +204,11 @@ function update() {
 
 // 換節或換步驟時，Prompt 收合（本頁處理的工具步驟則展開，結果就是要看的內容）
 const foldOut = () => { $("outd").open = mod().target === "tool"; };
+// 貼上 AI 回覆後的整理檢視（例如依角色列出變數定義與衡量）
+function renderReplyView() {
+  const m = mod(), el = $("replyview"); if (!m.replyView || !el) return;
+  el.innerHTML = m.replyView((store.replies || {})[replyKey()] || "");
+}
 function showAll() { renderToc(); renderSection(); renderPane(); foldOut(); update(); }
 
 $("toc").addEventListener("click", e => {
@@ -215,7 +222,7 @@ $("sechead").addEventListener("click", e => {
 });
 $("pane").addEventListener("input", e => {
   const t = e.target;
-  if (t.dataset.reply) { (store.replies ||= {})[replyKey()] = t.value; save(); return; }
+  if (t.dataset.reply) { (store.replies ||= {})[replyKey()] = t.value; save(); renderReplyView(); return; }
   if (t.dataset.f) {
     store.values[vkey(t.dataset.f)] = t.value;
     if (t.type === "radio") {

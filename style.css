@@ -226,3 +226,14 @@ pre.pboxpre { margin: 8px 0 0; white-space: pre-wrap; word-break: break-word; fo
 .cand summary { cursor: pointer; color: var(--accent); font-size: 13px; margin-top: 6px; }
 .cand-reason { white-space: pre-line; font-size: 13px; line-height: 1.6; margin-top: 6px; max-height: 320px; overflow: auto; }
 @media (max-width: 600px) { .cands { grid-template-columns: 1fr; } }
+
+/* 變數定義與衡量（由 AI 回覆整理） */
+.mview { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-soft); }
+.mview h3 { margin: 0 0 6px; font-size: 15px; }
+.mview h4 { margin: 12px 0 6px; font-size: 14px; color: var(--accent); }
+.mv { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: 13.5px; line-height: 1.6; }
+.mv b { font-size: 14.5px; }
+.mv p { margin: 4px 0; }
+.mv span { display: inline-block; min-width: 64px; margin-right: 8px; color: var(--muted); font-size: 12.5px; font-weight: 600; vertical-align: top; }
+.mv div > span { display: block; margin-top: 4px; }
+.mv ol { margin: 2px 0 0; padding-left: 22px; }

@@ -237,6 +237,7 @@ const DEFS = {
         source: p => parseArch(store.values.cf_text).vars,
         seed: p => { const A = parseArch(store.values.cf_text); return { sig: JSON.stringify([A.edges, A.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: A.edges.map(({ from, to }) => ({ from, to })), mods: A.mods.map(({ from, edge }) => ({ from, edge })) }; } }
     ],
+    replyView: t => measureView(t, "下一步：到「依文獻檢核架構」（目錄 0.3 研究架構合理性檢核），研究架構來源選「0.2 組合研究架構」，檢核這個架構的合理性。"),
     init: () => autoPickDV(),
     seed: () => { const v = store.values, r = store.replies || {};
       return { as_vlist: [r["s0-4|asf"], isOn(v.as_more_on) ? v.as_morereply : "", isOn(v.am_on) ? v.am_reply : ""].filter(x => !blank(x)).map(x => x.trim()).join("\n\n") }; },
@@ -568,6 +569,24 @@ const DEFS = {
     next: "下一步：貼到同一個 NotebookLM 對話接續提問；要換問題時，清空欄位重新填寫即可。"
   }
 };
+
+// 貼上回覆後：依角色整理「變數定義與衡量」
+function measureView(text, nextHint) {
+  if (blank(text)) return "";
+  const vs = parseMeasures(text);
+  if (!vs.length) return `<p class="note warn">回覆中沒有找到「## 變數定義與衡量」一節（較早的 Prompt 不會產生）。可在同一個對話輸入：「請補上變數定義與衡量一節」，再把回覆接在下方。</p>` + (nextHint ? `<p class="stepnote after">${esc(nextHint)}</p>` : "");
+  const known = Object.fromEntries(parseArch(store.values.cf_text || "").vars.map(v => [dgLabel(v.name)[0], v.role]));
+  vs.forEach(v => { if (!v.role) v.role = known[dgLabel(v.name)[0]] || ""; });
+  const groups = [["iv", "自變數"], ["med", "中介變數"], ["mod", "調節變數"], ["dv", "依變數"], ["ctrl", "控制變數"], ["", "其他"]];
+  const html = groups.map(([r, label]) => {
+    const g = vs.filter(v => v.role === r); if (!g.length) return "";
+    return `<h4>${label}</h4>` + g.map(v => `<div class="mv"><b>${esc(v.name)}</b>
+      <p><span>理論定義</span>${esc(v.def || "（回覆未提供）")}</p>
+      <p><span>量表出處</span>${esc(v.scale || "（回覆未提供）")}</p>
+      <div><span>代表題項</span>${v.items.length === 1 && /未列題項/.test(v.items[0]) ? esc(v.items[0]) : v.items.length ? `<ol>${v.items.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : "（回覆未提供）"}</div></div>`).join("");
+  }).join("");
+  return `<div class="mview"><h3>變數定義與衡量</h3>${html}</div>` + (nextHint ? `<p class="stepnote after">${esc(nextHint)}</p>` : "");
+}
 
 // 組合研究架構：選定架構的圖（依 cf_text 建立，保留圖上微調）
 const finDiag = p => dgSeed(DEFS.asmix.fields.find(f => f.id === "fin_diag"), p);
