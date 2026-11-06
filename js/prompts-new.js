@@ -634,15 +634,23 @@ T.ask_survey = p => [
   `延續上一段回覆，我選定的研究架構為：${p.arch}` + (p.arch.includes("\n") ? "" : "。") + `請依據上傳文獻，為此架構撰寫${p.exp ? "實驗問卷草稿" : "問卷草稿"}，並評估以${p.exp ? "實驗設計法" : "問卷調查法"}執行的可行性。研究情境為${p.ctx}` + (p.target ? `，研究對象為${p.target}。` : "。"),
   "",
   "## 問卷草稿",
-  "依下列順序編排：",
-  "1. 填答說明：說明研究目的與填答方式，不得揭露研究假說。",
-  "2. 篩選題：依研究情境與研究對象設計 1 到 3 題，用以確認受訪者符合研究對象條件。",
+  "依下列格式與順序輸出，供我在網頁上排版預覽；各小節不使用表格或程式碼區塊：",
+  "### 填答說明",
+  "一段文字，說明研究目的與填答方式，不得揭露研究假說。",
+  "### 篩選題",
+  "依研究情境與研究對象設計 1 到 3 題，每行一題，格式為：S1｜題目｜選項一／選項二／……",
   ...(p.exp ? [
-    "3. 實驗情境與操弄：說明以哪一個自變數作為操弄變數、各組的情境描述或刺激物內容（例如影片、圖片或文案的說明）、組別設計與隨機分派方式；操弄方式須參考上傳文獻中的實驗設計，並附出處。",
-    "4. 操弄檢定與注意力檢核：列出確認操弄成功的題項，以及檢核受試者是否專心作答的題目；操弄檢定題項須取自上傳文獻，找不到者標示【待補量表】。"
+    "### 實驗情境與操弄",
+    "說明以哪一個自變數作為操弄變數、各組的情境描述或刺激物內容（例如影片、圖片或文案的說明）、組別設計與隨機分派方式；操弄方式須參考上傳文獻中的實驗設計，並附出處。",
+    "### 操弄檢定與注意力檢核",
+    "每行一題，格式為：M1｜題目｜出處；操弄檢定題項須取自上傳文獻，找不到者標示【待補量表】。"
   ] : []),
-  `${p.exp ? 5 : 3}. 構念題項：每個構念一個小標題，標示量表出處（作者, 年份）與維度，列出英文原題，並附「中文暫譯（須經翻譯—回譯程序確認）」。量尺形式：${p.scale || "依原量表"}。`,
-  `${p.exp ? 6 : 4}. 基本資料題：依研究情境列出必要的人口統計與使用行為題目。`,
+  "### 量尺",
+  `一行，寫出各點的標示，例如：1＝非常不同意／2＝不同意／……／7＝非常同意。量尺形式：${p.scale || "依原量表"}。`,
+  "接著每個構念一個小標題，格式為：### 構念｜中文名稱（英文原文）｜量表出處（作者, 年份）｜構面（單一構面寫「無」）",
+  "其下每行一題，全卷連續編號，格式為：Q1｜中文暫譯｜英文原題。中文暫譯須經翻譯—回譯程序確認；找不到題項的構念，寫一行「【待補量表：構念名稱】」。",
+  "### 基本資料題",
+  "依研究情境列出必要的人口統計與使用行為題目，每行一題，格式為：D1｜題目｜選項一／選項二／……",
   "",
   "## 可行性評估",
   "以學術段落撰寫，依序說明：",
@@ -1259,3 +1267,46 @@ function deLatex(text) {
   return String(text || "").replace(/\$\$([\s\S]+?)\$\$/g, (_, m) => conv(m)).replace(/\$([^$\n]+?)\$/g, (_, m) => conv(m))
     .replace(/\\\(([\s\S]+?)\\\)/g, (_, m) => conv(m));
 }
+
+// 問卷草稿：解析「## 問卷草稿」一節 → { intro, screen, manip, scale, constructs:[{ name, src, dim, items:[{ id, zh, en }], missing }], demo }
+function parseSurvey(text) {
+  const t = String(text || "").replace(/\r\n?/g, "\n").replace(/\*\*/g, "");
+  const m = lastSection(t, /^#{1,3}\s*問卷草稿[^\n]*\n([\s\S]*?)(?=^#{1,2}\s(?!#)|(?![\s\S]))/gm);
+  if (!m) return null;
+  const S = { intro: "", screen: [], manip: [], scaleText: "", constructs: [], demo: [], other: [] };
+  const row = l => l.replace(/^[-*•]\s*/, "").split(/\s*[｜|]\s*/);
+  m[1].split(/^(?=#{3,4}\s)/m).filter(b => /^#{3,4}\s/.test(b)).forEach(b => {
+    const lines = b.split("\n"), head = lines[0].replace(/^#+\s*/, "").trim(), body = lines.slice(1).map(x => x.trim()).filter(Boolean);
+    if (/^填答說明/.test(head)) S.intro = body.join("\n");
+    else if (/^篩選題/.test(head)) S.screen = body.map(row).filter(c => c.length >= 2).map(c => ({ id: c[0], q: c[1], opts: (c[2] || "").split(/[／/]/).map(x => x.trim()).filter(Boolean) }));
+    else if (/^基本資料/.test(head)) S.demo = body.map(row).filter(c => c.length >= 2).map(c => ({ id: c[0], q: c[1], opts: (c[2] || "").split(/[／/]/).map(x => x.trim()).filter(Boolean) }));
+    else if (/^量尺/.test(head)) S.scaleText = body.join(" ");
+    else if (/^構念/.test(head) || head.split(/[｜|]/).length >= 3) {
+      const c = head.replace(/^構念\s*[｜|]\s*/, "").split(/\s*[｜|]\s*/);
+      const con = { name: c[0], src: c[1] || "", dim: c[2] || "", items: [], missing: "" };
+      body.forEach(l => {
+        if (/待補量表/.test(l)) { con.missing = l; return; }
+        const r = row(l); if (r.length >= 2 && /^Q?\d+/i.test(r[0])) con.items.push({ id: r[0].toUpperCase().replace(/^(\d)/, "Q$1"), zh: r[1], en: r[2] || "" });
+      });
+      S.constructs.push(con);
+    } else S.other.push({ head, text: body.join("\n") });
+  });
+  const nums = [...S.scaleText.matchAll(/(\d+)\s*[＝=]/g)].map(x => +x[1]);
+  S.points = nums.length ? Math.max(...nums) : /五點/.test(S.scaleText) ? 5 : 7;
+  S.ends = (() => { const a = S.scaleText.match(/1\s*[＝=]\s*([^／/、,，]+)/), z = S.scaleText.match(new RegExp(S.points + "\\s*[＝=]\\s*([^／/、,，]+)")); return [a ? a[1].trim() : "", z ? z[1].trim() : ""]; })();
+  return S;
+}
+
+// 問卷修訂追問：逐題請 NotebookLM 依文獻提供修訂建議
+T.ask_svfix = p => [
+  "延續上一段回覆，針對問卷草稿中的以下題項，請僅依據上傳文獻逐題提供修訂建議：",
+  "",
+  ...p.items.flatMap(x => [`${x.id}（構念：${x.con}；量表出處：${x.src || "未載"}）`, `中文：${x.zh}`, `英文原題：${x.en || "未載"}`, `我的疑慮：${x.note || "請檢查此題是否需要修改"}`, ""]),
+  "每題另起「### Q編號」小標題，依序說明：",
+  "1. 原始題項：原量表的英文原題與出處（作者, 年份）；草稿中的題項與原文不符時，指出差異。",
+  "2. 問題判斷：我的疑慮是否成立，並說明依據，例如與其他構念題意重疊、翻譯偏離原意、情境用語不當或語句過長。",
+  "3. 修訂建議：提供 1 到 2 個保留原意的中文修訂版本；需要更換題項時，列出上傳文獻中其他量表的替代題項（英文原題與出處）。",
+  "4. 信效度影響：修改對內容效度與跨研究比較的影響，以及是否需要預試或專家效度檢核。",
+  "",
+  "規則：只能依據上傳文獻；不得自行編寫英文原題，上傳文獻中找不到者寫「來源中未找到依據」。用詞一律使用「變數」，不得使用「變項」。"
+].join("\n");

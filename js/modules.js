@@ -274,8 +274,10 @@ const DEFS = {
       { id: "as_arch", type: "textarea", label: "其他架構", hint: "簡短描述即可，不要貼上整段回覆", rows: 2, placeholder: "例如：架構一加上消費者創新性作為調節變數", when: p => p.as_archm === "other" },
       { id: "as_target", type: "text", label: "研究對象", hint: "選填", placeholder: "例如：過去三個月曾在抖音購物的消費者" },
       { id: "as_scale", type: "text", label: "量尺形式", hint: "選填；不填時依原量表", placeholder: "例如：Likert 七點尺度" },
-      { id: "as_amethod", type: "text", label: "分析方法", hint: "選填；不填時由 AI 依架構建議", placeholder: "例如：PLS-SEM" }
+      { id: "as_amethod", type: "text", label: "分析方法", hint: "選填；不填時由 AI 依架構建議", placeholder: "例如：PLS-SEM" },
+      { id: "sv_reply", type: "textarea", below: true, label: "修訂建議的 AI 回覆", hint: "選填；貼上修改追問的回覆，會一併存入研究存檔", rows: 5 }
     ],
+    replyView: t => surveyView(t),
     rules: () => ["citation"],
     status: p => p.as_rmethod === "sec" ? "研究方法為 panel data 時不需要問卷草稿，可跳過此步驟。" : p.as_archm === "other" && (p.as_arch || "").trim().length > 300 ? "「其他架構」內容過長，NotebookLM 可能無法讀取；同一個對話中簡短描述即可。" : "",
     build: (p, R) => {
@@ -649,6 +651,55 @@ function revisedView(text) {
 function adoptRevised() {
   const r = parseRevised((store.replies || {})[replyKey()] || ""); if (!r) return;
   importArch(r.src); store.values.ac_src = "own"; store.values.ow_mode = "draw";
+}
+
+// ── 0.4 問卷草稿：預覽（像實際問卷）、直接修改題項、修改清單與追問 ──
+const svReply = () => deLatex((store.replies || {})["s0-6|asq"] || "");
+const svItemText = it => { const e = (store.values.sv_edit || {})[it.id]; return e && e.orig === it.zh ? e.text : it.zh; };
+function svAllItems(S) { return S.constructs.flatMap(c => c.items.map(it => ({ ...it, con: c.name, src: c.src }))); }
+function surveyView(text) {
+  if (blank(text)) return "";
+  const S = parseSurvey(text);
+  if (!S) return `<p class="note warn">回覆中沒有找到「## 問卷草稿」一節（較早的 Prompt 格式不同），請重新複製 Prompt 產生問卷草稿。</p>`;
+  const fix = store.values.sv_fix || {}, n = S.points;
+  const dots = `<span class="sv-dots">${Array.from({ length: n }, (_, k) => `<i>${k + 1}</i>`).join("")}</span>`;
+  const opts = q => q.opts.length ? `<div class="sv-opts">${q.opts.map(o => `<span>○ ${esc(o)}</span>`).join("")}</div>` : "";
+  const simple = (title, qs) => qs.length ? `<h4>${title}</h4>` + qs.map(q => `<div class="sv-q"><b>${esc(q.id)}</b> ${esc(q.q)}${opts(q)}</div>`).join("") : "";
+  const cons = S.constructs.map(c => `<div class="sv-con"><h4>${esc(c.name)}</h4><p class="hint">${esc([c.src, c.dim && !/^無$/.test(c.dim) ? "構面：" + c.dim : ""].filter(Boolean).join("｜"))}</p>
+    ${c.missing ? `<p class="note warn">${esc(c.missing)}</p>` : ""}
+    ${c.items.map(it => { const t = svItemText(it), ed = t !== it.zh, on = it.id in fix;
+      return `<div class="sv-item${ed ? " edited" : ""}${on ? " fix" : ""}"><b>${esc(it.id)}</b>
+        <div class="sv-text"><span class="sv-zh" contenteditable="true" spellcheck="false" data-sved="${esc(it.id)}" data-orig="${esc(it.zh)}" title="點一下即可修改">${esc(t)}</span>
+          ${it.en ? `<small>${esc(it.en)}</small>` : ""}
+          <span class="sv-act"><button type="button" data-svfix="${esc(it.id)}">${on ? "已加入修改清單" : "加入修改清單"}</button>${ed ? `<button type="button" data-svrestore="${esc(it.id)}">還原</button>` : ""}</span></div>${dots}</div>`; }).join("")}</div>`).join("");
+  const scaleHead = `<div class="sv-scale"><span>${esc(S.ends[0] || "1")}</span>${dots}<span>${esc(S.ends[1] || String(n))}</span></div>`;
+  const items = svAllItems(S), fixed = items.filter(it => it.id in fix);
+  const fixBox = fixed.length ? `<div class="sv-fixbox"><h4>修改清單（${fixed.length} 題）</h4>
+    ${fixed.map(it => `<div class="sv-fixrow"><b>${esc(it.id)}</b> ${esc(svItemText(it))}
+      <input type="text" data-svnote="${esc(it.id)}" value="${esc(fix[it.id] || "")}" placeholder="寫下疑慮，例如：與衝動購買題意相近／翻譯不自然／語句過長">
+      <button type="button" data-svfix="${esc(it.id)}">移除</button></div>`).join("")}
+    <p><button type="button" class="copy" data-svfixcopy="1">複製修改追問 Prompt（貼到同一個 NotebookLM 對話）</button></p>
+    <p class="hint">AI 的修訂建議貼到下方「修訂建議的 AI 回覆」；決定採用的修改，直接點題項文字修改即可。</p></div>` : "";
+  return `<div class="sview"><div class="cand-head"><h3>問卷預覽</h3><button type="button" class="copy" data-svcopy="1">複製整份問卷</button></div>
+    <p class="hint">點題項文字即可直接修改（已修改的題項以底色標示，可按「還原」）；有疑慮的題項按「加入修改清單」，再請 AI 依文獻提供修訂建議。</p>
+    ${S.intro ? `<h4>填答說明</h4><p class="sv-intro">${esc(S.intro)}</p>` : ""}
+    ${simple("篩選題", S.screen)}${simple("操弄檢定與注意力檢核", S.manip)}
+    ${S.constructs.length ? `<h4>量表題項</h4>${scaleHead}` : ""}${cons}
+    ${simple("基本資料題", S.demo)}</div>${fixBox}`;
+}
+function svText() {   // 整份問卷的純文字（含修改）
+  const S = parseSurvey(svReply()); if (!S) return "";
+  const q = x => `${x.id}. ${x.q}` + (x.opts.length ? `（${x.opts.join("／")}）` : "");
+  return [S.intro && "【填答說明】\n" + S.intro, S.screen.length && "【篩選題】\n" + S.screen.map(q).join("\n"),
+    S.constructs.length && `【量表題項】量尺：${S.scaleText}`,
+    ...S.constructs.map(c => `〈${c.name}〉${c.src ? "（" + c.src + "）" : ""}\n` + (c.missing ? c.missing + "\n" : "") + c.items.map(it => `${it.id}. ${svItemText(it)}`).join("\n")),
+    S.demo.length && "【基本資料】\n" + S.demo.map(q).join("\n")].filter(Boolean).join("\n\n");
+}
+function svFixPrompt() {
+  const S = parseSurvey(svReply()); if (!S) return "";
+  const fix = store.values.sv_fix || {};
+  const items = svAllItems(S).filter(it => it.id in fix).map(it => ({ ...it, zh: svItemText(it), note: fix[it.id] }));
+  return items.length ? T.ask_svfix({ items }) : "";
 }
 
 // 組合研究架構：選定架構的圖（依 cf_text 建立，保留圖上微調）

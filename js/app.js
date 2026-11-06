@@ -244,6 +244,12 @@ $("sechead").addEventListener("click", e => {
 });
 $("pane").addEventListener("input", e => {
   const t = e.target;
+  if (t.dataset.sved) {   // 問卷預覽：直接修改題項（不重畫，避免游標跳走）
+    const e = (store.values.sv_edit ||= {}), txt = t.textContent.trim();
+    if (txt === t.dataset.orig) delete e[t.dataset.sved]; else e[t.dataset.sved] = { orig: t.dataset.orig, text: txt };
+    t.closest(".sv-item").classList.toggle("edited", txt !== t.dataset.orig); save(); return;
+  }
+  if (t.dataset.svnote) { (store.values.sv_fix ||= {})[t.dataset.svnote] = t.value; save(); return; }
   if (t.dataset.reply) { (store.replies ||= {})[replyKey()] = t.value; save(); renderReplyView(); return; }
   if (t.dataset.f) {
     store.values[vkey(t.dataset.f)] = t.value;
@@ -288,6 +294,19 @@ $("pane").addEventListener("click", async e => {
       const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
     }
     pc.textContent = "已複製 ✓"; setTimeout(() => (pc.textContent = old), 1500); return;
+  }
+  const sb = e.target.closest("button[data-svfix], button[data-svrestore], button[data-svcopy], button[data-svfixcopy]");
+  if (sb) {   // 問卷預覽的按鈕
+    if (sb.dataset.svfix) { const f = (store.values.sv_fix ||= {}); if (sb.dataset.svfix in f) delete f[sb.dataset.svfix]; else f[sb.dataset.svfix] = ""; }
+    if (sb.dataset.svrestore) delete (store.values.sv_edit || {})[sb.dataset.svrestore];
+    if (sb.dataset.svcopy || sb.dataset.svfixcopy) {
+      const text = sb.dataset.svcopy ? svText() : svFixPrompt();
+      try { await navigator.clipboard.writeText(text); } catch {
+        const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+      }
+      const old = sb.textContent; sb.textContent = "已複製 ✓"; setTimeout(() => (sb.textContent = old), 1500); return;
+    }
+    save(); renderReplyView(); return;
   }
   const ct = e.target.closest("button[data-copytext]");
   if (ct) {   // 複製單一文字（例如 Scholar Labs 問句）

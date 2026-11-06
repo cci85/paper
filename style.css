@@ -272,3 +272,30 @@ p.stepnote.after { white-space: pre-line; }
 @keyframes pulse2 { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 6px var(--warn-soft); border-color: var(--warn); } }
 .pbox.attn { animation: pulse2 1s ease-in-out 4; border-style: solid; }
 .needbox.second .copy { background: var(--warn); color: var(--panel); border: 0; padding: 6px 14px; font-size: 13.5px; }
+
+/* 問卷預覽 */
+.sview { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); font-size: 14px; }
+.sview h3 { margin: 0; font-size: 15px; }
+.sview h4 { margin: 16px 0 6px; font-size: 14px; color: var(--accent); }
+.sv-intro { white-space: pre-line; line-height: 1.7; }
+.sv-q { padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.sv-opts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 4px 0 0 28px; color: var(--muted); font-size: 13px; }
+.sv-con .hint { margin: 0 0 6px; }
+.sv-item { display: grid; grid-template-columns: 40px 1fr auto; gap: 8px; align-items: start; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+.sv-item.edited { background: var(--accent-soft); }
+.sv-item.fix { box-shadow: inset 3px 0 0 var(--warn); }
+.sv-text small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.sv-zh { outline: none; border-bottom: 1px dashed transparent; cursor: text; line-height: 1.6; }
+.sv-zh:hover, .sv-zh:focus { border-bottom-color: var(--accent); }
+.sv-act { display: inline-flex; gap: 6px; margin-top: 4px; }
+.sv-act button, .sv-fixrow button { padding: 1px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.sv-item.fix .sv-act button[data-svfix] { border-color: var(--warn); color: var(--warn); }
+.sv-dots { display: inline-flex; gap: 4px; }
+.sv-dots i { font-style: normal; width: 22px; height: 22px; border: 1px solid var(--line); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; color: var(--muted); }
+.sv-scale { display: flex; justify-content: flex-end; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); padding: 0 6px 4px; }
+.sv-fixbox { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--warn-soft); }
+.sv-fixbox h4 { margin: 0 0 8px; color: var(--warn); }
+.sv-fixrow { display: grid; grid-template-columns: 36px 1fr; gap: 4px 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 13.5px; }
+.sv-fixrow input { grid-column: 2; padding: 5px 8px; font-size: 13px; }
+.sv-fixrow button { grid-column: 2; justify-self: start; }
+@media (max-width: 700px) { .sv-item { grid-template-columns: 34px 1fr; } .sv-item .sv-dots { grid-column: 2; } }
