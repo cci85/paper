@@ -961,11 +961,11 @@ function importArch(text) {
 
 // 0.2 路線 D：自變數與依變數已確定，依上傳文獻篩選中介變數與調節變數（NotebookLM）
 T.ask_mech = p => [
-  `本研究的自變數為「${p.x}」，依變數為「${p.y}」，兩者已經確定。` + (p.ctx ? `研究情境為${p.ctx}。` : ""),
+  `本研究的自變數為「${p.x}」，依變數為「${p.y}」，皆已確定。` + (p.ctx ? `研究情境為${p.ctx}。` : ""),
   "請僅依據上傳文獻，篩選適合放入此研究架構的中介變數與調節變數。",
   "",
   "## 直接關係",
-  `說明上傳文獻中「${p.x} → ${p.y}」的實證結果，包括方向、顯著性、研究情境與出處；上傳文獻未直接檢驗者，寫「上傳文獻未直接檢驗」。`,
+  `逐一說明上傳文獻中${p.x.split("、").map(x => `「${x} → ${p.y}」`).join("、")}的實證結果，包括方向、顯著性、研究情境與出處；上傳文獻未直接檢驗者，寫「上傳文獻未直接檢驗」。`,
   "",
   "## 中介變數候選",
   "逐篇檢查上傳文獻，列出曾位於自變數與依變數之間、作為解釋機制的變數。每個候選另起一個小標題，依序說明：",
@@ -998,3 +998,21 @@ T.ask_mech = p => [
   `3. ${VAR_NOT_DESIGN}。`,
   "4. 以正式學術段落撰寫；用詞一律使用「變數」，不得使用「變項」；變數關係一律以純文字箭頭「→」表示。"
 ].join("\n");
+
+
+// 組合研究架構：篩選模式下，取勾選的自變數與依變數（不含待選區）；名稱去除英文
+function mechXY(p) {
+  const vs = mixPicked(p), nm = v => v.name.trim();
+  const xs = [...new Set(vs.filter(v => v.role === "iv").map(nm))], ys = [...new Set(vs.filter(v => v.role === "dv").map(nm))];
+  return { xs, ys };
+}
+// 步驟 1 填了「已確定的依變數」時，在變數清單中自動勾選名稱相符的依變數（同一個依變數只自動勾一次）
+function autoPickDV() {
+  const v = store.values, dv = (v.as_dv || "").trim();
+  if (!dv || v.as_dvauto === dv) return;
+  const norm = s => dgLabel(s)[0].replace(/\s+/g, "");
+  const target = norm(dv), hit = parseVarList(v.as_vlist).filter(x => x.role === "dv" && (norm(x.name).includes(target) || target.includes(norm(x.name))));
+  if (!hit.length) return;
+  v.as_pick = [...new Set([...(v.as_pick || []), ...hit.map(x => x.key)])];
+  v.as_dvauto = dv;
+}

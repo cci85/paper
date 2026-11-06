@@ -29,9 +29,9 @@ function migrateReplies(r) {
 }
 migrateReplies(store.replies);
 if (store.values.gs_mode === "upload") store.values.gs_mode = "source";   // 選定變數改到 NotebookLM
-if (store.layout !== 2) { delete store.step["s0-1"]; delete store.step["s0-4"]; store.layout = 2; }
-if (store.layout !== 3) { delete store.step["s0-5"]; store.layout = 3; }   // 0.3 讀圖併入檢核步驟
-if (store.layout !== 4) {   // 0.2 路線改為 A、B、C；0.3 只保留 0.2 的兩個來源，貼上文字的架構移到路線 C
+if ((store.layout || 0) < 2) { delete store.step["s0-1"]; delete store.step["s0-4"]; store.layout = 2; }
+if ((store.layout || 0) < 3) { delete store.step["s0-5"]; store.layout = 3; }   // 0.3 讀圖併入檢核步驟
+if ((store.layout || 0) < 4) {   // 0.2 路線改為 A、B、C；0.3 只保留 0.2 的兩個來源，貼上文字的架構移到路線 C
   delete store.step["s0-4"]; delete store.step["s0-5"];
   const v = store.values;
   if (v.ac_src !== "mix" && v.ac_src !== "own") {
@@ -40,7 +40,7 @@ if (store.layout !== 4) {   // 0.2 路線改為 A、B、C；0.3 只保留 0.2 �
   }
   store.layout = 4;
 }
-if (store.layout !== 5) {   // 0.2 併成兩步：補充變數清單併入步驟 1，篩選中介與調節併入組合；自行設計移到 0.3
+if ((store.layout || 0) < 5) {   // 0.2 併成兩步：補充變數清單併入步驟 1，篩選中介與調節併入組合；自行設計移到 0.3
   delete store.step["s0-4"]; delete store.step["s0-5"];
   const v = store.values, r = store.replies || {};
   if (!blank(r["s0-4|asmore"]) && blank(v.as_morereply)) { v.as_morereply = r["s0-4|asmore"]; v.as_more_on = ["on"]; }
@@ -99,6 +99,7 @@ function renderPane() {
   // seed：欄位空白時，由前面步驟帶入內容（之後由研究者自行修改；清空欄位或按「重新帶入」可再次帶入）
   const sd = m.seed ? m.seed() : {};
   Object.entries(sd).forEach(([k, v]) => { if (blank(store.values[k]) && !blank(v)) store.values[k] = v; });
+  if (m.init) m.init();
   let seedShown = false;
   const seedRow = id => {
     if (!m.seed || seedShown || !(id in sd)) return "";
@@ -221,6 +222,8 @@ $("pane").addEventListener("input", e => {
     }
   } else if (t.dataset.c) {
     store.values[t.dataset.c] = [...document.querySelectorAll(`input[data-c="${t.dataset.c}"]:checked`)].map(x => x.value);
+    const f = mod().fields.find(x => x.id === t.dataset.c);
+    if (f && f.type === "checks" && mod().fields.some(x => x.when)) { renderPane(); }   // 勾選會決定其他欄位是否顯示時，重畫欄位
   } else if (t.dataset.r) {
     const m = mod(), p = valuesOf(m);
     store.rules[ruleKey(m, p)] = [...document.querySelectorAll("#rules input:checked")].map(x => x.dataset.r);
