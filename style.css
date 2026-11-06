@@ -256,3 +256,6 @@ p.stepnote.after { white-space: pre-line; }
 .needbox ol { margin: 6px 0 4px; padding-left: 22px; }
 .needbox li { margin-bottom: 6px; }
 .mv p.q span { color: var(--warn); }
+.qview { border-color: var(--warn); background: var(--warn-soft); }
+.qview .mv b { display: block; margin-bottom: 4px; }
+.qview .miss { color: var(--warn); }

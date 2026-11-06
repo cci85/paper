@@ -859,7 +859,7 @@ T.arch_check = p => {
     on.forEach(c => parts.push(`${++n}. ${c.text(p.ctx, p.theory)}`));
   }
   if (qs.length) {
-    parts.push("", "## 我的問題", "請另起一節，逐題回答以下問題，每題以題號開頭：");
+    parts.push("", "## 我的問題", "請另起一節，逐題回答以下問題；每題另起「### Q1」這樣的小標題（題號後不加其他文字），標題下直接回答：");
     qs.forEach((q, i) => parts.push(`Q${i + 1}. ${q}`));
   }
   parts.push("",
@@ -891,7 +891,7 @@ T.arch_check = p => {
 
 // 步驟 3：在同一個 NotebookLM 對話追問（不重貼架構）
 T.arch_followup = p => [
-  "延續上一段回覆，針對前述我提出的研究架構，請僅依據上傳文獻，逐題回答以下問題，每題以題號開頭：",
+  "延續上一段回覆，針對前述我提出的研究架構，請僅依據上傳文獻，逐題回答以下問題；每題另起「### Q1」這樣的小標題（題號後不加其他文字），標題下直接回答：",
   ...p.qs.map((q, i) => `Q${i + 1}. ${q}`),
   "",
   "規則：",
@@ -1214,4 +1214,17 @@ function parseRevised(text) {
   const src = [...secs.filter(s => /^變數\s*$/.test(s.head)).map(s => "## 變數\n" + s.lines.join("\n")), ...secs.filter(s => /^(路徑|假說)\s*$/.test(s.head)).map(s => "## 路徑\n" + s.lines.join("\n"))].join("\n");
   const A = parseArch(src);
   return A.vars.length ? { A, src } : null;
+}
+
+// 解析「我的問題」的回答 → { 1: "回答", 2: "回答" }（以 ### Q1、Q1. 或 Q1：開頭分題）
+function parseAnswers(text) {
+  const t = String(text || "").replace(/\r\n?/g, "\n").replace(/\*\*/g, "");
+  const out = {}, re = /^\s*(?:#{2,4}\s*)?Q(\d+)\s*[.、：:）)]?[ \t]*(.*)$/gm;
+  const hits = [...t.matchAll(re)];
+  hits.forEach((h, i) => {
+    const end = i + 1 < hits.length ? hits[i + 1].index : (() => { const r = t.slice(h.index + h[0].length).search(/^#{1,2}\s(?!#)/m); return r < 0 ? t.length : h.index + h[0].length + r; })();
+    const body = (h[2] + "\n" + t.slice(h.index + h[0].length, end)).trim();
+    if (!out[h[1]]) out[h[1]] = body;
+  });
+  return out;
 }

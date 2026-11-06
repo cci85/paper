@@ -540,7 +540,7 @@ const DEFS = {
       { id: "ac_qs", type: "textarea", label: "我的問題", hint: "選填；每行一題，會與制式項目一起送出", rows: 4,
         placeholder: "我把品牌熟悉度設為調節變數，文獻中比較常把它當成調節變數、中介變數，還是前因？\n文獻支持 H2 的研究多半是哪些產品類別？" }
     ],
-    replyView: t => revisedView(t) + pathView(t) + measureView(t, ""),
+    replyView: t => revisedView(t) + qaView(t, splitLines(store.values.ac_qs)) + pathView(t) + measureView(t, ""),
     rules: () => ["citation"],
     build: (p, R) => {
       const raw = archSrcText(p).trim(), qs = splitLines(p.ac_qs);
@@ -565,6 +565,7 @@ const DEFS = {
       { id: "aq_qs", type: "textarea", label: "我的問題", hint: "每行一題；一次問一到兩題，回答會比較深入", rows: 4,
         placeholder: "H3 的支持證據是否都來自西方樣本？有沒有亞洲或台灣的研究？\n請扮演口試委員，針對 H2 提出三個最可能被質疑的問題，每題附文獻依據。" }
     ],
+    replyView: t => qaView(t, splitLines(store.values.aq_qs)),
     rules: () => ["citation"],
     build: (p, R) => { const qs = splitLines(p.aq_qs); return qs.length ? T.arch_followup({ qs }) + R : ""; },
     empty: "（請填入至少一個問題）",
@@ -610,6 +611,16 @@ function pathView(text) {
       <p><span>理論基礎</span>${esc(x.theory || "（回覆未提供）")}</p>
       <p class="ev"><span>實證支持</span>${esc(x.evidence || "（回覆未提供）")}</p>
       ${x.query ? `<p class="q"><span>補充檢索</span>${esc(x.query)} <button type="button" data-copytext="${esc(x.query)}">複製</button>${x.qnote ? `<br><small>${esc(x.qnote)}</small>` : ""}</p>` : ""}</div>`;
+  }).join("") + `</div>`;
+}
+
+// 貼上回覆後：把「我的問題」逐題對應回答
+function qaView(text, qs) {
+  if (blank(text) || !qs.length) return "";
+  const ans = parseAnswers(text);
+  return `<div class="mview qview"><h3>我的問題與回答</h3>` + qs.map((q, i) => {
+    const a = ans[i + 1];
+    return `<div class="mv"><b>Q${i + 1}　${esc(q)}</b><p class="ev">${a ? esc(a) : `<span class="miss">回覆中沒有找到 Q${i + 1} 的回答</span>`}</p></div>`;
   }).join("") + `</div>`;
 }
 
