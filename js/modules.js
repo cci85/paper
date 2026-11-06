@@ -600,9 +600,9 @@ function revisedView(text) {
   if (!r) return `<p class="hint">（回覆中沒有找到「修正後的研究架構」的「### 變數」「### 路徑」兩節，無法畫圖）</p>`;
   const d = { pos: {}, edges: r.A.edges.map(({ from, to }) => ({ from, to })), mods: r.A.mods.map(({ from, edge }) => ({ from, edge })) };
   dgAutoPos(r.A.vars, d.pos, true);
-  return `<div class="rview"><div class="cand-head"><h3>AI 修正後的研究架構</h3><button type="button" class="copy" data-adopt="1">採用此修正架構</button></div>
+  return ref(`<div class="rview"><div class="cand-head"><h3>AI 修正後的研究架構</h3><button type="button" class="copy" data-adopt="1">採用此修正架構</button></div>
     <div class="cand-svg">${dgSvg(r.A.vars, d, null, false)}</div>
-    <p class="hint">按「採用此修正架構」後，研究架構來源會改為「自行設計或匯入」並載入此架構，可在圖上微調，再複製 Prompt 檢核一次。</p></div>`;
+    <p class="hint">採用：按「採用此修正架構」，研究架構來源會改為「自行設計或匯入」並載入此架構，可在圖上微調，再複製 Prompt 檢核一次。<br>不採用、維持原架構：不必做任何修改，原架構就是你的研究架構；檢核中指出的疑慮可用{#archq}追問，接著到{#astat}與{#asq}。</p></div>`);
 }
 function adoptRevised() {
   const r = parseRevised((store.replies || {})[replyKey()] || ""); if (!r) return;
