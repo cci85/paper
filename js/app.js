@@ -212,7 +212,7 @@ const foldOut = () => { $("outd").open = mod().target === "tool"; };
 // 貼上 AI 回覆後的整理檢視（例如依角色列出變數定義與衡量）
 function renderReplyView() {
   const m = mod(), el = $("replyview"); if (!m.replyView || !el) return;
-  el.innerHTML = m.replyView((store.replies || {})[replyKey()] || "");
+  el.innerHTML = m.replyView(deLatex((store.replies || {})[replyKey()] || ""));
 }
 function showAll() { renderToc(); renderSection(); renderPane(); foldOut(); update(); }
 

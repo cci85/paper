@@ -655,7 +655,7 @@ const finDiag = p => dgSeed(DEFS.asmix.fields.find(f => f.id === "fin_diag"), p)
 // 候選架構卡片：每個候選畫成一張圖，附新增變數與理由
 function renderCands(p) {
   if (blank(p.cf_reply)) return `<p class="hint">（貼上候選架構的 AI 回覆後，這裡會畫出每個候選架構）</p>`;
-  const cs = parseCands(p.cf_reply);
+  const cs = parseCands(deLatex(p.cf_reply));
   if (!cs.length) return `<p class="note warn">沒有讀到候選架構，請確認回覆中有「## 候選架構一」以及「### 變數」「### 路徑」兩節。</p>`;
   return cs.map((c, i) => {
     const d = { pos: {}, edges: c.A.edges.map(({ from, to }) => ({ from, to })), mods: c.A.mods.map(({ from, edge }) => ({ from, edge })) };

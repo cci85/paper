@@ -134,7 +134,7 @@ function readable(pngs) {
         lines.push(f.type === "textarea" ? `**${f.label}**\n\n${mdText(t)}` : `**${f.label}**：${t}`);
       });
       const r = (store.replies || {})[s.id + "|" + st.mod];
-      if (!blank(r)) lines.push(`**AI 回覆**\n\n${mdText(fenceMermaid(r))}`);
+      if (!blank(r)) lines.push(`**AI 回覆**\n\n${mdText(fenceMermaid(deLatex(r)))}`);
       if (lines.length) blocks.push(`### ${s.no ? `步驟 ${i + 1}　` : ""}${m.label}\n\n${lines.join("\n\n")}`);
     });
     if (blocks.length) out.push(`## ${s.no ? s.no + " " : ""}${s.title}\n\n${blocks.join("\n\n")}`);
