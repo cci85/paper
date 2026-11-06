@@ -211,7 +211,7 @@ const DEFS = {
   },
   asmix: {
     label: "組合研究架構", target: "nlm", stack: true,   // stack：欄位佔滿寬度，Prompt 放在下方
-    hint: "依「前面步驟的回覆」中的變數清單勾選變數，同一角色可勾多個候選；自變數與依變數已確定時，勾選上方「已確定」，先請 AI 建議中介與調節變數。接著請 AI 依你勾選的變數提出幾個候選架構，網頁會畫出每個候選，比較後按「選這個」；最後產生的 Prompt 會針對選定的架構說明研究缺口與學術貢獻。",
+    hint: "依「前面步驟的回覆」中的變數清單勾選變數，同一角色可勾多個候選；自變數與依變數已確定時，勾選上方「已確定」，先請 AI 建議中介與調節變數。接著複製下方的候選架構 Prompt，請 AI 依你勾選的變數提出幾個候選架構；貼上回覆後，網頁會畫出每個候選，比較後按「選這個」。選定的架構到 0.3 檢核。",
     fields: [
       { id: "am_on", type: "checks", label: "自變數與依變數已確定", options: [["on", "已確定：先在清單勾選自變數與依變數，再請 AI 建議中介與調節變數"]], value: [] },
       { id: "as_vlist", type: "textarea", label: "前面步驟的回覆", hint: "自動帶入步驟 1 與下方篩選的 AI 回覆；也可直接貼上各次回覆", rows: 6, mono: true },
@@ -227,43 +227,34 @@ const DEFS = {
         tray: true, all: p => mixPicked(p, true), source: p => mixPicked(p),
         onRemove: k => { store.values.as_pick = (store.values.as_pick || []).filter(x => x !== k); } },
       { id: "cf_n", type: "radio", label: "候選架構數量", options: [["2", "2 個"], ["3", "3 個"], ["4", "4 個"]], value: "3" },
-      { id: "cf_prompt", type: "promptbox", label: "請 AI 提出候選架構",
-        hint: "依你勾選的變數（與草圖的路徑）產生；貼到 NotebookLM（步驟 1 或篩選所用的同一個對話）",
-        copyLabel: "複製候選架構 Prompt（貼到 NotebookLM）", empty: "（請先在上方清單勾選變數）",
-        build: p => { const picked = mixPicked(p); return picked.length ? T.ask_cands({ picked, paths: diagramPathText(picked, p.as_diag), ctx: (p.as_ctx || "").trim(), n: +(p.cf_n || 3) }) + citeText() : ""; } },
-      { id: "cf_reply", type: "textarea", label: "候選架構的 AI 回覆", hint: "整段貼上；下方會畫出每個候選架構", rows: 6 },
-      { id: "cf_view", type: "cands", label: "比較候選架構", hint: "比較各架構的圖與理由，按「選這個」設為你的研究架構", render: p => renderCands(p), choose: i => chooseCand(i) },
-      { id: "fin_diag", type: "diagram", label: "選定的研究架構", hint: "可在圖上微調：點一個方塊再點另一個方塊加上箭頭；未選方塊時點箭頭可刪除；按「依文字重畫」回到 AI 的版本",
+      { id: "cf_reply", type: "textarea", afterOut: true, label: "候選架構的 AI 回覆", hint: "整段貼上；下方會畫出每個候選架構", rows: 6 },
+      { id: "cf_view", type: "cands", afterOut: true, label: "比較候選架構", hint: "比較各架構的圖與理由，按「選這個」設為你的研究架構", render: p => renderCands(p), choose: i => chooseCand(i) },
+      { id: "fin_diag", type: "diagram", afterOut: true, label: "選定的研究架構", hint: "可在圖上微調：點一個方塊再點另一個方塊加上箭頭；未選方塊時點箭頭可刪除；按「依文字重畫」回到 AI 的版本",
         when: p => !blank(store.values.cf_text), emptyHint: "（尚未選定）",
         source: p => parseArch(store.values.cf_text).vars,
-        seed: p => { const A = parseArch(store.values.cf_text); return { sig: JSON.stringify([A.edges, A.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: A.edges.map(({ from, to }) => ({ from, to })), mods: A.mods.map(({ from, edge }) => ({ from, edge })) }; } },
-      { id: "cf_detail", type: "promptbox", afterOut: true, label: "第二則 Prompt：路徑依據與變數衡量", when: () => !blank(store.values.cf_text),
-        hint: "第一則的回覆完成後，在同一個對話接著送出；兩則回覆依序貼到下方「AI 回覆」",
-        copyLabel: "② 複製第二則 Prompt（同一個對話接著送出）",
-        build: () => T.ask_detail({ target: "針對我選定的研究架構", arch: mixArchText() }) }
+        seed: p => { const A = parseArch(store.values.cf_text); return { sig: JSON.stringify([A.edges, A.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: A.edges.map(({ from, to }) => ({ from, to })), mods: A.mods.map(({ from, edge }) => ({ from, edge })) }; } }
     ],
-    replyView: t => secondMissing(t) ? secondView(t) : pathView(t) + measureView(t, "下一步：到「依文獻檢核架構」（目錄 0.3 研究架構合理性檢核），研究架構來源選「0.2 組合研究架構」，檢核這個架構的合理性。"),
     init: () => autoPickDV(),
     seed: () => { const v = store.values, r = store.replies || {};
       return { as_vlist: [r["s0-4|asf"], isOn(v.as_more_on) ? v.as_morereply : "", isOn(v.am_on) ? v.am_reply : ""].filter(x => !blank(x)).map(x => x.trim()).join("\n\n") }; },
     seedFrom: "步驟 1 與篩選的 AI 回覆", seedNote: "「前面步驟的回覆」由步驟 1 的 AI 回覆（含勾選的補充變數清單），以及下方「篩選的 AI 回覆」帶入",
     rules: () => ["citation"],
     build: (p, R) => {
-      if (blank(store.values.cf_text)) return "";
-      const A = parseArch(store.values.cf_text), arch = A.edges.length ? archText(A, finDiag(p)) : store.values.cf_text.trim();
-      return T.ask_gap({ arch, ctx: (p.as_ctx || "").trim() }) + R;
+      const picked = mixPicked(p);
+      return picked.length ? T.ask_cands({ picked, paths: diagramPathText(picked, p.as_diag), ctx: (p.as_ctx || "").trim(), n: +(p.cf_n || 3) }) + R : "";
     },
     status: p => {
       if (blank(p.as_vlist)) return "";
       const n = parseVarList(p.as_vlist).length;
       return n ? `已讀取 ${n} 個變數` + trayNote("as_diag") + (blank(store.values.cf_text) ? "" : `\n已選定：${store.values.cf_title || "候選架構"}`) : "沒有讀取到變數，請確認貼上的內容包含「變數清單」，且每行為「角色｜變數名稱｜出處｜架構」。";
     },
-    empty: "（請先在上方選定一個候選架構）",
-    next: "下一步：\n1. 貼回同一個 NotebookLM 對話，回覆貼到下方「AI 回覆」。\n2. 回覆中標示「尚無實證」或【待補文獻】的路徑，用英文問題到 Google Scholar Labs（scholar.google.com 的 Labs）補文獻，上傳到同一個 Notebook。\n3. 到{#archchk}檢核選定的架構。"
+    empty: "（請先在上方清單勾選變數）",
+    noReply: true, copyLabel: "複製候選架構 Prompt（貼到 NotebookLM）",
+    next: "下一步：貼到 NotebookLM（步驟 1 或篩選所用的同一個對話），把回覆貼到下方「候選架構的 AI 回覆」，比較各候選後按「選這個」；選定後到{#archchk}檢核，研究缺口與學術貢獻也在那裡一併產生。"
   },
   astat: {
     label: "統計方法與結果揭露", target: "nlm",
-    hint: "接在{#asmix}同一個對話。整理上傳文獻針對相近變數與路徑用過的統計方法，建議本研究適用的方法，並列出實證結果應揭露的項目；一般應報告但文獻未報告者標示【待補文獻】。",
+    hint: "接在{#archchk}同一個對話。整理上傳文獻針對相近變數與路徑用過的統計方法，建議本研究適用的方法，並列出實證結果應揭露的項目；一般應報告但文獻未報告者標示【待補文獻】。",
     fields: [
       { id: "as_rmethod", type: "radio", label: "研究方法", options: [["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "panel data"]], value: "survey" },
       { id: "as_data", type: "textarea", label: "資料描述", hint: "選填；資料來源、分析單位與特性", rows: 2, placeholder: "例如：非營利組織的捐款紀錄，捐款日期巢套於捐款者，很多人只有一筆捐款" }
@@ -296,12 +287,12 @@ const DEFS = {
   },
   asp: {
     label: "研究情境與實務缺口", target: "ai",
-    hint: "請使用已開啟網路搜尋的 AI；未開啟搜尋時，AI 只能憑記憶作答，捏造的風險很高。學術論點只採用{#asmix}的回覆，網路資料只用於研究情境與實務面。",
+    hint: "請使用已開啟網路搜尋的 AI；未開啟搜尋時，AI 只能憑記憶作答，捏造的風險很高。學術論點只採用{#archchk}的回覆，網路資料只用於研究情境與實務面。",
     fields: [
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
       { id: "as_con", type: "text", label: "研究問題", hint: "選填；以一句話描述要探討的現象或問題，可幫助 AI 聚焦", placeholder: "例如：使用者滑 TikTok 或 Instagram Reels 時看到平台推薦的產品開箱影片，是否會因此產生衝動購買？" },
       { id: "as_path", type: "text", label: "研究情境中的歷程", hint: "選填；不填時由 AI 依構念與結果決定階段", placeholder: "例如：開啟應用程式、滑動影片、接觸商品相關內容、產生購買念頭" },
-      { id: "as_prev", type: "textarea", label: "組合研究架構的回覆", hint: "貼上「組合研究架構」的完整回覆（含「無法由上傳文獻回答之事項」）", rows: 8 }
+      { id: "as_prev", type: "textarea", label: "0.3 檢核的回覆", hint: "貼上「依文獻檢核架構」兩則的完整回覆（含「研究缺口」與「無法由上傳文獻回答之事項」）", rows: 8 }
     ],
     build: p => blank(p.as_ctx) || blank(p.as_prev) ? "" : T.ask_practice({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), path: p.as_path.trim(), prev: p.as_prev }),
     empty: "（請填入研究情境，並貼上組合研究架構的回覆）",
@@ -543,7 +534,7 @@ const DEFS = {
       { id: "ac_extra", type: "checks", label: "檢核之後", options: [["revise", "提出文獻支持更充分的修正架構"]], value: ["revise"] },
       { id: "ac_qs", type: "textarea", label: "我的問題", hint: "選填；每行一題，會與制式項目一起送出", rows: 4,
         placeholder: "我把品牌熟悉度設為調節變數，文獻中比較常把它當成調節變數、中介變數，還是前因？\n文獻支持 H2 的研究多半是哪些產品類別？" },
-      { id: "ac_detail", type: "promptbox", afterOut: true, label: "第二則 Prompt：路徑依據與變數衡量",
+      { id: "ac_detail", type: "promptbox", afterOut: true, label: "第二則 Prompt：路徑依據、變數衡量、研究缺口與學術貢獻",
         hint: "第一則的回覆完成後，在同一個對話接著送出；兩則回覆依序貼到下方「AI 回覆」",
         copyLabel: "② 複製第二則 Prompt（同一個對話接著送出）",
         build: p => T.ask_detail({ target: (p.ac_extra || []).includes("revise") ? "若上一則已提出修正後的研究架構，以修正後的架構為準；否則針對下列研究架構" : "針對下列研究架構", arch: archOut(p) }) }
@@ -739,17 +730,17 @@ const OUTLINE = [
       { mod: "m5c", note: "選用（整批文獻全貌）：同一個對話接續，從變數、理論、情境與方法四個面向，找出整個領域的研究缺口與研究主題建議。", go: [{ to: "s0-4", step: 0, when: "看完全貌、選定研究方向後" }] }] },
     { id: "s0-4", no: "0.2", title: "形成研究架構", desc: "兩種做法：有研究主題與情境時，先由 AI 提出候選架構（步驟 1），再到步驟 2 勾選變數、畫出路徑；自變數與依變數已確定時，直接到步驟 2，勾選「自變數與依變數已確定」。組合好的架構到 0.3 檢核；已有自己的架構或只有架構圖圖片，直接到 0.3 選「自行設計或匯入」。", steps: [
       { mod: "asf", note: "由 AI 提出幾個合理的研究架構，再由你挑選；已確定依變數時可填入。需要更完整的變數時，勾選最下方的「補充變數清單」。", go: [{ to: "s0-4", step: 1, when: "回覆貼到「AI 回覆」後，勾選變數、請 AI 提出候選架構" }] },
-      { mod: "asmix", note: "勾選變數（同一角色可勾多個候選）→ 請 AI 提出候選架構 → 網頁畫出各候選，選定最適合者 → 請 AI 說明選定架構的研究缺口與學術貢獻。自變數與依變數已確定時，先勾選上方的「已確定」，請 AI 建議中介與調節變數。", go: [{ to: "s0-5", step: 0, when: "選定架構並取得研究缺口與學術貢獻後，檢核架構的合理性" }] }] },
+      { mod: "asmix", note: "勾選變數（同一角色可勾多個候選）→ 請 AI 提出候選架構 → 網頁畫出各候選，選定最適合者 → 到 0.3 檢核。自變數與依變數已確定時，先勾選上方的「已確定」，請 AI 建議中介與調節變數。", go: [{ to: "s0-5", step: 0, when: "選定架構後，檢核合理性並產生研究缺口與學術貢獻" }] }] },
     { id: "s0-5", no: "0.3", title: "研究架構合理性檢核", desc: "依已上傳的文獻檢核研究架構的合理性，並提出文獻支持更充分的修正架構：0.2 各路線產出的架構都在這裡檢核，也可單獨使用（例如只有一張架構圖）。NotebookLM 依制式項目與你的問題檢核 → 同一對話追問。", steps: [
       { mod: "archchk", note: "選擇研究架構來源：在 0.2 組合的架構選「0.2 組合研究架構」，會自動帶入；已有自己的架構或只有架構圖圖片，選「自行設計或匯入」。NotebookLM 需先上傳與架構相關的文獻；文獻愈完整，檢核愈有意義。", go: [{ to: "s0-5", step: 1, when: "對檢核結果還有疑問" }, { to: "s0-6", step: 0, when: "架構確定後（維持原架構或已採用修正架構並再檢核）" }] },
       { mod: "archq", note: "接在步驟 1 的同一個對話；可重複使用。", go: [{ to: "s0-6", step: 0, when: "疑問釐清、架構確定後" }] }] },
     { id: "s0-6", no: "0.4", title: "研究設計", desc: "研究架構確定之後：確認文獻用過的統計方法、本研究適用的方法與應揭露的實證結果；研究方法為問卷調查法或實驗設計法時，再產出問卷草稿。", steps: [
-      { mod: "astat", note: "選定變數與資料之後：確認統計方法，以及實證結果應揭露哪些項目。可接在 0.2 組合研究架構的同一個對話。", go: [{ to: "s0-6", step: 1, when: "研究方法為問卷調查法或實驗設計法" }, { to: "s1-1", step: 0, when: "panel data，或統計方法已確定，開始撰寫第一章" }] },
+      { mod: "astat", note: "選定變數與資料之後：確認統計方法，以及實證結果應揭露哪些項目。可接在 0.3 檢核的同一個對話。", go: [{ to: "s0-6", step: 1, when: "研究方法為問卷調查法或實驗設計法" }, { to: "s1-1", step: 0, when: "panel data，或統計方法已確定，開始撰寫第一章" }] },
       { mod: "asq", note: "研究方法為問卷調查法或實驗設計法時使用：產出問卷草稿，並評估題數、樣本數、量表與施測風險；panel data 可跳過。", go: [{ to: "s1-1", step: 0, when: "問卷草稿完成，開始撰寫第一章緒論" }, { to: "s3-3", step: 0, when: "正式撰寫量表與操作型定義時" }] }] }
   ] },
   { ch: "第一章 緒論", secs: [
     { id: "s1-1", no: "1.1", title: "研究背景與動機", desc: "由產業現象收斂到文獻缺口。", steps: [
-      { mod: "asp", note: "先查實務面：把{#asmix}的完整回覆交給有網路搜尋的 AI，寫成研究情境、實務問題與實務缺口。" },
+      { mod: "asp", note: "先查實務面：把{#archchk}兩則的完整回覆交給有網路搜尋的 AI，寫成研究情境、實務問題與實務缺口。" },
       { mod: "bg", note: "準備研究架構、手邊的產業數據，以及 0.2 選定的研究缺口；上一步的研究情境與實務問題可貼到「產業或實務背景資料」。" }], finish: FIN_FULL },
     { id: "s1-2", no: "1.2", title: "研究目的與問題", desc: "研究目的要對應動機，研究問題要能由假說回答。", steps: [
       { mod: "purpose", note: "準備研究架構（假說清單）與 1.1 寫好的研究動機。" }], finish: FIN_FULL },
