@@ -31,6 +31,15 @@ migrateReplies(store.replies);
 if (store.values.gs_mode === "upload") store.values.gs_mode = "source";   // 選定變數改到 NotebookLM
 if (store.layout !== 2) { delete store.step["s0-1"]; delete store.step["s0-4"]; store.layout = 2; }
 if (store.layout !== 3) { delete store.step["s0-5"]; store.layout = 3; }   // 0.3 讀圖併入檢核步驟
+if (store.layout !== 4) {   // 0.2 路線改為 A、B、C；0.3 只保留 0.2 的兩個來源，貼上文字的架構移到路線 C
+  delete store.step["s0-4"]; delete store.step["s0-5"];
+  const v = store.values;
+  if (v.ac_src !== "mix" && v.ac_src !== "own") {
+    if (!blank(v.ac_arch) && blank(v.ow_vars) && importArch(v.ac_arch)) { v.ow_imp = v.ac_arch; v.ow_mode = "import"; v.ac_src = "own"; }
+    else v.ac_src = "mix";
+  }
+  store.layout = 4;
+}
 if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} if (window.onStoreSave) window.onStoreSave(); };
 
@@ -99,6 +108,7 @@ function renderPane() {
       `<label class="chip${locked ? " lock" : ""}"><input type="checkbox" data-c="${f.id}" value="${v}" ${locked || p[f.id].includes(v) ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(t)}</label>`).join("") + `</div>`;
     if (f.type === "picker") return lab + `<div class="picker" id="pick-${f.id}"></div>`;
     if (f.type === "diagram") return lab + `<div class="dg-tools">${f.seed ? `<button type="button" data-dg="${f.id}" data-act="reset">依文字重畫</button>` : ""}<button type="button" data-dg="${f.id}" data-act="layout">重新排列</button><button type="button" data-dg="${f.id}" data-act="clear">清除箭頭</button><button type="button" data-dg="${f.id}" data-act="png">下載 PNG</button>${f.tray ? `<button type="button" data-dg="${f.id}" data-act="tray">移到待選區</button>` : ""}</div><div class="diagram" id="diag-${f.id}"></div>${f.tray ? `<div class="dg-tray" id="tray-${f.id}"></div>` : ""}`;
+    if (f.type === "button") return `<div class="fbtn"><button type="button" class="copy" data-fbtn="${f.id}">${esc(f.label)}</button>${f.hint ? ` <small class="hint">${esc(f.hint)}</small>` : ""}<div class="note" id="fmsg-${f.id}"></div></div>`;
     if (f.type === "promptbox") return lab + `<div class="pbox"><button type="button" class="copy pcopy" data-pcopy="${f.id}">${esc(f.copyLabel || "複製")}</button>
       <details><summary>展開 Prompt</summary><pre class="pboxpre" id="pbox-${f.id}"></pre></details></div>`;
     if (f.type === "textarea") return lab + `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px" placeholder="${esc(f.placeholder || "")}">${esc(p[f.id])}</textarea>`;
@@ -202,6 +212,13 @@ $("pane").addEventListener("input", e => {
 });
 
 $("pane").addEventListener("click", async e => {
+  const fb = e.target.closest("button[data-fbtn]");
+  if (fb) {   // 欄位中的動作按鈕（例如匯入到圖上）
+    const m = mod(), f = m.fields.find(x => x.id === fb.dataset.fbtn), msg = f.run(valuesOf(m));
+    save(); renderPane(); update();
+    const el = $("fmsg-" + f.id); if (el) { el.textContent = msg || ""; el.className = "note" + (/沒有|無法/.test(msg) ? " warn" : ""); }
+    return;
+  }
   const pc = e.target.closest("button[data-pcopy]");
   if (pc) {   // 欄位中的第二個 Prompt（例如讀圖 Prompt）
     const text = $("pbox-" + pc.dataset.pcopy).textContent, old = pc.textContent;

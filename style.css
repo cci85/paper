@@ -211,3 +211,5 @@ p.stepnote.after { margin: 14px 0 0; }
 .pbox .pcopy { background: var(--warn); }
 .pbox summary { cursor: pointer; color: var(--warn); font-size: 13px; font-weight: 600; margin-top: 8px; }
 pre.pboxpre { margin: 8px 0 0; white-space: pre-wrap; word-break: break-word; font-family: var(--mono); font-size: 12.5px; max-height: 360px; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.fbtn { margin-top: 10px; }
+.fbtn .note:empty { display: none; }

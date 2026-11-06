@@ -475,6 +475,7 @@ T.ask_frame = p => {
   const m = FRAME_METHOD[p.method] || FRAME_METHOD.any;
   return [
     `請依據上傳文獻，以${p.ctx}為研究情境` + (p.con ? `，圍繞以下研究問題：「${p.con}」` : "") + `，提出 ${p.n} 個可行的研究架構，供我選擇。`,
+    ...(p.dv ? [`依變數已確定為「${p.dv}」：所有研究架構的依變數皆須為此變數，架構之間以自變數、中介或調節機制區分。`] : []),
     "",
     "## 構念層次",
     "提出架構之前，請先將上傳文獻中與此研究情境" + (p.con ? "及研究問題" : "") + "相關的構念，依描述層次歸類為：外部刺激（研究對象所接觸之客體、事件或系統的客觀特性）、主觀知覺、心理狀態、行為反應四層，每一層以一段文字說明包含哪些構念並附出處。後續各架構的變數位置須依此層次安排；若某一架構的安排與此層次不同（例如以心理狀態作為調節變數），須說明理由。",
@@ -944,7 +945,18 @@ function ownVars(p, all) {
 }
 const ownArchText = () => { const v = store.values; return archFromDiagram(ownVars(v), v.ow_diag, x => ownRole(x, v.ow_diag)); };
 // 0.3 實際使用的架構文字
-const archSrcText = p => p.ac_src === "mix" ? mixArchText() : p.ac_src === "own" ? ownArchText() : (p.ac_arch || "");
+const archSrcText = p => p.ac_src === "own" ? ownArchText() : mixArchText();
+
+// 路線 C：把讀圖回覆或 0.3 修正架構（### 變數／### 路徑）匯入為變數清單與架構圖；回傳 { n, e, unsure }
+function importArch(text) {
+  const A = parseArch(text);
+  if (!A.vars.length) return null;
+  const zh = Object.fromEntries(ARCH_ROLE.map(r => [r[0], r[1]]));
+  store.values.ow_vars = A.vars.map(v => `${zh[v.role] || "自變數"}｜${v.name}`).join("\n");
+  const d = dgData("ow_diag");
+  d.pos = {}; d.tray = []; d.edges = A.edges.map(({ from, to }) => ({ from, to })); d.mods = A.mods.map(({ from, edge }) => ({ from, edge }));
+  return { n: A.vars.length, e: A.edges.length + A.mods.length, unsure: A.unsure };
+}
 
 
 // 0.2 路線 D：自變數與依變數已確定，依上傳文獻篩選中介變數與調節變數（NotebookLM）
