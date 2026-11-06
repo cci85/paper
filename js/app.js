@@ -30,6 +30,7 @@ function migrateReplies(r) {
 migrateReplies(store.replies);
 if (store.values.gs_mode === "upload") store.values.gs_mode = "source";   // 選定變數改到 NotebookLM
 if (store.layout !== 2) { delete store.step["s0-1"]; delete store.step["s0-4"]; store.layout = 2; }
+if (store.layout !== 3) { delete store.step["s0-5"]; store.layout = 3; }   // 0.3 讀圖併入檢核步驟
 if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} if (window.onStoreSave) window.onStoreSave(); };
 
@@ -98,6 +99,8 @@ function renderPane() {
       `<label class="chip${locked ? " lock" : ""}"><input type="checkbox" data-c="${f.id}" value="${v}" ${locked || p[f.id].includes(v) ? "checked" : ""} ${locked ? "disabled" : ""}>${esc(t)}</label>`).join("") + `</div>`;
     if (f.type === "picker") return lab + `<div class="picker" id="pick-${f.id}"></div>`;
     if (f.type === "diagram") return lab + `<div class="dg-tools">${f.seed ? `<button type="button" data-dg="${f.id}" data-act="reset">依文字重畫</button>` : ""}<button type="button" data-dg="${f.id}" data-act="layout">重新排列</button><button type="button" data-dg="${f.id}" data-act="clear">清除箭頭</button><button type="button" data-dg="${f.id}" data-act="png">下載 PNG</button>${f.tray ? `<button type="button" data-dg="${f.id}" data-act="tray">移到待選區</button>` : ""}</div><div class="diagram" id="diag-${f.id}"></div>${f.tray ? `<div class="dg-tray" id="tray-${f.id}"></div>` : ""}`;
+    if (f.type === "promptbox") return lab + `<div class="pbox"><button type="button" class="copy pcopy" data-pcopy="${f.id}">${esc(f.copyLabel || "複製")}</button>
+      <details><summary>展開 Prompt</summary><pre class="pboxpre" id="pbox-${f.id}"></pre></details></div>`;
     if (f.type === "textarea") return lab + `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px" placeholder="${esc(f.placeholder || "")}">${esc(p[f.id])}</textarea>`;
     return lab + `<input type="text" data-f="${f.id}" value="${esc(p[f.id])}" placeholder="${esc(f.placeholder || "")}">`;
   }).join("");
@@ -152,6 +155,7 @@ function update() {
   $("count").textContent = out ? `${out.length.toLocaleString()} 字元` : (m.empty || "");
   $("outd").hidden = !out;
   $("next").textContent = ref(m.next);
+  m.fields.filter(f => f.type === "promptbox").forEach(f => { const el = $("pbox-" + f.id); if (el) el.textContent = f.build(p); });
   // 帶入來源已有不同內容時提醒（短欄位列出來源的內容）
   let sdiff = "";
   if (m.seed) {
@@ -197,7 +201,15 @@ $("pane").addEventListener("input", e => {
   update();
 });
 
-$("pane").addEventListener("click", e => {
+$("pane").addEventListener("click", async e => {
+  const pc = e.target.closest("button[data-pcopy]");
+  if (pc) {   // 欄位中的第二個 Prompt（例如讀圖 Prompt）
+    const text = $("pbox-" + pc.dataset.pcopy).textContent, old = pc.textContent;
+    try { await navigator.clipboard.writeText(text); } catch {
+      const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+    }
+    pc.textContent = "已複製 ✓"; setTimeout(() => (pc.textContent = old), 1500); return;
+  }
   if (e.target.id === "reseed") {
     const sd = mod().seed(), got = Object.entries(sd).filter(([, v]) => !blank(v));
     if (!got.length) { $("seedmsg").textContent = `　${mod().seedFrom}目前是空的：請先到該步驟，把 AI 的回覆貼到最下方的「AI 回覆」欄位。`; return; }

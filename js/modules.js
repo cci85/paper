@@ -492,8 +492,12 @@ const DEFS = {
     label: "依文獻檢核架構", target: "nlm", stack: true,
     hint: "貼上研究架構後，下方會依文字畫出架構圖，供你核對；畫錯可直接在圖上修改。產生的 Prompt 貼到已上傳文獻的 NotebookLM 對話，依勾選的制式項目檢核，並可一併提出自己的問題。回覆最後會逐條路徑總結文獻支持程度。",
     fields: [
-      { id: "ac_src", type: "radio", label: "研究架構來源", options: [["paste", "貼上文字"], ["mix", "0.2 組合研究架構"], ["own", "0.2 自行設計研究架構"]], value: "paste" },
-      { id: "ac_arch", type: "textarea", label: "研究架構", hint: "貼上{#archx}的回覆、{#gapsel}步驟四的「## 變數」與「## 路徑」，或直接輸入變數與假說清單", rows: 8, mono: true, when: p => p.ac_src !== "mix" && p.ac_src !== "own",
+      { id: "ac_src", type: "radio", label: "研究架構來源", options: [["paste", "貼上文字"], ["image", "架構圖（圖片）"], ["mix", "0.2 組合研究架構"], ["own", "0.2 自行設計研究架構"]], value: "paste" },
+      { id: "ax_note", type: "textarea", label: "圖例或補充說明", hint: "選填；圖中看不出來、但會影響判讀的資訊，會加入下方的讀圖 Prompt", rows: 2, placeholder: "例如：虛線代表調節效果；小方框為構面；H4 指向 H2 的箭頭", when: p => p.ac_src === "image" },
+      { id: "ax_prompt", type: "promptbox", label: "讀圖 Prompt", when: p => p.ac_src === "image",
+        hint: "在一般 AI（Claude、ChatGPT、Gemini）開新對話，先上傳架構圖，再貼上這段 Prompt；把回覆整段貼到下方「研究架構」欄位，網頁會畫出架構圖供你核對",
+        copyLabel: "複製讀圖 Prompt（貼到一般 AI，並上傳架構圖）", build: p => T.arch_extract({ note: (p.ax_note || "").trim() }) },
+      { id: "ac_arch", type: "textarea", label: "研究架構", hint: "選「架構圖（圖片）」時，貼上一般 AI 讀圖的回覆；選「貼上文字」時，貼上{#gapsel}步驟四或 0.3 修正架構的「變數」與「路徑」兩節，或直接輸入變數與假說清單", rows: 8, mono: true, when: p => p.ac_src !== "mix" && p.ac_src !== "own",
         placeholder: "## 變數\n自變數｜品牌人格（Brand Personality）｜無\n中介變數｜自我一致性（Self-Congruity）｜真實自我一致性、理想自我一致性\n依變數｜品牌依附（Brand Attachment）｜無\n\n## 路徑\nH1｜品牌人格 → 自我一致性｜正向\nH2｜自我一致性 → 品牌依附｜正向" },
       { id: "ac_diag", type: "diagram", label: "研究架構圖", hint: "依研究架構自動畫出，請核對是否正確。來源為 0.2 時，請回到 0.2 修改；以下說明適用於「貼上文字」。箭頭畫錯時直接在圖上修改：點一個方塊再點另一個方塊，加上箭頭；先點調節變數再點一條箭頭，加上調節虛線；未選方塊時點箭頭或虛線可刪除；拖曳方塊調整位置。變數名稱或角色有誤，請改上方文字。產生的 Prompt 以圖上的路徑為準",
         emptyHint: "（貼上研究架構後，這裡會出現架構圖）",
@@ -606,10 +610,9 @@ const OUTLINE = [
       { mod: "asmix", note: "路線 B：從候選架構中自行挑選變數、跨架構混搭，畫出路徑，組成自己的研究架構。" },
       { mod: "own", note: "路線 C：已有自己構想的研究架構時使用，不需要 AI。" },
       { mod: "amech", note: "路線 D：自變數與依變數已確定時使用，依上傳文獻篩選中介變數與調節變數；回覆可帶入步驟 4 組合。" }] },
-    { id: "s0-5", no: "0.3", title: "研究架構合理性檢核", desc: "依已上傳的文獻檢核研究架構的合理性：0.2 三條路線產出的架構都在這裡檢核，也可單獨使用。手邊只有架構圖時，先用一般 AI 讀圖拆出變數與路徑 → NotebookLM 依制式項目與你的問題檢核 → 同一對話追問。", steps: [
-      { mod: "archx", note: "只有架構圖、沒有文字時使用；架構來自 0.2，或已有變數與假說的文字清單，可直接到步驟 2。" },
-      { mod: "archchk", note: "NotebookLM 需先上傳與架構相關的文獻；文獻愈完整，檢核愈有意義。" },
-      { mod: "archq", note: "接在步驟 2 的同一個對話；可重複使用。" }] },
+    { id: "s0-5", no: "0.3", title: "研究架構合理性檢核", desc: "依已上傳的文獻檢核研究架構的合理性，並提出文獻支持更充分的修正架構：0.2 各路線產出的架構都在這裡檢核，也可單獨使用（例如只有一張架構圖）。NotebookLM 依制式項目與你的問題檢核 → 同一對話追問。", steps: [
+      { mod: "archchk", note: "先選研究架構來源：0.2 畫好的架構會自動帶入；只有架構圖圖片時選「架構圖（圖片）」，先用一般 AI 讀圖。NotebookLM 需先上傳與架構相關的文獻；文獻愈完整，檢核愈有意義。" },
+      { mod: "archq", note: "接在步驟 1 的同一個對話；可重複使用。" }] },
     { id: "s0-6", no: "0.4", title: "研究設計", desc: "研究架構確定之後：確認文獻用過的統計方法、本研究適用的方法與應揭露的實證結果；研究方法為問卷調查法或實驗設計法時，再產出問卷草稿。", steps: [
       { mod: "astat", note: "選定變數與資料之後：確認統計方法，以及實證結果應揭露哪些項目。可接在 0.2 組合研究架構的同一個對話。" },
       { mod: "asq", note: "研究方法為問卷調查法或實驗設計法時使用：產出問卷草稿，並評估題數、樣本數、量表與施測風險；panel data 可跳過。" }] }
