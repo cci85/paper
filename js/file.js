@@ -33,7 +33,7 @@ const payOf = d => JSON.stringify({ app: "paper-prompt", v: 1, name: d.name || "
 const payloadOf = () => payOf(store);
 
 function parseFile(text) {
-  const m = text.match(/```json paper-data\r?\n([\s\S]*?)\r?\n```\s*$/);
+  const m = text.match(/<!-- paper-data[^\n]*\r?\n([\s\S]*?)\r?\n-->\s*$/) || text.match(/```json paper-data\r?\n([\s\S]*?)\r?\n```\s*$/);   // 新：隱藏的註解；舊：程式碼區塊
   if (!m) return null;
   try { const d = JSON.parse(m[1]); return d && d.app === "paper-prompt" ? d : null; } catch { return null; }
 }
@@ -149,8 +149,8 @@ function fileText(notes, pngs) {
     `# ${store.name || ""}`, "",
     "## 我的筆記", NOTE_START, notes || NOTE_EMPTY, NOTE_END, "",
     readable(pngs) || "（尚未填寫任何欄位）", "",
-    "---", "以下資料區塊供論文工作台讀回原始設定，請勿修改。", "",
-    "```json " + DATA_TAG, payloadOf(), "```", ""
+    // 資料區塊放在 HTML 註解中，Obsidian 等 Markdown 軟體閱讀時不會顯示；「>」改寫為 \u003e，避免提早結束註解
+    "<!-- " + DATA_TAG + "（論文工作台讀回原始設定用，閱讀時不顯示，請勿修改）", payloadOf().replace(/>/g, "\\u003e"), "-->", ""
   ].join("\n");
 }
 
