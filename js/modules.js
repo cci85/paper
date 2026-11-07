@@ -278,7 +278,12 @@ const DEFS = {
       { id: "sv_reply", type: "textarea", below: true, label: "修訂建議的 AI 回覆", hint: "選填；貼上修改追問的回覆，會一併存入研究存檔", rows: 5 },
       { id: "sv_revp", type: "promptbox", below: true, label: "產生修訂版問卷", hint: "修訂建議貼上後，在同一個對話接著送出，請 NotebookLM 依建議輸出修訂後的完整問卷",
         copyLabel: "複製產生修訂版問卷 Prompt（貼到 NotebookLM）", empty: "（先貼上修訂建議的 AI 回覆）", build: p => blank(p.sv_reply) ? "" : svRevPrompt() },
-      { id: "sv_rev", type: "textarea", below: true, label: "修訂版問卷的 AI 回覆", hint: "貼上後，上方問卷預覽會換成修訂版（改過的地方會標示原文），可切換回原版比對", rows: 5 }
+      { id: "sv_rev", type: "textarea", below: true, label: "修訂版問卷的 AI 回覆", hint: "貼上後，上方問卷預覽會換成修訂版（改過的地方會標示原文），可切換回原版比對", rows: 5 },
+      { id: "sv_tofinal", type: "button", below: true, label: "以目前問卷預覽作為定稿", hint: "把預覽中的問卷（含直接修改）帶入下方「定稿問卷」",
+        run: () => { const t = svText(); if (!t) return "沒有問卷預覽可帶入；請直接把定稿問卷貼到下方。";
+          if (!blank(store.values.sv_final) && !confirm("「定稿問卷」已有內容，要以目前預覽取代嗎？")) return "未變更";
+          store.values.sv_final = t; return "已帶入目前問卷預覽，可再直接修改。"; } },
+      { id: "sv_final", type: "textarea", below: true, label: "定稿問卷", hint: "最後確定的整份問卷（純文字即可，構念寫成〈構念名稱〉（量表出處），題項寫成 Q1. 題目）；會存入研究存檔，並帶到 3.3 撰寫操作型定義與量表", rows: 10 }
     ],
     replyView: t => surveyView(t),
     rules: () => ["citation"],
@@ -288,7 +293,7 @@ const DEFS = {
       return blank(p.as_ctx) || !arch || p.as_rmethod === "sec" ? "" : T.ask_survey({ exp: p.as_rmethod === "exp", ctx: p.as_ctx.trim(), arch, target: p.as_target.trim(), scale: p.as_scale.trim(), method: p.as_amethod.trim() }) + R;
     },
     empty: "（請填入研究情境，並指定選定的架構）",
-    next: "下一步：【待補量表】的構念，請找到量表原始論文上傳後再問一次。正式撰寫第三章時，用{#opdef}整理量表；要查實務面時，到{#asp}。"
+    next: "下一步：【待補量表】的構念，請找到量表原始論文上傳後再問一次。問卷定稿後貼到下方「定稿問卷」，正式撰寫第三章時，用{#opdef}依定稿問卷撰寫操作型定義與量表；要查實務面時，到{#asp}。"
   },
   asp: {
     label: "研究情境與實務缺口", target: "ai",
@@ -390,10 +395,16 @@ const DEFS = {
     fields: [
       { id: "od_list", type: "textarea", label: "構念清單", hint: "一行一個；可附上預計採用的量表", rows: 6,
         placeholder: "品牌人格｜預計採用 Aaker (1997)\n自我一致性\n品牌依附" },
-      { id: "od_scale", type: "text", label: "量尺形式", hint: "選填", placeholder: "例如：Likert 七點量尺" }
+      { id: "od_scale", type: "text", label: "量尺形式", hint: "選填", placeholder: "例如：Likert 七點量尺" },
+      ...[2, 3, 4, 5].map(k => ({ id: "od_b" + k, type: "promptbox", afterOut: true, label: `第 ${k} 則 Prompt`, when: p => odBatches(p).length >= k,
+        hint: "上一則的回覆完成後，在同一個對話接著送出；各則回覆依序貼到下方「AI 回覆」",
+        copyLabel: `${"②③④⑤"[k - 2]} 複製第 ${k} 則 Prompt（同一個對話接著送出）`, build: p => odBatches(p)[k - 1] || "" }))
     ],
+    seed: () => { const F = finalSurvey(); return F ? { od_list: F.cons.map(c => c.name + (c.src ? "｜預計採用 " + c.src : "")).join("\n"), od_scale: F.scale } : {}; },
+    seedFrom: "0.4「定稿問卷」", seedNote: "構念清單與量尺由 0.4「定稿問卷」帶入（未填定稿時用 0.4 的問卷預覽），各構念的中文題項會一併附在 Prompt 中",
     rules: () => ["citation", "verify"],
-    build: (p, R) => blank(p.od_list) ? "" : T.opdef({ list: p.od_list.trim(), scale: p.od_scale }) + R,
+    status: p => odBatches(p).length > 1 ? `題項較多，Prompt 分成 ${odBatches(p).length} 則依序送出（NotebookLM 單次輸入有字數上限）。` : "",
+    build: (p, R) => blank(p.od_list) ? "" : (odBatches(p)[0] ? odBatches(p)[0] : T.opdef({ list: p.od_list.trim(), scale: p.od_scale }) + R),
     empty: "（請填入構念清單）",
     next: "下一步：貼到已上傳量表原始文獻的 NotebookLM 對話；量表出處與信度數值請再對照原文確認。"
   },
@@ -770,6 +781,45 @@ function svNotesText() {   // 修改意見清單（純文字）
   const fix = svNotes();
   const items = svParts(S).filter(x => x.key in fix);
   return items.length ? "【問卷修改意見】\n\n" + items.map((x, k) => `${k + 1}. ${x.label}\n原文：${x.text}\n意見：${fix[x.key] || "（未填）"}`).join("\n\n") : "";
+}
+
+// ── 定稿問卷 → 3.3 操作型定義與量表 ──
+function parseFinal(text) {   // 純文字問卷：〈構念〉（出處）、題幹、Q1. 題目
+  const t = String(text || "").replace(/\r\n?/g, "\n"), cons = []; let cur = null;
+  const scale = ((t.match(/量尺[：:]\s*([^\n（(]+)/) || [])[1] || "").trim();
+  t.split("\n").forEach(raw => {
+    const l = raw.trim(); if (!l) return;
+    const h = l.match(/^〈([^〉]+)〉\s*(?:[（(](.*)[）)])?\s*$/);
+    if (h) { cur = { name: h[1].trim(), src: (h[2] || "").trim(), pre: [], items: [] }; cons.push(cur); return; }
+    if (/^【/.test(l)) { cur = null; return; }
+    if (!cur) return;
+    const q = l.match(/^(Q\d+)\s*[.．、｜|：:]?\s*(.+)$/i);
+    if (q) { cur.items.push({ id: q[1].toUpperCase(), zh: q[2].trim() }); return; }
+    if (!cur.items.length) cur.pre.push(l);
+  });
+  cons.forEach(c => { const last = c.pre[c.pre.length - 1] || "", isStem = last && !/[。.！!？?]$/.test(last);   // 句號結尾者是說明，不是題幹
+    c.stem = isStem ? last : ""; c.note = (isStem ? c.pre.slice(0, -1) : c.pre).join(" "); });
+  return cons.length ? { scale, cons } : null;
+}
+function finalSurvey() {   // 定稿問卷；未填時用問卷預覽；出處缺漏時由問卷預覽補上
+  const S = parseSurvey(svReply()), F = parseFinal(store.values.sv_final) || parseFinal(svText());
+  if (!F) return null;
+  F.cons.forEach(c => { const m = S && S.constructs.find(x => x.name === c.name || x.name.startsWith(c.name));
+    if (m) { if (!c.src) c.src = m.src; if (m.name !== c.name && /[（(]/.test(m.name)) c.name = m.name; } });
+  return F;
+}
+function odBatches(p) {   // 依構念清單附上定稿題項，依字數分批
+  const F = finalSurvey(); if (!F || blank(p.od_list)) return [];
+  const blocks = splitLines(p.od_list).map(line => {
+    const name = line.split(/[｜|]/)[0].trim(), src = (line.split(/[｜|]/)[1] || "").replace(/^預計採用\s*/, "").trim();
+    const c = F.cons.find(x => x.name === name || x.name.startsWith(name) || name.startsWith(x.name));
+    return [`### ${name}${src ? "｜預計量表：" + src : ""}`, ...(c ? [...(c.note ? ["說明：" + c.note] : []), ...(c.stem ? ["題幹：" + c.stem] : []), ...c.items.map(it => `${it.id} ${it.zh}`)] : ["（尚無題項）"])].join("\n");
+  });
+  if (!F.cons.some(c => c.items.length)) return [];
+  const scale = (p.od_scale || F.scale || "").trim(), LIMIT = 2700, groups = [];
+  blocks.forEach(b => { const g = groups[groups.length - 1];
+    if (g && T.opdef_items({ blocks: [...g, b], scale, part: groups.length, parts: 9 }).length <= LIMIT) g.push(b); else groups.push([b]); });
+  return groups.map((g, k) => T.opdef_items({ blocks: g, scale, part: k + 1, parts: groups.length }));
 }
 
 // 組合研究架構：選定架構的圖（依 cf_text 建立，保留圖上微調）
