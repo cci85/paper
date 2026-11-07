@@ -308,7 +308,7 @@ $("pane").addEventListener("click", async e => {
     if (sb.dataset.svver) store.values.sv_ver = sb.dataset.svver;
     if (sb.dataset.svrestore) delete (store.values.sv_edit || {})[sb.dataset.svrestore];
     if (sb.dataset.svcopy || sb.dataset.svfixcopy || sb.dataset.svnotecopy) {
-      const text = sb.dataset.svcopy ? svText() : sb.dataset.svfixcopy ? svFixPrompt() : svNotesText();
+      const text = sb.dataset.svcopy ? svText() : sb.dataset.svfixcopy ? svFixPrompt(+sb.dataset.svfixcopy) : svNotesText();
       try { await navigator.clipboard.writeText(text); } catch {
         const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
       }

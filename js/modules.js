@@ -701,7 +701,10 @@ function svFixBox(S) {   // 下方彙整：只列有填意見的部分
   if (!parts.length) return `<p class="hint">（在各部分下方的「修改意見」欄填寫後，會彙整在這裡）</p>`;
   return `<h4>修改意見彙整（${parts.length} 項）</h4>` + parts.map(x => `<div class="sv-fixrow"><b>${esc(x.label)}</b><span class="sv-orig">${esc(x.text)}</span>
       <div class="sv-notev">意見：${esc(fix[x.key])}</div><button type="button" data-svclear="${esc(x.key)}">清除</button></div>`).join("") +
-    `<p class="sv-btns"><button type="button" class="copy" data-svfixcopy="1">複製修改追問 Prompt（逐條請 NotebookLM 回應）</button>
+    (B => B.length > 1 ? `<p class="note warn">意見較多，分成 ${B.length} 則依序送出（NotebookLM 單次輸入有字數上限）；每則回覆完成後再送下一則，所有回覆依序貼到下方「修訂建議的 AI 回覆」。</p>
+      <p class="sv-btns">${B.map((b, k) => `<button type="button" class="copy" data-svfixcopy="${k + 1}">${"①②③④⑤⑥⑦⑧⑨"[k] || k + 1} 複製第 ${k + 1} 則（${b.n} 項）</button>`).join("")}</p>
+      <p class="sv-btns">` : `<p class="sv-btns"><button type="button" class="copy" data-svfixcopy="1">複製修改追問 Prompt（逐條請 NotebookLM 回應）</button>`)(svFixBatches()) +
+    `
       <button type="button" class="copy alt" data-svnotecopy="1">複製修改意見（純文字，可給學生）</button></p>
     <p class="sv-btns"><button type="button" data-svclear="*">清除全部意見</button></p>
     <p class="hint">AI 的修訂建議貼到下方「修訂建議的 AI 回覆」，再複製「產生修訂版問卷 Prompt」。修訂版貼上後，可清除全部意見，再對修訂版提出下一輪意見。</p>`;
@@ -748,12 +751,18 @@ function svText() {   // 整份問卷的純文字（含修改）
     ...S.constructs.map(c => `〈${c.name}〉${c.src ? "（" + c.src + "）" : ""}\n` + (c.missing ? c.missing + "\n" : "") + c.items.map(it => `${it.id}. ${svItemText(it)}`).join("\n")), ...oth("con"),
     S.demo.length && "【基本資料】\n" + S.demo.map(q).join("\n"), ...oth("demo")].filter(Boolean).join("\n\n");
 }
-function svFixPrompt() {
-  const S = parseSurvey(svReply()); if (!S) return "";
-  const fix = svNotes();
+function svFixBatches() {   // 依 NotebookLM 單次輸入上限分批
+  const S = parseSurvey(svReply()); if (!S) return [];
+  const fix = svNotes(), LIMIT = 2600;
   const items = svParts(S).filter(x => x.key in fix).map(x => ({ ...x, note: fix[x.key] }));
-  return items.length ? T.ask_svfix({ items }) : "";
+  const groups = [];
+  items.forEach(x => {
+    const g = groups[groups.length - 1];
+    if (g && T.ask_svfix({ items: [...g, x], part: groups.length, parts: 9 }).length <= LIMIT) g.push(x); else groups.push([x]);
+  });
+  return groups.map((g, k) => ({ n: g.length, text: T.ask_svfix({ items: g, part: k + 1, parts: groups.length }) }));
 }
+const svFixPrompt = (k = 1) => (svFixBatches()[k - 1] || {}).text || "";
 function svNotesText() {   // 修改意見清單（純文字）
   const S = parseSurvey(svReply()); if (!S) return "";
   const fix = svNotes();
