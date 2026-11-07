@@ -662,13 +662,14 @@ const svRev = () => deLatex(store.values.sv_rev || "");
 const hasRev = () => !!parseSurvey(svRev());
 const svUseRev = () => hasRev() && store.values.sv_ver !== "orig";
 const svReply = () => svUseRev() ? svRev() : svOrig();
+const svEnKey = t => String(t || "").toLowerCase().replace(/[^a-z]/g, "");   // 以英文原題對照（題號可能移動）
 function svOrigMap() {   // 原版各題文字，供修訂版標示差異
   const O = parseSurvey(svOrig()), m = {}; if (!O) return m;
   const q = x => x.q + (x.opts.length ? `（${x.opts.join("／")}）` : "");
   if (O.intro) m.intro = O.intro; if (O.scaleText) m.scale = O.scaleText;
   [...O.screen, ...O.manip, ...O.demo, ...O.other.flatMap(o => o.qs)].forEach(x => (m[x.id] = q(x)));
   O.other.forEach(o => { if (o.text) m["sec:" + o.head] = o.text; });
-  O.constructs.forEach(c => c.items.forEach(it => (m[it.id] = it.zh)));
+  O.constructs.forEach(c => c.items.forEach(it => { m[it.id] = it.zh; if (it.en) m["en:" + svEnKey(it.en)] = it.zh; }));
   return m;
 }
 function svRevPrompt() {
@@ -726,7 +727,7 @@ function surveyView(text) {
     return `<div class="sv-con"><h4>${esc(c.name)}</h4><p class="hint">${esc([c.src, c.dim && !/^無$/.test(c.dim) ? "構面：" + c.dim : ""].filter(Boolean).join("｜"))}</p>
     ${note(ck).replace('placeholder="修改意見（選填）"', 'placeholder="對整組題項的修改意見（選填）"')}
     ${c.missing ? `<p class="note warn">${esc(c.missing)}</p>` : ""}
-    ${c.items.map(it => { const t = svItemText(it), ed = t !== it.zh, w = was(it.id, it.zh);
+    ${c.items.map(it => { const t = svItemText(it), ed = t !== it.zh, w = !it.en ? was(it.id, it.zh) : !rev ? "" : ("en:" + svEnKey(it.en)) in O ? was("en:" + svEnKey(it.en), it.zh) : `<div class="sv-was">（修訂版新增或更換的題項）</div>`;
       return `<div class="sv-item${ed ? " edited" : ""}${w ? " revised" : ""}"><b>${esc(it.id)}</b>
         <div class="sv-text"><span class="sv-zh" contenteditable="true" spellcheck="false" data-sved="${esc(it.id)}" data-orig="${esc(it.zh)}" title="也可以點一下直接修改">${esc(t)}</span>
           ${it.en ? `<small>${esc(it.en)}</small>` : ""}
