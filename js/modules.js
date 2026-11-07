@@ -666,7 +666,8 @@ function svOrigMap() {   // 原版各題文字，供修訂版標示差異
   const O = parseSurvey(svOrig()), m = {}; if (!O) return m;
   const q = x => x.q + (x.opts.length ? `（${x.opts.join("／")}）` : "");
   if (O.intro) m.intro = O.intro; if (O.scaleText) m.scale = O.scaleText;
-  [...O.screen, ...O.manip, ...O.demo].forEach(x => (m[x.id] = q(x)));
+  [...O.screen, ...O.manip, ...O.demo, ...O.other.flatMap(o => o.qs)].forEach(x => (m[x.id] = q(x)));
+  O.other.forEach(o => { if (o.text) m["sec:" + o.head] = o.text; });
   O.constructs.forEach(c => c.items.forEach(it => (m[it.id] = it.zh)));
   return m;
 }
@@ -680,14 +681,18 @@ function svAllItems(S) { return S.constructs.flatMap(c => c.items.map(it => ({ .
 // 問卷各部分（依問卷順序），作為修改意見的對象
 function svParts(S) {
   const q = x => x.q + (x.opts.length ? `（${x.opts.join("／")}）` : "");
+  const oth = k => S.other.filter(o => o.after === k).flatMap(o => [
+    ...(o.text ? [{ key: "sec:" + o.head, label: `「${o.head}」說明`, kind: "other", text: o.text }] : []),
+    ...o.qs.map(x => ({ key: x.id, label: `${x.id}（${o.head}）`, kind: "other", text: q(x) }))]);
   return [
-    ...(S.intro ? [{ key: "intro", label: "填答說明", kind: "other", text: S.intro }] : []),
-    ...S.screen.map(x => ({ key: x.id, label: `${x.id}（篩選題）`, kind: "other", text: q(x) })),
-    ...S.manip.map(x => ({ key: x.id, label: `${x.id}（操弄檢定）`, kind: "other", text: q(x) })),
-    ...(S.scaleText ? [{ key: "scale", label: "量尺", kind: "other", text: S.scaleText }] : []),
+    ...oth("start"),
+    ...(S.intro ? [{ key: "intro", label: "填答說明", kind: "other", text: S.intro }] : []), ...oth("intro"),
+    ...S.screen.map(x => ({ key: x.id, label: `${x.id}（篩選題）`, kind: "other", text: q(x) })), ...oth("screen"),
+    ...S.manip.map(x => ({ key: x.id, label: `${x.id}（操弄檢定）`, kind: "other", text: q(x) })), ...oth("manip"),
+    ...(S.scaleText ? [{ key: "scale", label: "量尺", kind: "other", text: S.scaleText }] : []), ...oth("scale"),
     ...S.constructs.flatMap(c => [{ key: "con:" + c.name, label: `構念「${c.name}」`, kind: "con", src: c.src, text: c.items.map(it => `${it.id} ${svItemText(it)}`).join("；") || c.missing },
-      ...c.items.map(it => ({ key: it.id, label: it.id, kind: "item", con: c.name, src: c.src, text: svItemText(it), en: it.en }))]),
-    ...S.demo.map(x => ({ key: x.id, label: `${x.id}（基本資料）`, kind: "other", text: q(x) }))
+      ...c.items.map(it => ({ key: it.id, label: it.id, kind: "item", con: c.name, src: c.src, text: svItemText(it), en: it.en }))]), ...oth("con"),
+    ...S.demo.map(x => ({ key: x.id, label: `${x.id}（基本資料）`, kind: "other", text: q(x) })), ...oth("demo")
   ];
 }
 const svNotes = () => Object.fromEntries(Object.entries(store.values.sv_fix || {}).filter(([, v]) => !blank(v)));
@@ -710,8 +715,10 @@ function surveyView(text) {
   const note = key => `<input type="text" class="sv-note${blank(fix[key]) ? "" : " filled"}" data-svnote="${esc(key)}" value="${esc(fix[key] || "")}" placeholder="修改意見（選填）">`;
   const dots = `<span class="sv-dots">${Array.from({ length: n }, (_, k) => `<i>${k + 1}</i>`).join("")}</span>`;
   const opts = q => q.opts.length ? `<div class="sv-opts">${q.opts.map(o => `<span>○ ${esc(o)}</span>`).join("")}</div>` : "";
-  const simple = (title, qs) => qs.length ? `<h4>${title}</h4>` + qs.map(q => { const w = was(q.id, q.q + (q.opts.length ? `（${q.opts.join("／")}）` : ""));
+  const simple = (title, qs) => qs.length ? (title ? `<h4>${title}</h4>` : "") + qs.map(q => { const w = was(q.id, q.q + (q.opts.length ? `（${q.opts.join("／")}）` : ""));
     return `<div class="sv-q${w ? " revised" : ""}"><b>${esc(q.id)}</b> ${esc(q.q)}${opts(q)}${w}${note(q.id)}</div>`; }).join("") : "";
+  const oth = k => S.other.filter(o => o.after === k).map(o => { const w = was("sec:" + o.head, o.text);
+    return `<h4>${esc(o.head)}</h4>${o.text ? `<div class="${w ? "revised" : ""}"><p class="sv-intro">${esc(o.text)}</p>${w}</div>${note("sec:" + o.head)}` : ""}${simple("", o.qs)}`; }).join("");
   const cons = S.constructs.map(c => { const ck = "con:" + c.name;
     return `<div class="sv-con"><h4>${esc(c.name)}</h4><p class="hint">${esc([c.src, c.dim && !/^無$/.test(c.dim) ? "構面：" + c.dim : ""].filter(Boolean).join("｜"))}</p>
     ${note(ck).replace('placeholder="修改意見（選填）"', 'placeholder="對整組題項的修改意見（選填）"')}
@@ -726,18 +733,20 @@ function surveyView(text) {
   return `<div class="sview"><div class="cand-head"><h3>問卷預覽${rev ? "（修訂版）" : ""}</h3>${hasRev() ? `<span class="sv-ver"><button type="button" data-svver="rev" class="${rev ? "on" : ""}">修訂版</button><button type="button" data-svver="orig" class="${rev ? "" : "on"}">原版</button></span>` : ""}<button type="button" class="copy" data-svcopy="1">複製整份問卷</button></div>
     ${rev ? `<p class="hint">黃底是修訂版改過或新增的部分，下方標示原文；完整的修改理由見「修訂版問卷的 AI 回覆」中的「修改摘要」。</p>` : ""}
     <p class="hint">每個部分、每一題下方都有「修改意見」欄，有填寫的會彙整在問卷最下方，再一次複製請 NotebookLM 逐條回應；量表題項也可以點文字直接修改。</p>
-    ${S.intro ? `<h4>填答說明</h4><p class="sv-intro">${esc(S.intro)}</p>${was("intro", S.intro)}${note("intro")}` : ""}
-    ${simple("篩選題", S.screen)}${simple("操弄檢定與注意力檢核", S.manip)}
-    ${S.constructs.length ? `<h4>量表題項</h4>${scaleHead}` : ""}${cons}
-    ${simple("基本資料題", S.demo)}</div><div class="sv-fixbox" id="svfixbox">${svFixBox(S)}</div>`;
+    ${oth("start")}${S.intro ? `<h4>填答說明</h4><p class="sv-intro">${esc(S.intro)}</p>${was("intro", S.intro)}${note("intro")}` : ""}${oth("intro")}
+    ${simple("篩選題", S.screen)}${oth("screen")}${simple("操弄檢定與注意力檢核", S.manip)}${oth("manip")}
+    ${S.constructs.length ? `<h4>量表題項</h4>${scaleHead}` : ""}${oth("scale")}${cons}${oth("con")}
+    ${simple("基本資料題", S.demo)}${oth("demo")}</div><div class="sv-fixbox" id="svfixbox">${svFixBox(S)}</div>`;
 }
 function svText() {   // 整份問卷的純文字（含修改）
   const S = parseSurvey(svReply()); if (!S) return "";
   const q = x => `${x.id}. ${x.q}` + (x.opts.length ? `（${x.opts.join("／")}）` : "");
-  return [S.intro && "【填答說明】\n" + S.intro, S.screen.length && "【篩選題】\n" + S.screen.map(q).join("\n"),
-    S.constructs.length && `【量表題項】量尺：${S.scaleText}`,
-    ...S.constructs.map(c => `〈${c.name}〉${c.src ? "（" + c.src + "）" : ""}\n` + (c.missing ? c.missing + "\n" : "") + c.items.map(it => `${it.id}. ${svItemText(it)}`).join("\n")),
-    S.demo.length && "【基本資料】\n" + S.demo.map(q).join("\n")].filter(Boolean).join("\n\n");
+  const oth = k => S.other.filter(o => o.after === k).map(o => `【${o.head}】\n` + [o.text, ...o.qs.map(q)].filter(Boolean).join("\n"));
+  return [...oth("start"), S.intro && "【填答說明】\n" + S.intro, ...oth("intro"), S.screen.length && "【篩選題】\n" + S.screen.map(q).join("\n"), ...oth("screen"),
+    S.manip.length && "【操弄檢定與注意力檢核】\n" + S.manip.map(q).join("\n"), ...oth("manip"),
+    S.constructs.length && `【量表題項】量尺：${S.scaleText}`, ...oth("scale"),
+    ...S.constructs.map(c => `〈${c.name}〉${c.src ? "（" + c.src + "）" : ""}\n` + (c.missing ? c.missing + "\n" : "") + c.items.map(it => `${it.id}. ${svItemText(it)}`).join("\n")), ...oth("con"),
+    S.demo.length && "【基本資料】\n" + S.demo.map(q).join("\n"), ...oth("demo")].filter(Boolean).join("\n\n");
 }
 function svFixPrompt() {
   const S = parseSurvey(svReply()); if (!S) return "";

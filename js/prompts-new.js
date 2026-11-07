@@ -651,6 +651,7 @@ T.ask_survey = p => [
   "其下每行一題，全卷連續編號，格式為：Q1｜中文暫譯｜英文原題。中文暫譯須經翻譯—回譯程序確認；找不到題項的構念，寫一行「【待補量表：構念名稱】」。",
   "### 基本資料題",
   "依研究情境列出必要的人口統計與使用行為題目，每行一題，格式為：D1｜題目｜選項一／選項二／……",
+  "需要新增上列以外的部分（例如情境回想、引導說明）時，以「### 部分名稱」為小標題，放在問卷中實際出現的位置；引導文字寫成段落，題目每行一題，格式為：R1｜題目｜選項一／選項二／……（開放題不寫選項）。",
   "",
   "## 可行性評估",
   "以學術段落撰寫，依序說明：",
@@ -1275,10 +1276,21 @@ function parseSurvey(text) {
   if (!m) return null;
   const S = { intro: "", screen: [], manip: [], scaleText: "", constructs: [], demo: [], other: [] };
   const row = l => l.replace(/^[-*•]\s*/, "").split(/\s*[｜|]\s*/);
+  let last = "start";   // 其他部分（例如情境回想）依出現位置排在前一個部分之後
   m[1].split(/^(?=#{3,4}\s)/m).filter(b => /^#{3,4}\s/.test(b)).forEach(b => {
-    const lines = b.split("\n"), head = lines[0].replace(/^#+\s*/, "").trim(), body = lines.slice(1).map(x => x.trim()).filter(Boolean);
+    const lines = b.split("\n"), head = lines[0].replace(/^#+\s*/, "").replace(/（[^）]*每行一題[^）]*）$/, "").trim(), body = lines.slice(1).map(x => x.trim()).filter(Boolean);
+    const kind = /^填答說明/.test(head) ? "intro" : /^篩選題/.test(head) ? "screen" : /^基本資料/.test(head) ? "demo" : /^量尺/.test(head) ? "scale"
+      : /^(操弄|注意力)/.test(head) ? "manip" : /^構念/.test(head) || head.split(/[｜|]/).length >= 3 ? "con" : "other";
+    if (kind === "other") {
+      const qs = [], text = [];
+      body.forEach(l => { const r = row(l); if (r.length >= 2 && /^[A-Za-z]{1,3}\d+$/.test(r[0])) qs.push({ id: r[0].toUpperCase(), q: r[1], opts: (r[2] || "").split(/[／/]/).map(x => x.trim()).filter(Boolean) }); else text.push(l.replace(/^[-*•]\s*/, "")); });
+      S.other.push({ head, text: text.join("\n"), qs, after: last });
+      return;
+    }
+    last = kind;
     if (/^填答說明/.test(head)) S.intro = body.join("\n");
     else if (/^篩選題/.test(head)) S.screen = body.map(row).filter(c => c.length >= 2).map(c => ({ id: c[0], q: c[1], opts: (c[2] || "").split(/[／/]/).map(x => x.trim()).filter(Boolean) }));
+    else if (kind === "manip") S.manip = body.map(row).filter(c => c.length >= 2).map(c => ({ id: c[0], q: c[1], opts: [] }));
     else if (/^基本資料/.test(head)) S.demo = body.map(row).filter(c => c.length >= 2).map(c => ({ id: c[0], q: c[1], opts: (c[2] || "").split(/[／/]/).map(x => x.trim()).filter(Boolean) }));
     else if (/^量尺/.test(head)) S.scaleText = body.join(" ");
     else if (/^構念/.test(head) || head.split(/[｜|]/).length >= 3) {
@@ -1289,11 +1301,11 @@ function parseSurvey(text) {
         const r = row(l); if (r.length >= 2 && /^Q?\d+/i.test(r[0])) con.items.push({ id: r[0].toUpperCase().replace(/^(\d)/, "Q$1"), zh: r[1], en: r[2] || "" });
       });
       S.constructs.push(con);
-    } else S.other.push({ head, text: body.join("\n") });
+    } else S.other.push({ head, text: body.join("\n"), qs: [], after: last });
   });
   const nums = [...S.scaleText.matchAll(/(\d+)\s*[＝=]/g)].map(x => +x[1]);
   S.points = nums.length ? Math.max(...nums) : /五點/.test(S.scaleText) ? 5 : 7;
-  S.ends = (() => { const a = S.scaleText.match(/1\s*[＝=]\s*([^／/、,，]+)/), z = S.scaleText.match(new RegExp(S.points + "\\s*[＝=]\\s*([^／/、,，]+)")); return [a ? a[1].trim() : "", z ? z[1].trim() : ""]; })();
+  S.ends = (() => { const a = S.scaleText.match(/1\s*[＝=]\s*([^／/、,，；;（(]+)/), z = S.scaleText.match(new RegExp(S.points + "\\s*[＝=]\\s*([^／/、,，；;（(]+)")); return [a ? a[1].trim() : "", z ? z[1].trim() : ""]; })();
   return S;
 }
 
@@ -1313,6 +1325,7 @@ T.ask_svrev = p => [
   "每個構念一個小標題：### 構念｜中文名稱（英文原文）｜量表出處（作者, 年份）｜構面（單一構面寫「無」）",
   "其下每行一題，全卷連續編號：Q1｜中文｜英文原題；找不到題項的構念寫一行「【待補量表：構念名稱】」。",
   "### 基本資料題（每行一題：D1｜題目｜選項一／選項二／……）",
+  "需要新增上列以外的部分（例如情境回想、引導說明）時，以「### 部分名稱」為小標題，放在問卷中實際出現的位置；引導文字寫成段落，題目每行一題，格式為：R1｜題目｜選項一／選項二／……（開放題不寫選項）。",
   "",
   "## 修改摘要",
   "逐條列出這一版改了哪些部分（題號或部分名稱：原文 → 新文字，依據）。",
