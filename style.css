@@ -313,3 +313,5 @@ p.stepnote.after { white-space: pre-line; }
 .sv-fixrow > b { display: inline-block; margin-right: 8px; }
 .sv-fixrow .sv-orig { display: inline; }
 .sv-fixrow input { display: block; width: 100%; margin: 6px 0 4px; }
+input.sv-note { display: block; width: 100%; margin: 6px 0 4px; padding: 6px 10px; border: 1.5px solid var(--warn); border-radius: 8px; background: var(--warn-soft); font: inherit; font-size: 13.5px; }
+.sv-notev { margin: 4px 0; font-size: 13.5px; }

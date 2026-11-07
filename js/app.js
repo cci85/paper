@@ -249,7 +249,11 @@ $("pane").addEventListener("input", e => {
     if (txt === t.dataset.orig) delete e[t.dataset.sved]; else e[t.dataset.sved] = { orig: t.dataset.orig, text: txt };
     t.closest(".sv-item").classList.toggle("edited", txt !== t.dataset.orig); save(); return;
   }
-  if (t.dataset.svnote) { (store.values.sv_fix ||= {})[t.dataset.svnote] = t.value; save(); return; }
+  if (t.dataset.svnote) {   // 修改意見：同步下方彙整清單，不重畫
+    (store.values.sv_fix ||= {})[t.dataset.svnote] = t.value; save();
+    document.querySelectorAll("[data-svnoteview]").forEach(el => { if (el.dataset.svnoteview === t.dataset.svnote) el.textContent = t.value || "（尚未填寫）"; });
+    return;
+  }
   if (t.dataset.reply) { (store.replies ||= {})[replyKey()] = t.value; save(); renderReplyView(); return; }
   if (t.dataset.f) {
     store.values[vkey(t.dataset.f)] = t.value;
@@ -297,7 +301,8 @@ $("pane").addEventListener("click", async e => {
   }
   const sb = e.target.closest("button[data-svfix], button[data-svrestore], button[data-svcopy], button[data-svfixcopy], button[data-svnotecopy]");
   if (sb) {   // 問卷預覽的按鈕
-    if (sb.dataset.svfix) { const f = (store.values.sv_fix ||= {}); if (sb.dataset.svfix in f) delete f[sb.dataset.svfix]; else f[sb.dataset.svfix] = ""; }
+    let focusKey = "";
+    if (sb.dataset.svfix) { const f = (store.values.sv_fix ||= {}); if (sb.dataset.svfix in f) delete f[sb.dataset.svfix]; else { f[sb.dataset.svfix] = ""; focusKey = sb.dataset.svfix; } }
     if (sb.dataset.svrestore) delete (store.values.sv_edit || {})[sb.dataset.svrestore];
     if (sb.dataset.svcopy || sb.dataset.svfixcopy || sb.dataset.svnotecopy) {
       const text = sb.dataset.svcopy ? svText() : sb.dataset.svfixcopy ? svFixPrompt() : svNotesText();
@@ -306,7 +311,9 @@ $("pane").addEventListener("click", async e => {
       }
       const old = sb.textContent; sb.textContent = "已複製 ✓"; setTimeout(() => (sb.textContent = old), 1500); return;
     }
-    save(); renderReplyView(); return;
+    save(); renderReplyView();
+    if (focusKey) { const inp = [...document.querySelectorAll("input.sv-note")].find(x => x.dataset.svnote === focusKey); if (inp) inp.focus(); }
+    return;
   }
   const ct = e.target.closest("button[data-copytext]");
   if (ct) {   // 複製單一文字（例如 Scholar Labs 問句）
