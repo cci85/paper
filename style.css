@@ -319,3 +319,10 @@ input.sv-note { border: 1px dashed var(--line); background: var(--panel); color:
 input.sv-note:focus { border: 1.5px solid var(--warn); background: var(--warn-soft); outline: none; }
 input.sv-note.filled { border: 1.5px solid var(--warn); background: var(--warn-soft); }
 .sv-fixrow button { margin-top: 2px; }
+.sv-was { font-size: .85em; color: var(--muted); margin: 2px 0; }
+.sv-q.revised, .sv-item.revised { background: var(--warn-soft); border-radius: 6px; }
+.sv-ver { display: inline-flex; margin-left: auto; margin-right: 8px; }
+.sv-ver button { border-radius: 0; }
+.sv-ver button:first-child { border-radius: 6px 0 0 6px; }
+.sv-ver button:last-child { border-radius: 0 6px 6px 0; }
+.sv-ver button.on { background: var(--accent); color: #fff; border-color: var(--accent); }

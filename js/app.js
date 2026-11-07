@@ -300,10 +300,12 @@ $("pane").addEventListener("click", async e => {
     }
     pc.textContent = "已複製 ✓"; setTimeout(() => (pc.textContent = old), 1500); return;
   }
-  const sb = e.target.closest("button[data-svclear], button[data-svrestore], button[data-svcopy], button[data-svfixcopy], button[data-svnotecopy]");
+  const sb = e.target.closest("button[data-svclear], button[data-svver], button[data-svrestore], button[data-svcopy], button[data-svfixcopy], button[data-svnotecopy]");
   if (sb) {   // 問卷預覽的按鈕
     let focusKey = "";
-    if (sb.dataset.svclear) delete (store.values.sv_fix || {})[sb.dataset.svclear];
+    if (sb.dataset.svclear === "*") { if (!confirm("清除全部修改意見？")) return; store.values.sv_fix = {}; }
+    else if (sb.dataset.svclear) delete (store.values.sv_fix || {})[sb.dataset.svclear];
+    if (sb.dataset.svver) store.values.sv_ver = sb.dataset.svver;
     if (sb.dataset.svrestore) delete (store.values.sv_edit || {})[sb.dataset.svrestore];
     if (sb.dataset.svcopy || sb.dataset.svfixcopy || sb.dataset.svnotecopy) {
       const text = sb.dataset.svcopy ? svText() : sb.dataset.svfixcopy ? svFixPrompt() : svNotesText();
