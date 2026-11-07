@@ -315,3 +315,7 @@ p.stepnote.after { white-space: pre-line; }
 .sv-fixrow input { display: block; width: 100%; margin: 6px 0 4px; }
 input.sv-note { display: block; width: 100%; margin: 6px 0 4px; padding: 6px 10px; border: 1.5px solid var(--warn); border-radius: 8px; background: var(--warn-soft); font: inherit; font-size: 13.5px; }
 .sv-notev { margin: 4px 0; font-size: 13.5px; }
+input.sv-note { border: 1px dashed var(--line); background: var(--panel); color: var(--text); }
+input.sv-note:focus { border: 1.5px solid var(--warn); background: var(--warn-soft); outline: none; }
+input.sv-note.filled { border: 1.5px solid var(--warn); background: var(--warn-soft); }
+.sv-fixrow button { margin-top: 2px; }

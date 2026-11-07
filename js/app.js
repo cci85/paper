@@ -251,7 +251,8 @@ $("pane").addEventListener("input", e => {
   }
   if (t.dataset.svnote) {   // 修改意見：同步下方彙整清單，不重畫
     (store.values.sv_fix ||= {})[t.dataset.svnote] = t.value; save();
-    document.querySelectorAll("[data-svnoteview]").forEach(el => { if (el.dataset.svnoteview === t.dataset.svnote) el.textContent = t.value || "（尚未填寫）"; });
+    t.classList.toggle("filled", !blank(t.value));
+    const box = $("svfixbox"); if (box) box.innerHTML = svFixBox(parseSurvey(svReply()));
     return;
   }
   if (t.dataset.reply) { (store.replies ||= {})[replyKey()] = t.value; save(); renderReplyView(); return; }
@@ -299,10 +300,10 @@ $("pane").addEventListener("click", async e => {
     }
     pc.textContent = "已複製 ✓"; setTimeout(() => (pc.textContent = old), 1500); return;
   }
-  const sb = e.target.closest("button[data-svfix], button[data-svrestore], button[data-svcopy], button[data-svfixcopy], button[data-svnotecopy]");
+  const sb = e.target.closest("button[data-svclear], button[data-svrestore], button[data-svcopy], button[data-svfixcopy], button[data-svnotecopy]");
   if (sb) {   // 問卷預覽的按鈕
     let focusKey = "";
-    if (sb.dataset.svfix) { const f = (store.values.sv_fix ||= {}); if (sb.dataset.svfix in f) delete f[sb.dataset.svfix]; else { f[sb.dataset.svfix] = ""; focusKey = sb.dataset.svfix; } }
+    if (sb.dataset.svclear) delete (store.values.sv_fix || {})[sb.dataset.svclear];
     if (sb.dataset.svrestore) delete (store.values.sv_edit || {})[sb.dataset.svrestore];
     if (sb.dataset.svcopy || sb.dataset.svfixcopy || sb.dataset.svnotecopy) {
       const text = sb.dataset.svcopy ? svText() : sb.dataset.svfixcopy ? svFixPrompt() : svNotesText();

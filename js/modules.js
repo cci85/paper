@@ -670,39 +670,42 @@ function svParts(S) {
     ...S.demo.map(x => ({ key: x.id, label: `${x.id}（基本資料）`, kind: "other", text: q(x) }))
   ];
 }
+const svNotes = () => Object.fromEntries(Object.entries(store.values.sv_fix || {}).filter(([, v]) => !blank(v)));
+function svFixBox(S) {   // 下方彙整：只列有填意見的部分
+  const fix = svNotes(), parts = S ? svParts(S).filter(x => x.key in fix) : [];
+  if (!parts.length) return `<p class="hint">（在各部分下方的「修改意見」欄填寫後，會彙整在這裡）</p>`;
+  return `<h4>修改意見彙整（${parts.length} 項）</h4>` + parts.map(x => `<div class="sv-fixrow"><b>${esc(x.label)}</b><span class="sv-orig">${esc(x.text)}</span>
+      <div class="sv-notev">意見：${esc(fix[x.key])}</div><button type="button" data-svclear="${esc(x.key)}">清除</button></div>`).join("") +
+    `<p class="sv-btns"><button type="button" class="copy" data-svfixcopy="1">複製修改追問 Prompt（逐條請 NotebookLM 回應）</button>
+      <button type="button" class="copy alt" data-svnotecopy="1">複製修改意見（純文字，可給學生）</button></p>
+    <p class="hint">AI 的修訂建議貼到下方「修訂建議的 AI 回覆」。</p>`;
+}
 function surveyView(text) {
   if (blank(text)) return "";
   const S = parseSurvey(text);
   if (!S) return `<p class="note warn">回覆中沒有找到「## 問卷草稿」一節（較早的 Prompt 格式不同），請重新複製 Prompt 產生問卷草稿。</p>`;
   const fix = store.values.sv_fix || {}, n = S.points;
-  const fb = key => `<button type="button" class="sv-fb${key in fix ? " on" : ""}" data-svfix="${esc(key)}">${key in fix ? "取消修改意見" : "加入修改意見"}</button>`;
-  const note = key => key in fix ? `<input type="text" class="sv-note" data-svnote="${esc(key)}" value="${esc(fix[key] || "")}" placeholder="在這裡寫修改意見，例如：題意與衝動購買重疊／語句過長／選項不周延">` : "";
+  const note = key => `<input type="text" class="sv-note${blank(fix[key]) ? "" : " filled"}" data-svnote="${esc(key)}" value="${esc(fix[key] || "")}" placeholder="修改意見（選填）">`;
   const dots = `<span class="sv-dots">${Array.from({ length: n }, (_, k) => `<i>${k + 1}</i>`).join("")}</span>`;
   const opts = q => q.opts.length ? `<div class="sv-opts">${q.opts.map(o => `<span>○ ${esc(o)}</span>`).join("")}</div>` : "";
-  const simple = (title, qs) => qs.length ? `<h4>${title}</h4>` + qs.map(q => `<div class="sv-q${q.id in fix ? " fix" : ""}"><b>${esc(q.id)}</b> ${esc(q.q)}${opts(q)}<span class="sv-act">${fb(q.id)}</span>${note(q.id)}</div>`).join("") : "";
+  const simple = (title, qs) => qs.length ? `<h4>${title}</h4>` + qs.map(q => `<div class="sv-q"><b>${esc(q.id)}</b> ${esc(q.q)}${opts(q)}${note(q.id)}</div>`).join("") : "";
   const cons = S.constructs.map(c => { const ck = "con:" + c.name;
-    return `<div class="sv-con${ck in fix ? " fix" : ""}"><div class="sv-conhead"><h4>${esc(c.name)}</h4>${fb(ck)}</div>${note(ck)}<p class="hint">${esc([c.src, c.dim && !/^無$/.test(c.dim) ? "構面：" + c.dim : ""].filter(Boolean).join("｜"))}</p>
+    return `<div class="sv-con"><h4>${esc(c.name)}</h4><p class="hint">${esc([c.src, c.dim && !/^無$/.test(c.dim) ? "構面：" + c.dim : ""].filter(Boolean).join("｜"))}</p>
+    ${note(ck).replace('placeholder="修改意見（選填）"', 'placeholder="對整組題項的修改意見（選填）"')}
     ${c.missing ? `<p class="note warn">${esc(c.missing)}</p>` : ""}
-    ${c.items.map(it => { const t = svItemText(it), ed = t !== it.zh, on = it.id in fix;
-      return `<div class="sv-item${ed ? " edited" : ""}${on ? " fix" : ""}"><b>${esc(it.id)}</b>
+    ${c.items.map(it => { const t = svItemText(it), ed = t !== it.zh;
+      return `<div class="sv-item${ed ? " edited" : ""}"><b>${esc(it.id)}</b>
         <div class="sv-text"><span class="sv-zh" contenteditable="true" spellcheck="false" data-sved="${esc(it.id)}" data-orig="${esc(it.zh)}" title="也可以點一下直接修改">${esc(t)}</span>
           ${it.en ? `<small>${esc(it.en)}</small>` : ""}
-          <span class="sv-act">${fb(it.id)}${ed ? `<button type="button" data-svrestore="${esc(it.id)}">還原</button>` : ""}</span>${note(it.id)}</div>${dots}</div>`; }).join("")}</div>`; }).join("");
-  const scaleHead = `<div class="sv-scale${"scale" in fix ? " fix" : ""}"><span>${esc(S.ends[0] || "1")}</span>${dots}<span>${esc(S.ends[1] || String(n))}</span>${fb("scale")}</div>${note("scale")}`;
-  const parts = svParts(S).filter(x => x.key in fix);
-  const fixBox = parts.length ? `<div class="sv-fixbox"><h4>修改意見（${parts.length} 項）</h4>
-    ${parts.map(x => `<div class="sv-fixrow"><b>${esc(x.label)}</b><span class="sv-orig">${esc(x.text)}</span>
-      <div class="sv-notev">意見：<span data-svnoteview="${esc(x.key)}">${esc(fix[x.key] || "（尚未填寫，請在上方該部分下方的欄位填寫）")}</span></div>
-      <button type="button" data-svfix="${esc(x.key)}">移除</button></div>`).join("")}
-    <p class="sv-btns"><button type="button" class="copy" data-svfixcopy="1">複製修改追問 Prompt（貼到同一個 NotebookLM 對話）</button>
-      <button type="button" class="copy alt" data-svnotecopy="1">複製修改意見（純文字，可給學生）</button></p>
-    <p class="hint">AI 的修訂建議貼到下方「修訂建議的 AI 回覆」。</p></div>` : "";
+          ${ed ? `<span class="sv-act"><button type="button" data-svrestore="${esc(it.id)}">還原</button></span>` : ""}
+          ${note(it.id)}</div>${dots}</div>`; }).join("")}</div>`; }).join("");
+  const scaleHead = `<div class="sv-scale"><span>${esc(S.ends[0] || "1")}</span>${dots}<span>${esc(S.ends[1] || String(n))}</span></div>${note("scale").replace('placeholder="修改意見（選填）"', 'placeholder="對量尺的修改意見（選填）"')}`;
   return `<div class="sview"><div class="cand-head"><h3>問卷預覽</h3><button type="button" class="copy" data-svcopy="1">複製整份問卷</button></div>
-    <p class="hint">每個部分都可按「加入修改意見」，該部分下方會出現欄位讓你填寫，所有意見會彙整在問卷最下方；量表題項也可以點文字直接修改（已修改者以底色標示，可「還原」）。</p>
-    ${S.intro ? `<div class="sv-conhead"><h4>填答說明</h4>${fb("intro")}</div>${note("intro")}<p class="sv-intro${"intro" in fix ? " fix" : ""}">${esc(S.intro)}</p>` : ""}
+    <p class="hint">每個部分、每一題下方都有「修改意見」欄，有填寫的會彙整在問卷最下方，再一次複製請 NotebookLM 逐條回應；量表題項也可以點文字直接修改。</p>
+    ${S.intro ? `<h4>填答說明</h4><p class="sv-intro">${esc(S.intro)}</p>${note("intro")}` : ""}
     ${simple("篩選題", S.screen)}${simple("操弄檢定與注意力檢核", S.manip)}
     ${S.constructs.length ? `<h4>量表題項</h4>${scaleHead}` : ""}${cons}
-    ${simple("基本資料題", S.demo)}</div>${fixBox}`;
+    ${simple("基本資料題", S.demo)}</div><div class="sv-fixbox" id="svfixbox">${svFixBox(S)}</div>`;
 }
 function svText() {   // 整份問卷的純文字（含修改）
   const S = parseSurvey(svReply()); if (!S) return "";
@@ -714,13 +717,13 @@ function svText() {   // 整份問卷的純文字（含修改）
 }
 function svFixPrompt() {
   const S = parseSurvey(svReply()); if (!S) return "";
-  const fix = store.values.sv_fix || {};
+  const fix = svNotes();
   const items = svParts(S).filter(x => x.key in fix).map(x => ({ ...x, note: fix[x.key] }));
   return items.length ? T.ask_svfix({ items }) : "";
 }
 function svNotesText() {   // 修改意見清單（純文字）
   const S = parseSurvey(svReply()); if (!S) return "";
-  const fix = store.values.sv_fix || {};
+  const fix = svNotes();
   const items = svParts(S).filter(x => x.key in fix);
   return items.length ? "【問卷修改意見】\n\n" + items.map((x, k) => `${k + 1}. ${x.label}\n原文：${x.text}\n意見：${fix[x.key] || "（未填）"}`).join("\n\n") : "";
 }
