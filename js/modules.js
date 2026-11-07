@@ -691,7 +691,7 @@ function svParts(S) {
     ...S.screen.map(x => ({ key: x.id, label: `${x.id}（篩選題）`, kind: "other", text: q(x) })), ...oth("screen"),
     ...S.manip.map(x => ({ key: x.id, label: `${x.id}（操弄檢定）`, kind: "other", text: q(x) })), ...oth("manip"),
     ...(S.scaleText ? [{ key: "scale", label: "量尺", kind: "other", text: S.scaleText }] : []), ...oth("scale"),
-    ...S.constructs.flatMap(c => [{ key: "con:" + c.name, label: `構念「${c.name}」`, kind: "con", src: c.src, text: c.items.map(it => `${it.id} ${svItemText(it)}`).join("；") || c.missing },
+    ...S.constructs.flatMap(c => [{ key: "con:" + c.name, label: `構念「${c.name}」`, kind: "con", src: c.src, text: (c.stem ? `題幹：${c.stem}；` : "") + c.items.map(it => `${it.id} ${svItemText(it)}`).join("；") || c.missing },
       ...c.items.map(it => ({ key: it.id, label: it.id, kind: "item", con: c.name, src: c.src, text: svItemText(it), en: it.en }))]), ...oth("con"),
     ...S.demo.map(x => ({ key: x.id, label: `${x.id}（基本資料）`, kind: "other", text: q(x) })), ...oth("demo")
   ];
@@ -727,6 +727,7 @@ function surveyView(text) {
     return `<div class="sv-con"><h4>${esc(c.name)}</h4><p class="hint">${esc([c.src, c.dim && !/^無$/.test(c.dim) ? "構面：" + c.dim : ""].filter(Boolean).join("｜"))}</p>
     ${note(ck).replace('placeholder="修改意見（選填）"', 'placeholder="對整組題項的修改意見（選填）"')}
     ${c.missing ? `<p class="note warn">${esc(c.missing)}</p>` : ""}
+    ${c.stem ? `<p class="sv-stem">${esc(c.stem)}${/[，,：:]$/.test(c.stem) ? "" : "……"}</p>` : ""}
     ${c.items.map(it => { const t = svItemText(it), ed = t !== it.zh, w = !it.en ? was(it.id, it.zh) : !rev ? "" : ("en:" + svEnKey(it.en)) in O ? was("en:" + svEnKey(it.en), it.zh) : `<div class="sv-was">（修訂版新增或更換的題項）</div>`;
       return `<div class="sv-item${ed ? " edited" : ""}${w ? " revised" : ""}"><b>${esc(it.id)}</b>
         <div class="sv-text"><span class="sv-zh" contenteditable="true" spellcheck="false" data-sved="${esc(it.id)}" data-orig="${esc(it.zh)}" title="也可以點一下直接修改">${esc(t)}</span>
@@ -749,7 +750,7 @@ function svText() {   // 整份問卷的純文字（含修改）
   return [...oth("start"), S.intro && "【填答說明】\n" + S.intro, ...oth("intro"), S.screen.length && "【篩選題】\n" + S.screen.map(q).join("\n"), ...oth("screen"),
     S.manip.length && "【操弄檢定與注意力檢核】\n" + S.manip.map(q).join("\n"), ...oth("manip"),
     S.constructs.length && `【量表題項】量尺：${S.scaleText}`, ...oth("scale"),
-    ...S.constructs.map(c => `〈${c.name}〉${c.src ? "（" + c.src + "）" : ""}\n` + (c.missing ? c.missing + "\n" : "") + c.items.map(it => `${it.id}. ${svItemText(it)}`).join("\n")), ...oth("con"),
+    ...S.constructs.map(c => `〈${c.name}〉${c.src ? "（" + c.src + "）" : ""}\n` + (c.missing ? c.missing + "\n" : "") + (c.stem ? c.stem + (/[，,：:]$/.test(c.stem) ? "" : "……") + "\n" : "") + c.items.map(it => `${it.id}. ${svItemText(it)}`).join("\n")), ...oth("con"),
     S.demo.length && "【基本資料】\n" + S.demo.map(q).join("\n"), ...oth("demo")].filter(Boolean).join("\n\n");
 }
 function svFixBatches() {   // 依 NotebookLM 單次輸入上限分批
