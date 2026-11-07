@@ -80,7 +80,10 @@ function parseTsv(text) {
   const n = Math.max(...rows.map(r => r.length));
   const full = rows.filter(r => r.length === n).length;
   if (rows.length < 2 || n < 2 || full < rows.length * 0.8) return null;
-  return rows.map(r => r.concat(Array(n - r.length).fill("")));
+  // 從試算表全選複製時，會帶入大量空白列與空白欄：去掉全空的列，以及最右側全空的欄
+  const out = rows.map(r => r.concat(Array(n - r.length).fill(""))).filter(r => r.some(v => v.trim()));
+  let w = n; while (w > 1 && out.every(r => !r[w - 1].trim())) w--;
+  return out.length >= 2 ? out.map(r => r.slice(0, w)) : null;
 }
 // 轉成 Markdown 表格：第一列為標題；儲存格內的換行改為 <br>，直線改為 \|
 function mdTable(rows) {
