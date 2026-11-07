@@ -717,7 +717,7 @@ function surveyView(text) {
   const fix = store.values.sv_fix || {}, n = S.points;
   const note = key => `<input type="text" class="sv-note${blank(fix[key]) ? "" : " filled"}" data-svnote="${esc(key)}" value="${esc(fix[key] || "")}" placeholder="修改意見（選填）">`;
   const dots = `<span class="sv-dots">${Array.from({ length: n }, (_, k) => `<i>${k + 1}</i>`).join("")}</span>`;
-  const opts = q => q.opts.length ? `<div class="sv-opts">${q.opts.map(o => `<span>○ ${esc(o)}</span>`).join("")}</div>` : "";
+  const opts = q => q.opts.length ? `<div class="sv-opts">${q.opts.map(o => `<span><i class="sv-box${q.multi ? " multi" : ""}"></i>${esc(o)}</span>`).join("")}</div>` : "";
   const simple = (title, qs) => qs.length ? (title ? `<h4>${title}</h4>` : "") + qs.map(q => { const w = was(q.id, q.q + (q.opts.length ? `（${q.opts.join("／")}）` : ""));
     return `<div class="sv-q${w ? " revised" : ""}"><b>${esc(q.id)}</b> ${esc(q.q)}${opts(q)}${w}${note(q.id)}</div>`; }).join("") : "";
   const oth = k => S.other.filter(o => o.after === k).map(o => { const w = was("sec:" + o.head, o.text);

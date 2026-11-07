@@ -651,6 +651,7 @@ T.ask_survey = p => [
   "其下每行一題，全卷連續編號，格式為：Q1｜中文暫譯｜英文原題。中文暫譯須經翻譯—回譯程序確認；找不到題項的構念，寫一行「【待補量表：構念名稱】」。",
   "### 基本資料題",
   "依研究情境列出必要的人口統計與使用行為題目，每行一題，格式為：D1｜題目｜選項一／選項二／……",
+  "選項前不加 ○ 或 □ 等符號；可複選的題目，在題目最後加註「（可複選）」。",
   "需要新增上列以外的部分（例如情境回想、引導說明）時，以「### 部分名稱」為小標題，放在問卷中實際出現的位置；引導文字寫成段落，題目每行一題，格式為：R1｜題目｜選項一／選項二／……（開放題不寫選項）。",
   "",
   "## 可行性評估",
@@ -1270,6 +1271,9 @@ function deLatex(text) {
 }
 
 // 問卷草稿：解析「## 問卷草稿」一節 → { intro, screen, manip, scale, constructs:[{ name, src, dim, items:[{ id, zh, en }], missing }], demo }
+// 選項：去掉 AI 自行加上的 ○ □ 等符號；題目或選項含「複選」或方框者視為複選題
+const svOpts = t => String(t || "").split(/[／/]/).map(x => x.replace(/^[\s○◯●◎□☐■◻▢☑✓]+/, "").trim()).filter(Boolean);
+const svMulti = (q, t) => /複選|多選/.test(q || "") || /^[\s]*[□☐■◻▢☑]/.test(t || "");
 function parseSurvey(text) {
   const t = String(text || "").replace(/\r\n?/g, "\n").replace(/\*\*/g, "");
   const m = lastSection(t, /^#{1,3}\s*問卷草稿[^\n]*\n([\s\S]*?)(?=^#{1,2}\s(?!#)|(?![\s\S]))/gm);
@@ -1283,15 +1287,15 @@ function parseSurvey(text) {
       : /^(操弄|注意力)/.test(head) ? "manip" : /^構念/.test(head) || head.split(/[｜|]/).length >= 3 ? "con" : "other";
     if (kind === "other") {
       const qs = [], text = [];
-      body.forEach(l => { const r = row(l); if (r.length >= 2 && /^[A-Za-z]{1,3}\d+$/.test(r[0])) qs.push({ id: r[0].toUpperCase(), q: r[1], opts: (r[2] || "").split(/[／/]/).map(x => x.trim()).filter(Boolean) }); else text.push(l.replace(/^[-*•]\s*/, "")); });
+      body.forEach(l => { const r = row(l); if (r.length >= 2 && /^[A-Za-z]{1,3}\d+$/.test(r[0])) qs.push({ id: r[0].toUpperCase(), q: r[1], opts: svOpts(r[2]), multi: svMulti(r[1], r[2]) }); else text.push(l.replace(/^[-*•]\s*/, "")); });
       S.other.push({ head, text: text.join("\n"), qs, after: last });
       return;
     }
     last = kind;
     if (/^填答說明/.test(head)) S.intro = body.join("\n");
-    else if (/^篩選題/.test(head)) S.screen = body.map(row).filter(c => c.length >= 2).map(c => ({ id: c[0], q: c[1], opts: (c[2] || "").split(/[／/]/).map(x => x.trim()).filter(Boolean) }));
+    else if (/^篩選題/.test(head)) S.screen = body.map(row).filter(c => c.length >= 2).map(c => ({ id: c[0], q: c[1], opts: svOpts(c[2]), multi: svMulti(c[1], c[2]) }));
     else if (kind === "manip") S.manip = body.map(row).filter(c => c.length >= 2).map(c => ({ id: c[0], q: c[1], opts: [] }));
-    else if (/^基本資料/.test(head)) S.demo = body.map(row).filter(c => c.length >= 2).map(c => ({ id: c[0], q: c[1], opts: (c[2] || "").split(/[／/]/).map(x => x.trim()).filter(Boolean) }));
+    else if (/^基本資料/.test(head)) S.demo = body.map(row).filter(c => c.length >= 2).map(c => ({ id: c[0], q: c[1], opts: svOpts(c[2]), multi: svMulti(c[1], c[2]) }));
     else if (/^量尺/.test(head)) S.scaleText = body.join(" ");
     else if (/^構念/.test(head) || head.split(/[｜|]/).length >= 3) {
       const c = head.replace(/^構念\s*[｜|]\s*/, "").split(/\s*[｜|]\s*/);
@@ -1325,6 +1329,7 @@ T.ask_svrev = p => [
   "每個構念一個小標題：### 構念｜中文名稱（英文原文）｜量表出處（作者, 年份）｜構面（單一構面寫「無」）",
   "其下每行一題，全卷連續編號：Q1｜中文｜英文原題；找不到題項的構念寫一行「【待補量表：構念名稱】」。",
   "### 基本資料題（每行一題：D1｜題目｜選項一／選項二／……）",
+  "選項前不加 ○ 或 □ 等符號；可複選的題目，在題目最後加註「（可複選）」。",
   "需要新增上列以外的部分（例如情境回想、引導說明）時，以「### 部分名稱」為小標題，放在問卷中實際出現的位置；引導文字寫成段落，題目每行一題，格式為：R1｜題目｜選項一／選項二／……（開放題不寫選項）。",
   "",
   "## 修改摘要",
