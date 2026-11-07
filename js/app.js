@@ -295,12 +295,12 @@ $("pane").addEventListener("click", async e => {
     }
     pc.textContent = "已複製 ✓"; setTimeout(() => (pc.textContent = old), 1500); return;
   }
-  const sb = e.target.closest("button[data-svfix], button[data-svrestore], button[data-svcopy], button[data-svfixcopy]");
+  const sb = e.target.closest("button[data-svfix], button[data-svrestore], button[data-svcopy], button[data-svfixcopy], button[data-svnotecopy]");
   if (sb) {   // 問卷預覽的按鈕
     if (sb.dataset.svfix) { const f = (store.values.sv_fix ||= {}); if (sb.dataset.svfix in f) delete f[sb.dataset.svfix]; else f[sb.dataset.svfix] = ""; }
     if (sb.dataset.svrestore) delete (store.values.sv_edit || {})[sb.dataset.svrestore];
-    if (sb.dataset.svcopy || sb.dataset.svfixcopy) {
-      const text = sb.dataset.svcopy ? svText() : svFixPrompt();
+    if (sb.dataset.svcopy || sb.dataset.svfixcopy || sb.dataset.svnotecopy) {
+      const text = sb.dataset.svcopy ? svText() : sb.dataset.svfixcopy ? svFixPrompt() : svNotesText();
       try { await navigator.clipboard.writeText(text); } catch {
         const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
       }

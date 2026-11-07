@@ -299,3 +299,17 @@ p.stepnote.after { white-space: pre-line; }
 .sv-fixrow input { grid-column: 2; padding: 5px 8px; font-size: 13px; }
 .sv-fixrow button { grid-column: 2; justify-self: start; }
 @media (max-width: 700px) { .sv-item { grid-template-columns: 34px 1fr; } .sv-item .sv-dots { grid-column: 2; } }
+.sv-conhead { display: flex; align-items: center; gap: 10px; }
+.sv-conhead h4 { margin: 16px 0 6px; }
+.sv-fb { padding: 1px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.sv-fb.on { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
+.sv-q .sv-act { margin-left: 28px; }
+.sv-q.fix, .sv-intro.fix, .sv-con.fix > .sv-conhead, .sv-scale.fix { box-shadow: inset 3px 0 0 var(--warn); padding-left: 8px; }
+.sv-scale .sv-fb { margin-left: 6px; }
+.sv-orig { grid-column: 2; color: var(--muted); font-size: 12.5px; white-space: pre-line; }
+.sv-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.copy.alt { background: var(--panel); color: var(--accent); border: 1px solid var(--accent); }
+.sv-fixrow { display: block; }
+.sv-fixrow > b { display: inline-block; margin-right: 8px; }
+.sv-fixrow .sv-orig { display: inline; }
+.sv-fixrow input { display: block; width: 100%; margin: 6px 0 4px; }
