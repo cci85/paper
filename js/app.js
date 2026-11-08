@@ -256,6 +256,14 @@ $("pane").addEventListener("input", e => {
     const box = $("svfixbox"); if (box) box.innerHTML = svFixBox(parseSurvey(svReply()));
     return;
   }
+  if (t.dataset.bppick) {   // 背景與動機的寫法：勾選 → 組成「選定的寫法」
+    const os = bpOptions(deLatex((store.replies || {})[replyKey()] || ""));
+    const picked = [...document.querySelectorAll("input[data-bppick]:checked")].map(x => os[+x.dataset.bppick]).filter(Boolean);
+    store.values.bp_pick = picked.map(o => o.title);
+    store.values.bg_plan = picked.map(o => `${o.title}\n${o.text}`).join("\n\n");
+    save(); t.closest(".bp-opt").classList.toggle("on", t.checked);
+    return;
+  }
   if (t.dataset.tbfill) {   // 待補資料查證：只存值，不重畫（保留游標）
     (store.values.tb_fill ||= {})[t.dataset.tbfill] = t.value; save();
     t.classList.toggle("filled", !blank(t.value));

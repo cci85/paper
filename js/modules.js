@@ -328,9 +328,10 @@ const DEFS = {
     seed: () => ({ bp_topic: bgSeed().bg_topic }),
     seedFrom: "前面步驟", seedNote: "研究題目與研究架構由 0.5 定稿題目、研究情境與 3.1／0.3 的研究架構帶入",
     rules: () => ["citation"],
+    replyView: t => bpView(t),
     build: (p, R) => blank(p.bp_topic) ? "" : T.bgplan({ topic: p.bp_topic.trim(), n: p.bp_n }) + R,
     empty: "（請先完成 0.5 論文題目或 0.3 研究架構）",
-    next: "下一步：從回覆的「寫法選項」中選一種（可以合併或修改），把那一種的段落大綱貼到{#asp}的「選定的寫法」，請有網路搜尋的 AI 查台灣資料。"
+    next: "下一步：在下方勾選要用的寫法（可勾多種合併），會自動帶入{#asp}與{#bg}的「選定的寫法」。"
   },
   bg: {
     label: "研究背景與動機", target: "nlm",
@@ -924,6 +925,25 @@ function finalArch() {
   const d = own ? dgData("ow_diag") : archDiag(p);
   return { A, vars, d: { edges: d.edges || [], mods: d.mods || [], pos: d.pos || {} } };
 }
+// ── 背景與動機的寫法：把回覆中的「寫法選項」拆成可勾選的卡片 ──
+function bpOptions(text) {
+  const body = mdSection(text, ["寫法選項"]) || "";
+  const L = body.split("\n").slice(1), opts = []; let cur = null;
+  const isHead = l => /^#{3,5}\s/.test(l) || /^\s*[*_]*\s*(寫法|選項|方案)\s*[一二三四五六七八九十\d]+/.test(l);
+  const useHead = L.some(l => /^#{3,5}\s/.test(l));
+  L.forEach(l => {
+    if (useHead ? /^#{3,5}\s/.test(l) : isHead(l)) { cur = { title: l.replace(/^#+\s*|\*\*/g, "").trim(), lines: [] }; opts.push(cur); }
+    else if (cur) cur.lines.push(l);
+  });
+  return opts.map(o => ({ title: o.title, text: o.lines.join("\n").trim() })).filter(o => o.text);
+}
+function bpView(t) {
+  const os = bpOptions(t); if (!os.length) return blank(t) ? "" : `<p class="note warn">回覆中沒有找到「寫法選項」一節，請重新複製 Prompt（新版會以「### 寫法一：名稱」分開各寫法）。</p>`;
+  const pick = store.values.bp_pick || [];
+  return `<div class="bpview"><h3>勾選要用的寫法</h3><p class="hint">可勾多種，合併成一個大綱；勾選的內容會自動帶入下一步與步驟 3 的「選定的寫法」，帶入後也可以自己修改。</p>` +
+    os.map((o, i) => `<label class="bp-opt${pick.includes(o.title) ? " on" : ""}"><span class="bp-head"><input type="checkbox" data-bppick="${i}" ${pick.includes(o.title) ? "checked" : ""}><b>${esc(o.title)}</b></span><div class="bp-body">${esc(o.text).replace(/\*\*/g, "")}</div></label>`).join("") + `</div>`;
+}
+
 // ── 段落核實改寫：把本節前面步驟的 AI 回覆拆成一段一段 ──
 let DR_R = "";   // 段落核實改寫的共用規則（另成一則，每個對話送一次）
 const VERIFY_HEAD = /^#{1,4}\s*(?:\d+[.、]\s*)?(待補清單|待補資料|需要研究者查證|學生原稿檢核|學生內容查證|來源核對)/m;

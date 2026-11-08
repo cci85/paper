@@ -357,3 +357,9 @@ textarea.tb-in.filled { border: 1.5px solid var(--accent); background: var(--acc
 #cands-dr_paras .dr-para { padding: 12px 14px; }
 #cands-dr_paras .dr-txt { font-size: 16px; line-height: 1.75; }
 #cands-dr_paras .dr-para > b { font-size: 18px; min-width: 1.6em; }
+.bpview h3 { margin: 16px 0 4px; }
+.bp-opt { display: block; border: 1.5px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 10px 0; cursor: pointer; background: var(--panel); }
+.bp-opt.on { border-color: var(--accent); background: var(--accent-soft); }
+.bp-head { display: flex; gap: 10px; align-items: center; font-size: 17px; }
+.bp-head input { width: 18px; height: 18px; }
+.bp-body { white-space: pre-wrap; font-size: 15px; line-height: 1.75; margin-top: 6px; }
