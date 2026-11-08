@@ -706,8 +706,8 @@ function svParts(S) {
     ...S.screen.map(x => ({ key: x.id, label: `${x.id}（篩選題）`, kind: "other", text: q(x) })), ...oth("screen"),
     ...S.manip.map(x => ({ key: x.id, label: `${x.id}（操弄檢定）`, kind: "other", text: q(x) })), ...oth("manip"),
     ...(S.scaleText ? [{ key: "scale", label: "量尺", kind: "other", text: S.scaleText }] : []), ...oth("scale"),
-    ...S.constructs.flatMap(c => [{ key: "con:" + c.name, label: `構念「${c.name}」`, kind: "con", src: c.src, text: (c.stem ? `題幹：${c.stem}；` : "") + c.items.map(it => `${it.id} ${svItemText(it)}`).join("；") || c.missing },
-      ...c.items.map(it => ({ key: it.id, label: it.id, kind: "item", con: c.name, src: c.src, text: svItemText(it), en: it.en }))]), ...oth("con"),
+    ...S.constructs.flatMap((c, ci) => [{ key: "con:" + c.name, label: `構念「${c.name}」`, kind: "con", src: c.src, text: (c.stem ? `題幹：${c.stem}；` : "") + c.items.map(it => `${it.id} ${svItemText(it)}`).join("；") || c.missing },
+      ...c.items.map(it => ({ key: it.id, label: it.id, kind: "item", con: c.name, src: c.src, text: svItemText(it), en: it.en })), ...oth("con" + ci)]), ...oth("con"),
     ...S.demo.map(x => ({ key: x.id, label: `${x.id}（基本資料）`, kind: "other", text: q(x) })), ...oth("demo")
   ];
 }
@@ -738,7 +738,7 @@ function surveyView(text) {
     return `<div class="sv-q${w ? " revised" : ""}"><b>${esc(q.id)}</b> ${esc(q.q)}${opts(q)}${w}${note(q.id)}</div>`; }).join("") : "";
   const oth = k => S.other.filter(o => o.after === k).map(o => { const w = was("sec:" + o.head, o.text);
     return `<h4>${esc(o.head)}</h4>${o.text ? `<div class="${w ? "revised" : ""}"><p class="sv-intro">${esc(o.text)}</p>${w}</div>${note("sec:" + o.head)}` : ""}${simple("", o.qs)}`; }).join("");
-  const cons = S.constructs.map(c => { const ck = "con:" + c.name;
+  const cons = S.constructs.map((c, ci) => { const ck = "con:" + c.name;
     return `<div class="sv-con"><h4>${esc(c.name)}</h4><p class="hint">${esc([c.src, c.dim && !/^無$/.test(c.dim) ? "構面：" + c.dim : ""].filter(Boolean).join("｜"))}</p>
     ${note(ck).replace('placeholder="修改意見（選填）"', 'placeholder="對整組題項的修改意見（選填）"')}
     ${c.missing ? `<p class="note warn">${esc(c.missing)}</p>` : ""}
@@ -748,7 +748,7 @@ function surveyView(text) {
         <div class="sv-text"><span class="sv-zh" contenteditable="true" spellcheck="false" data-sved="${esc(it.id)}" data-orig="${esc(it.zh)}" title="也可以點一下直接修改">${esc(t)}</span>
           ${it.en ? `<small>${esc(it.en)}</small>` : ""}
           ${w}${ed ? `<span class="sv-act"><button type="button" data-svrestore="${esc(it.id)}">還原</button></span>` : ""}
-          ${note(it.id)}</div>${dots}</div>`; }).join("")}</div>`; }).join("");
+          ${note(it.id)}</div>${dots}</div>`; }).join("")}</div>${oth("con" + ci)}`; }).join("");
   const scaleHead = `<div class="sv-scale"><span>${esc(S.ends[0] || "1")}</span>${dots}<span>${esc(S.ends[1] || String(n))}</span></div>${was("scale", S.scaleText)}${note("scale").replace('placeholder="修改意見（選填）"', 'placeholder="對量尺的修改意見（選填）"')}`;
   return `<div class="sview"><div class="cand-head"><h3>問卷預覽${rev ? "（修訂版）" : ""}</h3>${hasRev() ? `<span class="sv-ver"><button type="button" data-svver="rev" class="${rev ? "on" : ""}">修訂版</button><button type="button" data-svver="orig" class="${rev ? "" : "on"}">原版</button></span>` : ""}<button type="button" class="copy" data-svcopy="1">複製整份問卷</button></div>
     ${rev ? `<p class="hint">黃底是修訂版改過或新增的部分，下方標示原文；完整的修改理由見「修訂版問卷的 AI 回覆」中的「修改摘要」。</p>` : ""}
@@ -765,7 +765,7 @@ function svText() {   // 整份問卷的純文字（含修改）
   return [...oth("start"), S.intro && "【填答說明】\n" + S.intro, ...oth("intro"), S.screen.length && "【篩選題】\n" + S.screen.map(q).join("\n"), ...oth("screen"),
     S.manip.length && "【操弄檢定與注意力檢核】\n" + S.manip.map(q).join("\n"), ...oth("manip"),
     S.constructs.length && `【量表題項】量尺：${S.scaleText}`, ...oth("scale"),
-    ...S.constructs.map(c => `〈${c.name}〉${c.src ? "（" + c.src + "）" : ""}\n` + (c.missing ? c.missing + "\n" : "") + (c.stem ? c.stem + (/[，,：:]$/.test(c.stem) ? "" : "……") + "\n" : "") + c.items.map(it => `${it.id}. ${svItemText(it)}`).join("\n")), ...oth("con"),
+    ...S.constructs.flatMap((c, ci) => [`〈${c.name}〉${c.src ? "（" + c.src + "）" : ""}\n` + (c.missing ? c.missing + "\n" : "") + (c.stem ? c.stem + (/[，,：:]$/.test(c.stem) ? "" : "……") + "\n" : "") + c.items.map(it => `${it.id}. ${svItemText(it)}`).join("\n"), ...oth("con" + ci)]), ...oth("con"),
     S.demo.length && "【基本資料】\n" + S.demo.map(q).join("\n"), ...oth("demo")].filter(Boolean).join("\n\n");
 }
 function svFixBatches() {   // 依 NotebookLM 單次輸入上限分批
