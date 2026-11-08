@@ -117,8 +117,9 @@ function fenceMermaid(text) {
 
 // 論文草稿（第一章～第五章）：每節列出各步驟的 AI 回覆，尚未撰寫的節留白；另存為「研究名稱_論文.md」
 function thesisText(pngs) {
-  const out = ["---", `title: ${store.name || ""}　論文草稿`, "source: 論文工作台", "---", "",
-    `# ${store.name || ""}　論文草稿`, "",
+  const zh = (store.values.tt_zh || "").trim(), en = (store.values.tt_en || "").trim();
+  const out = ["---", `title: ${zh || (store.name || "") + "　論文草稿"}`, "source: 論文工作台", "---", "",
+    `# ${zh || (store.name || "") + "　論文草稿"}`, "", ...(en ? [`**${en}**`, ""] : []),
     "> 本檔由論文工作台依各章節的 AI 回覆自動產生，每次存檔都會重新產生；要修改內容，請在網站上修改，或另存一份再編輯。", ""];
   OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).forEach(c => {
     out.push(`## ${c.ch}`, "");

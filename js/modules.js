@@ -473,6 +473,20 @@ const DEFS = {
   },
 
   // ─── 兩頁共用：小工具 ───
+  ttl: {
+    label: "論文題目", target: "nlm",
+    hint: "依 0.3 檢核後的研究架構，請 NotebookLM 參考上傳文獻的題目寫法，提出數個中英文題目候選並比較優缺點；選定或修改後，把定稿題目填在最下方。",
+    fields: [
+      { id: "tt_n", type: "radio", label: "候選題目數", options: [["3", "3 個"], ["5", "5 個"]], value: "5" },
+      { id: "tt_pref", type: "textarea", label: "題目偏好", hint: "選填；例如要不要包含研究情境、以哪個機制為主軸、字數限制", rows: 2, placeholder: "例如：要包含「蝦皮」；以雙路徑瀏覽為主軸；中文 30 字以內" },
+      { id: "tt_zh", type: "text", below: true, label: "定稿題目（中文）", hint: "會成為論文草稿檔的標題", placeholder: "例如：特惠偏好與社會從眾對線上衝動購買之影響：以瀏覽動機為中介" },
+      { id: "tt_en", type: "text", below: true, label: "定稿題目（英文）", hint: "選填", placeholder: "例如：The Effects of Deal Proneness and Social Influence on Online Impulse Buying" }
+    ],
+    rules: () => ["citation"],
+    build: (p, R) => { const t = f31Text() || ttlArch(); return t ? T.title({ arch: t, ctx: (store.values.as_ctx || "").trim(), n: p.tt_n, pref: (p.tt_pref || "").trim() }) + R : ""; },
+    empty: "（0.3 還沒有研究架構）",
+    next: "下一步：題目定稿後，到{#asp}開始撰寫第一章。"
+  },
   fa31: {
     label: "研究架構圖與說明", target: "nlm",
     hint: "由 0.3 檢核後的研究架構自動帶入架構圖，可微調位置後按「下載 PNG」放進論文；再複製 Prompt，請 NotebookLM 撰寫「3.1 研究架構」一節。",
@@ -874,6 +888,7 @@ function finalArch() {
   const d = own ? dgData("ow_diag") : archDiag(p);
   return { A, vars, d: { edges: d.edges || [], mods: d.mods || [], pos: d.pos || {} } };
 }
+function ttlArch() { const { A, vars, d } = finalArch(); return vars.length && d.edges.length ? archText({ ...A, vars }, d) : ""; }
 function f31Text() {
   const { A, vars } = finalArch(); if (!vars.length) return "";
   const d = dgSeed(DEFS.fa31.fields[0], {});
@@ -940,7 +955,9 @@ const OUTLINE = [
       { mod: "archq", note: "接在步驟 1 的同一個對話；可重複使用。", go: [{ to: "s0-6", step: 0, when: "疑問釐清、架構確定後" }] }] },
     { id: "s0-6", no: "0.4", title: "研究設計", desc: "研究架構確定之後：確認文獻用過的統計方法、本研究適用的方法與應揭露的實證結果；研究方法為問卷調查法或實驗設計法時，再產出問卷草稿。", steps: [
       { mod: "astat", note: "選定變數與資料之後：確認統計方法，以及實證結果應揭露哪些項目。可接在 0.3 檢核的同一個對話。", go: [{ to: "s0-6", step: 1, when: "研究方法為問卷調查法或實驗設計法" }, { to: "s1-1", step: 0, when: "panel data，或統計方法已確定，開始撰寫第一章" }] },
-      { mod: "asq", note: "研究方法為問卷調查法或實驗設計法時使用：產出問卷草稿，並評估題數、樣本數、量表與施測風險；panel data 可跳過。", go: [{ to: "s1-1", step: 0, when: "問卷草稿完成，開始撰寫第一章緒論" }, { to: "s3-3", step: 0, when: "正式撰寫量表與操作型定義時" }] }] }
+      { mod: "asq", note: "研究方法為問卷調查法或實驗設計法時使用：產出問卷草稿，並評估題數、樣本數、量表與施測風險；panel data 可跳過。", go: [{ to: "s0-7", step: 0, when: "研究設計完成，擬定論文題目" }, { to: "s3-3", step: 0, when: "正式撰寫量表與操作型定義時" }] }] },
+    { id: "s0-7", no: "0.5", title: "論文題目", desc: "依確定的研究架構擬定中英文論文題目：AI 提出候選題目並比較優缺點，再由你定稿；定稿題目會成為論文草稿檔的標題。", steps: [
+      { mod: "ttl", note: "可接在 0.3 或 0.4 的同一個 NotebookLM 對話；定稿題目填在最下方。", go: [{ to: "s1-1", step: 0, when: "題目定稿後，開始撰寫第一章緒論" }] }] }
   ] },
   { ch: "第一章 緒論", secs: [
     { id: "s1-1", no: "1.1", title: "研究背景與動機", desc: "由產業現象收斂到文獻缺口。", steps: [
