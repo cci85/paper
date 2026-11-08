@@ -38,7 +38,7 @@ function dgSeed(f, p) {
   const d = dgData(f.id);
   if (!f.seed) return d;
   const s = f.seed(p);
-  if (d.sig !== s.sig) { d.sig = s.sig; d.edges = s.edges.map(e => ({ ...e })); d.mods = s.mods.map(m => ({ ...m })); }
+  if (d.sig !== s.sig) { d.sig = s.sig; d.edges = s.edges.map(e => ({ ...e })); d.mods = s.mods.map(m => ({ ...m })); if (s.pos) d.pos = JSON.parse(JSON.stringify(s.pos)); }
   return d;
 }
 

@@ -473,6 +473,21 @@ const DEFS = {
   },
 
   // ─── 兩頁共用：小工具 ───
+  fa31: {
+    label: "研究架構圖與說明", target: "nlm",
+    hint: "由 0.3 檢核後的研究架構自動帶入架構圖，可微調位置後按「下載 PNG」放進論文；再複製 Prompt，請 NotebookLM 撰寫「3.1 研究架構」一節。",
+    fields: [
+      { id: "f31_diag", type: "diagram", label: "研究架構圖（由 0.3 帶入）", hint: "拖曳方塊調整位置；點一個方塊再點另一個方塊可加箭頭；未選方塊時點箭頭可刪除。0.3 的架構改過後，按「依文字重畫」更新",
+        emptyHint: "（0.3 還沒有研究架構：請先完成 0.3 研究架構合理性檢核）",
+        source: () => finalArch().vars,
+        seed: () => { const { d } = finalArch(); return { sig: JSON.stringify([d.edges, d.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: d.edges, mods: d.mods, pos: d.pos }; } },
+      { id: "f31_theory", type: "text", label: "理論基礎", hint: "選填；不填時由 NotebookLM 依文獻判斷", placeholder: "例如：刺激—有機體—反應（S-O-R）模式" }
+    ],
+    rules: () => ["citation"],
+    build: (p, R) => { const t = f31Text(); return t ? T.frame31({ arch: t, theory: (p.f31_theory || "").trim(), ctx: (store.values.as_ctx || "").trim() }) + R : ""; },
+    empty: "（0.3 還沒有研究架構）",
+    next: "下一步：3.2 用{#hypo}逐條推導假說；需要 Mermaid 格式的架構圖時，用本節的「文字轉關係圖」。"
+  },
   m7a: {
     label: "文字轉關係圖", target: "nlm",
     hint: "任何一段已生成的文字都可以畫成 Mermaid 關係圖，每個主題群各畫一張；也可用來畫第三章的研究架構圖。",
@@ -851,6 +866,20 @@ function chooseCand(i) {
 
 // 0.3 步驟 2：架構圖資料（依文字建立，保留圖上的手動修改）與送出的架構文字
 const archDiag = p => dgSeed(DEFS.archchk.fields.find(f => f.id === "ac_diag"), p);
+// 3.1：0.3 檢核後的最終研究架構（自行設計時用自畫的圖，否則用 0.2 組合架構）
+function finalArch() {
+  const p = {}; DEFS.archchk.fields.forEach(f => { p[f.id] = store.values[f.id] ?? (Array.isArray(f.value) ? f.value.slice() : f.value ?? ""); });
+  const own = p.ac_src === "own";
+  const A = parseArch(archSrcText(p)), vars = own ? ownVars(p) : A.vars;
+  const d = own ? dgData("ow_diag") : archDiag(p);
+  return { A, vars, d: { edges: d.edges || [], mods: d.mods || [], pos: d.pos || {} } };
+}
+function f31Text() {
+  const { A, vars } = finalArch(); if (!vars.length) return "";
+  const d = dgSeed(DEFS.fa31.fields[0], {});
+  if (!d.edges.length) return "";
+  return archText({ ...A, vars }, d);
+}
 const archOut = p => { const t = archSrcText(p), A = parseArch(t); return A.edges.length ? archText(A, archDiag(p)) : t.trim(); };
 
 // 0.2 路線 B：由 0.1「研究方向聚焦」帶入研究情境與研究問題
@@ -933,7 +962,8 @@ const OUTLINE = [
   ] },
   { ch: "第三章 研究方法", secs: [
     { id: "s3-1", no: "3.1", title: "研究架構", desc: "畫出研究架構圖。", steps: [
-      { mod: "m7a", note: "貼上描述研究架構的文字（或假說清單），請 NotebookLM 畫成 Mermaid 圖。" },
+      { mod: "fa31", note: "由 0.3 的研究架構帶入架構圖，微調後下載 PNG；再產生撰寫 3.1 段落的 Prompt。" },
+      { mod: "m7a", note: "選用：需要 Mermaid 格式的架構圖時，貼上描述研究架構的文字，請 NotebookLM 畫成 Mermaid 圖。" },
       { mod: "m7b", note: "把回覆補好圍籬，貼進 Obsidian 或轉成圖片。" }] },
     { id: "s3-2", no: "3.2", title: "研究假說", desc: "逐條推導假說。", steps: [
       { mod: "hypo", note: "準備假說清單（含預期方向）；這份清單也會帶到 1.2、3.5 與 4.3。" }], finish: FIN_FULL },

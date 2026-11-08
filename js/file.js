@@ -7,7 +7,7 @@ const DATA_TAG = "paper-data";
 const NOTE_START = "<!-- 我的筆記：以下可自由編輯，網頁存檔時會保留 -->";
 const NOTE_END = "<!-- 我的筆記結束 -->";
 const NOTE_EMPTY = "（在這裡寫下你的筆記）";
-const PNG_NAME = { ac_diag: "架構圖", as_diag: "組合草圖", fin_diag: "組合架構圖", ow_diag: "自訂架構圖" };
+const PNG_NAME = { f31_diag: "架構圖", ac_diag: "檢核架構圖", as_diag: "組合草圖", fin_diag: "組合架構圖", ow_diag: "自訂架構圖" };
 
 const proj = { dir: null, dirName: "", file: "", lastMod: 0, lastPayload: "", pngSig: {}, bound: false, pending: null, busy: false, timer: 0 };
 
@@ -112,6 +112,25 @@ function fenceMermaid(text) {
     if (r.count) out.push(r.text); else out.push(...L.slice(i, last + 1));
     i = last;
   }
+  return out.join("\n");
+}
+
+// 論文草稿（第一章～第五章）：每節列出各步驟的 AI 回覆，尚未撰寫的節留白；另存為「研究名稱_論文.md」
+function thesisText(pngs) {
+  const out = ["---", `title: ${store.name || ""}　論文草稿`, "source: 論文工作台", "---", "",
+    `# ${store.name || ""}　論文草稿`, "",
+    "> 本檔由論文工作台依各章節的 AI 回覆自動產生，每次存檔都會重新產生；要修改內容，請在網站上修改，或另存一份再編輯。", ""];
+  OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).forEach(c => {
+    out.push(`## ${c.ch}`, "");
+    c.secs.forEach(s => {
+      out.push(`### ${s.no ? s.no + " " : ""}${s.title}`, "");
+      if (s.id === "s3-1") { const g = pngs.find(x => x.f.id === "f31_diag"); if (g && g.d.edges.length) out.push(`![圖 3-1 研究架構圖](<${g.file}>)`, ""); }
+      stepsOf(s).forEach(st => {
+        const r = (store.replies || {})[s.id + "|" + st.mod];
+        if (!blank(r)) out.push(mdText(fenceMermaid(deLatex(r))), "");
+      });
+    });
+  });
   return out.join("\n");
 }
 
@@ -221,6 +240,13 @@ async function writeNow() {
       await w.write(blob); await w.close();
       proj.pngSig[g.file] = g.sig;
     }
+    try {   // 論文草稿另存一檔（內容有變才寫）
+      const tt = thesisText(pngs), tn = name.replace(/\.md$/i, "") + "_論文.md";
+      if (proj.thesisSig !== tn + tt) {
+        const tw = await (await proj.dir.getFileHandle(tn, { create: true })).createWritable();
+        await tw.write(tt); await tw.close(); proj.thesisSig = tn + tt;
+      }
+    } catch {}
     if (pay === proj.lastPayload && f.lastModified === proj.lastMod) { pstat(`已儲存：${proj.dirName}／${name}`); return; }
     const w = await fh.createWritable();
     await w.write(fileText(notes, pngs)); await w.close();
