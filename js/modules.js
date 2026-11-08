@@ -739,7 +739,7 @@ function surveyView(text) {
   const oth = k => S.other.filter(o => o.after === k).map(o => { const w = was("sec:" + o.head, o.text);
     return `<h4>${esc(o.head)}</h4>${o.text ? `<div class="${w ? "revised" : ""}"><p class="sv-intro">${esc(o.text)}</p>${w}</div>${note("sec:" + o.head)}` : ""}${simple("", o.qs)}`; }).join("");
   const cons = S.constructs.map((c, ci) => { const ck = "con:" + c.name;
-    return `<div class="sv-con"><h4>${esc(c.name)}</h4><p class="hint">${esc([c.src, c.dim && !/^無$/.test(c.dim) ? "構面：" + c.dim : ""].filter(Boolean).join("｜"))}</p>
+    return `<div class="sv-con"><h4>${esc(c.name)}</h4><p class="hint">${esc([c.src, (d => d && !/^無$/.test(d) ? "構面：" + d : "")((c.dim || "").replace(/^(構面\s*[：:]\s*)+/, "").trim())].filter(Boolean).join("｜"))}</p>
     ${note(ck).replace('placeholder="修改意見（選填）"', 'placeholder="對整組題項的修改意見（選填）"')}
     ${c.missing ? `<p class="note warn">${esc(c.missing)}</p>` : ""}
     ${c.stem ? `<p class="sv-stem">${esc(c.stem)}${/[，,：:]$/.test(c.stem) ? "" : "……"}</p>` : ""}
