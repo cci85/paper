@@ -128,7 +128,7 @@ function thesisText(pngs) {
       if (s.id === "s3-1") { const g = pngs.find(x => x.f.id === "f31_diag"); if (g && g.d.edges.length) out.push(`![圖 3-1 研究架構圖](<${g.file}>)`, ""); }
       stepsOf(s).forEach(st => {
         const r = (store.replies || {})[s.id + "|" + st.mod];
-        if (!blank(r)) out.push(mdText(fenceMermaid(deLatex(r))), "");
+        if (!blank(r)) out.push(mdText(fenceMermaid(tbApply(s.id, st.mod, deLatex(r)))), "");
       });
     });
   });

@@ -520,6 +520,15 @@ const DEFS = {
     empty: "（請貼上要畫圖的文字）",
     next: "下一步：貼到 NotebookLM（建議在產生這段文字的同一個對話）；回覆整段複製後，到{#m7b}補好圍籬。"
   },
+  tbfill: {
+    label: "待補資料查證", target: "tool",
+    hint: "每一項列出所在章節與前後文。查證後，把正確內容（含出處）填在下方欄位；「研究名稱_論文.md」會以填入的文字直接取代【待補】標記，請寫成可以接在原句中的文字。各章回覆最後的「需要研究者查證的背景資料」有建議的查證來源與關鍵字。",
+    fields: [{ id: "tb_list", type: "cands", label: "待補清單", render: () => tbView() }],
+    build: () => tbText(),
+    empty: "（目前沒有待補項目，或尚未填寫任何查證內容）",
+    copyLabel: "複製已查證的清單（純文字）",
+    next: "填入的內容只用於論文草稿檔；網頁上各步驟的 AI 回覆保持原樣。"
+  },
   m7b: {
     label: "圍籬修補", target: "tool",
     hint: "貼上 NotebookLM 的回覆（有沒有圍籬都可以），自動偵測每張圖並補上 ```mermaid 圍籬；包成 subgraph 的大圖會拆成每群一張。",
@@ -897,6 +906,52 @@ function finalArch() {
   const d = own ? dgData("ow_diag") : archDiag(p);
   return { A, vars, d: { edges: d.edges || [], mods: d.mods || [], pos: d.pos || {} } };
 }
+// ── 待補資料查證：第一～五章 AI 回覆中的【待補…】標記 ──
+const TB_RE = /【(待補[^：:】]*)(?:[：:]([^】]*))?】/g;
+const THESIS_SECS = () => OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).flatMap(c => c.secs);
+// 回覆中的待補標記（略過回覆最後的待補清單類小節，避免重複）；key：章節｜步驟｜標記文字｜同文字第幾次
+function tbMarks(sid, mod, text) {
+  const t = String(text || ""), cut = t.search(/^#{1,4}\s*(?:\d+[.、]\s*)?(待補清單|待補資料|需要研究者查證|學生原稿檢核|學生內容查證|來源核對)/m);
+  const seen = {}, out = [];
+  for (const m of t.matchAll(TB_RE)) {
+    if (cut >= 0 && m.index > cut) break;
+    const n = (seen[m[0]] = (seen[m[0]] || 0) + 1);
+    const a = Math.max(t.lastIndexOf("。", m.index - 1), t.lastIndexOf("\n", m.index - 1)) + 1;
+    let b = t.slice(m.index + m[0].length).search(/[。\n]/); b = b < 0 ? t.length : m.index + m[0].length + b + 1;
+    out.push({ key: `${sid}|${mod}|${m[0]}|${n}`, mark: m[0], kind: m[1], need: (m[2] || "").trim(), ctx: t.slice(a, b).trim(), index: m.index });
+  }
+  return out;
+}
+function tbItems() {
+  return THESIS_SECS().flatMap(s => stepsOf(s).flatMap(st => {
+    const r = (store.replies || {})[s.id + "|" + st.mod]; if (blank(r)) return [];
+    return tbMarks(s.id, st.mod, deLatex(r)).map(x => ({ ...x, sec: `${s.no} ${s.title}`, step: DEFS[st.mod].label }));
+  }));
+}
+// 以查證內容取代標記（論文草稿檔用）
+function tbApply(sid, mod, text) {
+  const fill = store.values.tb_fill || {}, ms = tbMarks(sid, mod, text).filter(x => !blank(fill[x.key]));
+  let t = String(text);
+  ms.sort((a, b) => b.index - a.index).forEach(x => { t = t.slice(0, x.index) + fill[x.key].trim() + t.slice(x.index + x.mark.length); });
+  return t;
+}
+function tbView() {
+  const items = tbItems(), fill = store.values.tb_fill || {};
+  if (!items.length) return `<p class="hint">第一章到第五章的 AI 回覆中，目前沒有【待補】標記。</p>`;
+  const done = items.filter(x => !blank(fill[x.key])).length;
+  let last = "";
+  return `<p class="tb-count" id="tbcount">已填 ${done}／${items.length} 項</p>` + items.map(x => {
+    const head = x.sec + "｜" + x.step !== last ? `<h4>${esc(x.sec)}｜${esc(x.step)}</h4>` : ""; last = x.sec + "｜" + x.step;
+    const ctx = esc(x.ctx).replace(esc(x.mark), `<mark>${esc(x.mark)}</mark>`);
+    return `${head}<div class="tb-item"><p class="tb-ctx">${ctx}</p>
+      <textarea class="tb-in${blank(fill[x.key]) ? "" : " filled"}" data-tbfill="${esc(x.key)}" rows="2" placeholder="查證後的內容（含出處），例如：2024 年台灣電商市場規模約……（經濟部統計處, 2025）">${esc(fill[x.key] || "")}</textarea></div>`;
+  }).join("");
+}
+function tbText() {
+  const fill = store.values.tb_fill || {}, items = tbItems().filter(x => !blank(fill[x.key]));
+  return items.length ? "【待補資料查證結果】\n\n" + items.map((x, k) => `${k + 1}. ${x.sec}｜${x.step}\n原文：${x.ctx}\n查證內容：${fill[x.key].trim()}`).join("\n\n") : "";
+}
+
 // 1.1 研究背景與動機：由前面步驟帶入
 function mdSection(text, names) {   // 取出「## 名稱」一節（含其下的小標題，到下一個同級或更高標題為止）；同名者取最後一次出現
   const L = String(text || "").replace(/\r\n?/g, "\n").replace(/\*\*/g, "").split("\n");
@@ -972,7 +1027,9 @@ const OUTLINE = [
     { id: "q-vcomp", no: "", title: "區辨相近變數", desc: "兩個以上的變數看起來很像，想分辨它們在研究架構上的異同時使用。", steps: [
       { mod: "vcomp", note: "每行填一個變數；可直接從組合研究架構的勾選區複製名稱。" }] },
     { id: "r-method", no: "", title: "方法導向檢索", desc: "找特定領域中、實際使用某種統計方法的實證論文作為模仿範例：產生精準的 Google Scholar 檢索式與 Scholar Labs 問句。", steps: [
-      { mod: "smethod", note: "貼到有網路搜尋的 AI 對話，不需要上傳文獻。" }] }
+      { mod: "smethod", note: "貼到有網路搜尋的 AI 對話，不需要上傳文獻。" }] },
+    { id: "q-tb", no: "", title: "待補資料查證", desc: "集中列出第一章到第五章 AI 回覆中所有【待補資料】【待補文獻】【待補引用】【待補量表】，查證後直接填入；論文草稿檔會以填入的內容取代標記。", steps: [
+      { mod: "tbfill", note: "可隨時回來填寫；AI 回覆更新後，清單會自動重新整理。" }] }
   ] },
   { ch: "第零章 研究準備", secs: [
     { id: "s0-1", no: "0.1", title: "文獻蒐集與整理", desc: "還沒讀文獻、只有一個想研究的現象時，從這裡開始：聚焦研究問題與關鍵字 → 建立文獻比較表。步驟 3–5 為選用的「整批文獻全貌」：要先看整個研究領域的主題、理論、變數與缺口時再做。整理好之後，到 0.2 形成研究架構。", steps: [

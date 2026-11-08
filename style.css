@@ -339,3 +339,9 @@ input.sv-note.filled { border: 1.5px solid var(--warn); background: var(--warn-s
 .newver[hidden] { display: none; }
 .newver button { padding: 5px 12px; border: 1px solid var(--warn); border-radius: 8px; background: var(--warn); color: #fff; font: inherit; cursor: pointer; }
 .newver small { font-weight: 400; }
+.tb-item { margin: 6px 0 14px; }
+.tb-ctx { margin: 0 0 4px; font-size: 14px; line-height: 1.7; }
+.tb-ctx mark { background: var(--warn-soft); color: var(--warn); font-weight: 600; padding: 0 2px; }
+textarea.tb-in { width: 100%; border: 1px dashed var(--line); }
+textarea.tb-in.filled { border: 1.5px solid var(--accent); background: var(--accent-soft); }
+.tb-count { font-weight: 600; color: var(--accent); }

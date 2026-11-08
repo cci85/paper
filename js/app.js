@@ -256,6 +256,14 @@ $("pane").addEventListener("input", e => {
     const box = $("svfixbox"); if (box) box.innerHTML = svFixBox(parseSurvey(svReply()));
     return;
   }
+  if (t.dataset.tbfill) {   // 待補資料查證：只存值，不重畫（保留游標）
+    (store.values.tb_fill ||= {})[t.dataset.tbfill] = t.value; save();
+    t.classList.toggle("filled", !blank(t.value));
+    const items = tbItems(), fill = store.values.tb_fill, c = $("tbcount");
+    if (c) c.textContent = `已填 ${items.filter(x => !blank(fill[x.key])).length}／${items.length} 項`;
+    $("out").textContent = tbText(); $("copy").disabled = !tbText();
+    return;
+  }
   if (t.dataset.reply) { (store.replies ||= {})[replyKey()] = t.value; save(); renderReplyView(); return; }
   if (t.dataset.f) {
     store.values[vkey(t.dataset.f)] = t.value;
