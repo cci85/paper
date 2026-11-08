@@ -183,8 +183,9 @@ function update() {
   $("copy").disabled = !out;
   const two = m.fields.some(f => f.afterOut && f.type === "promptbox" && (!f.when || f.when(p)));   // 分兩則送出
   $("copy").textContent = m.copyLabel || `${two ? "① 複製第一則 Prompt" : "複製 Prompt"}（${COPY_TO[m.target] || "貼到 AI"}）`;
-  $("count").textContent = out ? `${out.length.toLocaleString()} 字元` + (out.length > 3000 ? "（可能超過 NotebookLM 單次輸入上限）" : "") : (m.empty || "");
-  $("count").classList.toggle("over", !!out && out.length > 3000);
+  const over = !!out && out.length > 3000 && m.target === "nlm";   // 一般 AI 沒有這個上限
+  $("count").textContent = out ? `${out.length.toLocaleString()} 字元` + (over ? "（可能超過 NotebookLM 單次輸入上限）" : "") : (m.empty || "");
+  $("count").classList.toggle("over", over);
   $("outd").hidden = !out;
   $("next").textContent = ref(m.next);
   renderReplyView();
