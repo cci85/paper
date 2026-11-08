@@ -363,3 +363,8 @@ textarea.tb-in.filled { border: 1.5px solid var(--accent); background: var(--acc
 .bp-head { display: flex; gap: 10px; align-items: center; font-size: 17px; }
 .bp-head input { width: 18px; height: 18px; }
 .bp-body { white-space: pre-wrap; font-size: 15px; line-height: 1.75; margin-top: 6px; }
+.dr-txt summary { cursor: pointer; list-style: none; }
+.dr-txt summary::-webkit-details-marker { display: none; }
+.dr-more { margin-left: 8px; font-size: 13px; color: var(--accent); text-decoration: underline; }
+.dr-txt details[open] summary { display: none; }
+.dr-full { white-space: pre-wrap; }

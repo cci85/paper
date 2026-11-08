@@ -950,7 +950,7 @@ const VERIFY_HEAD = /^#{1,4}\s*(?:\d+[.、]\s*)?(待補清單|待補資料|需�
 function drParas() {
   const s = ALL_SECS.find(x => x.id === store.sec); if (!s || !s.no) return [];
   const out = [];
-  stepsOf(s).filter(st => !st.finish).forEach(st => {
+  stepsOf(s).filter(st => !st.finish).slice(-1).forEach(st => {   // 只取本節撰寫正文的那一步（完稿步驟之前的最後一步）
     let t = deLatex((store.replies || {})[s.id + "|" + st.mod] || ""); if (blank(t)) return;
     const cut = t.search(VERIFY_HEAD); if (cut >= 0) t = t.slice(0, cut);
     let head = ""; const hasHead = /^#{1,6}\s/m.test(t);
@@ -969,7 +969,9 @@ function drView() {
   const ps = drParas(), done = store.values.dr_done || {}, cur = (store.values.dr_text || "").trim();
   return `<p class="hint">本節共 ${ps.length} 段，已完成 ${ps.filter(x => done[x.key]).length} 段。按「用這一段」帶入下方，複製 Prompt 送出；回覆貼到「AI 回覆」後，按「完成」標記，再換下一段。</p>` +
     ps.map((x, i) => `<div class="dr-para${done[x.key] ? " done" : ""}${cur === x.text.trim() ? " cur" : ""}"><b>${i + 1}</b>
-      <div class="dr-txt">${x.head ? `<small>${esc(x.head)}</small>` : ""}<span>${esc(x.text.length > 90 ? x.text.slice(0, 90) + "……" : x.text)}</span></div>
+      <div class="dr-txt">${x.head ? `<small>${esc(x.head)}</small>` : ""}${x.text.length > 90
+        ? `<details><summary>${esc(x.text.slice(0, 90))}……<span class="dr-more">展開全文</span></summary><div class="dr-full">${esc(x.text)}</div></details>`
+        : `<span>${esc(x.text)}</span>`}</div>
       <span class="dr-btns"><button type="button" data-drpick="${i}">${cur === x.text.trim() ? "目前這段" : "用這一段"}</button>
       <button type="button" data-drdone="${i}">${done[x.key] ? "✓ 已完成" : "完成"}</button></span></div>`).join("");
 }
