@@ -277,6 +277,8 @@ const DEFS = {
       { id: "as_target", type: "text", label: "研究對象", hint: "選填", placeholder: "例如：過去三個月曾在抖音購物的消費者" },
       { id: "as_scale", type: "text", label: "量尺形式", hint: "選填；不填時依原量表", placeholder: "例如：Likert 七點尺度" },
       { id: "as_amethod", type: "text", label: "分析方法", hint: "選填；不填時由 AI 依架構建議", placeholder: "例如：PLS-SEM" },
+      { id: "as_req", type: "textarea", label: "問卷設計要求", hint: "選填；例如某個構念要分成幾個題組、各幾題、指導語怎麼寫、哪些字眼不能出現；會附在 Prompt 中，請精簡（建議 600 字內）", rows: 5,
+        placeholder: "例如：依變數題組共 8 題：認知型衝動購買 3 題、情感型衝動購買 3 題、整體衝動購買 2 題，分列為三個構念；題項不得出現「促銷」「折扣」等字眼。" },
       { id: "sv_reply", type: "textarea", below: true, label: "修訂建議的 AI 回覆", hint: "選填；貼上修改追問的回覆，會一併存入研究存檔", rows: 5 },
       { id: "sv_revp", type: "promptbox", below: true, label: "產生修訂版問卷", hint: "修訂建議貼上後，在同一個對話接著送出，請 NotebookLM 依建議輸出修訂後的完整問卷",
         copyLabel: "複製產生修訂版問卷 Prompt（貼到 NotebookLM）", empty: "（先貼上修訂建議的 AI 回覆）", build: p => blank(p.sv_reply) ? "" : svRevPrompt() },
@@ -289,10 +291,10 @@ const DEFS = {
     ],
     replyView: t => surveyView(t),
     rules: () => ["citation"],
-    status: p => p.as_rmethod === "sec" ? "研究方法為 panel data 時不需要問卷草稿，可跳過此步驟。" : p.as_archm === "other" && (p.as_arch || "").trim().length > 300 ? "「其他架構」內容過長，NotebookLM 可能無法讀取；同一個對話中簡短描述即可。" : "",
+    status: p => p.as_rmethod === "sec" ? "研究方法為 panel data 時不需要問卷草稿，可跳過此步驟。" : (p.as_req || "").trim().length > 800 ? "「問卷設計要求」內容較長，Prompt 可能超過 NotebookLM 單次輸入上限；請精簡為重點。" : p.as_archm === "other" && (p.as_arch || "").trim().length > 300 ? "「其他架構」內容過長，NotebookLM 可能無法讀取；同一個對話中簡短描述即可。" : "",
     build: (p, R) => {
       const arch = archLabel(p);
-      return blank(p.as_ctx) || !arch || p.as_rmethod === "sec" ? "" : T.ask_survey({ exp: p.as_rmethod === "exp", ctx: p.as_ctx.trim(), arch, target: p.as_target.trim(), scale: p.as_scale.trim(), method: p.as_amethod.trim() }) + R;
+      return blank(p.as_ctx) || !arch || p.as_rmethod === "sec" ? "" : T.ask_survey({ exp: p.as_rmethod === "exp", ctx: p.as_ctx.trim(), arch, target: p.as_target.trim(), scale: p.as_scale.trim(), method: p.as_amethod.trim(), req: (p.as_req || "").trim() }) + R;
     },
     empty: "（請填入研究情境，並指定選定的架構）",
     next: "下一步：【待補量表】的構念，請找到量表原始論文上傳後再問一次。問卷定稿後貼到下方「定稿問卷」，正式撰寫第三章時，用{#opdef}依定稿問卷撰寫操作型定義與量表；要查實務面時，到{#asp}。"
