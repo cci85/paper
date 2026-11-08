@@ -329,3 +329,9 @@ input.sv-note.filled { border: 1.5px solid var(--warn); background: var(--warn-s
 .sv-box { display: inline-block; width: .85em; height: .85em; border: 1.5px solid var(--muted); border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
 .sv-box.multi { border-radius: 2px; }
 .sv-stem { font-weight: 600; margin: 8px 0 4px; }
+.pcur { flex-basis: 100%; font-size: 13px; }
+.pcur .warn { color: var(--warn); }
+.pbar #pname[readonly] { background: var(--bg); cursor: default; }
+.pform { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px; border: 1px dashed var(--line); border-radius: 8px; }
+.pform input { padding: 6px 10px; width: 240px; }
+.pform .hint { flex-basis: 100%; margin: 0; }

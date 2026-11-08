@@ -10,21 +10,22 @@
 <body>
 <header class="top">
   <h1>論文工作台</h1>
-  <p>從左側目錄選擇正在寫的章節 → 依步驟產生 Prompt → 按「複製」貼到指定的 AI。欄位內容會記在這個瀏覽器裡；選擇存檔資料夾後，會自動存成研究存檔（.md），可在其他電腦開啟。要接續舊研究：按下方「開啟存檔」，點選研究名稱即可（舊研究在別的資料夾時，先按「存檔資料夾」切換）。</p>
+  <p>從左側目錄選擇正在寫的章節 → 依步驟產生 Prompt → 按「複製」貼到指定的 AI。每份研究自動存成一個研究存檔（.md），可在其他電腦開啟。換研究一律按「開啟研究」（選資料夾 → 點研究）；開始新的研究按「新研究」。</p>
   <div class="legend">
     <span><span class="tag t-nlm">NotebookLM</span>需先上傳文獻，AI 只依文獻回答</span>
     <span><span class="tag t-ai">一般 AI</span>Claude、ChatGPT、Gemini 等，不需上傳文獻</span>
   </div>
   <div class="pbar" id="pbar">
-    <label class="pn">研究名稱<input type="text" id="pname" placeholder="例如：抖音衝動購買" autocomplete="off"></label>
-    <button type="button" id="pdir">選擇存檔資料夾</button>
-    <button type="button" id="popen">開啟存檔</button>
+    <label class="pn">研究名稱<input type="text" id="pname" readonly tabindex="-1" placeholder="按「新研究」取名稱"></label>
+    <button type="button" id="popen">開啟研究</button>
     <button type="button" id="pnew">新研究</button>
+    <button type="button" id="psaveas">另存新名稱</button>
+    <button type="button" id="pdl" hidden>下載存檔</button>
     <button type="button" id="presume" class="warn" hidden></button>
     <button type="button" id="pundo" class="warn" hidden></button>
+    <div class="pcur" id="pcur"></div>
     <span class="pstat" id="pstat"></span>
     <div class="plist" id="plist" hidden></div>
-    <div class="pconflict" id="pconflict" hidden></div>
     <input type="file" id="pupload" accept=".md,text/markdown" hidden>
   </div>
 </header>
