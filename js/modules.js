@@ -322,14 +322,17 @@ const DEFS = {
     hint: "由產業現象收斂到文獻缺口，撰寫研究背景與研究動機。產業數據只會用您提供的資料，缺的會標【待補資料】。",
     fields: [
       { id: "bg_topic", type: "textarea", label: "研究主題與研究架構", hint: "自動帶入 0.5 定稿題目、研究情境與 3.1／0.3 的研究架構路徑", rows: 4, placeholder: "例如：品牌人格透過自我一致性影響品牌依附——以台灣精釀啤酒為例" },
-      { id: "bg_facts", type: "textarea", label: "產業或實務背景資料", hint: "自動帶入上一步回覆的「研究情境」「實務問題」「實務缺口」（請先確認網址）；內容太長時，可改把上一步回覆加入 NotebookLM 來源（命名含「研究情境與實務缺口」），並清空此欄", rows: 5 },
+      { id: "bg_facts", type: "textarea", label: "產業或實務背景資料", hint: "自動帶入上一步回覆的「研究情境」「實務問題」「實務缺口」（請先確認網址）", rows: 5 },
       { id: "bg_gaps", type: "textarea", label: "研究缺口", hint: "自動帶入 0.3 回覆中的「研究缺口」", rows: 4 },
-      { id: "as_draft", type: "textarea", label: "學生原稿（僅供參考）", hint: "選填；貼上學生原本寫的研究背景、動機或產業描述，僅供參考。撰寫以研究架構與文獻為主軸，學生內容可被改寫或捨棄；回覆會逐項列出需要查證或修正之處（與 1.1 的兩個步驟共用）", rows: 6 }
+      { id: "as_draft", type: "textarea", label: "學生原稿（僅供參考）", hint: "選填；貼上學生原本寫的研究背景、動機或產業描述，僅供參考。撰寫以研究架構與文獻為主軸，學生內容可被改寫或捨棄；回覆會逐項列出需要查證或修正之處（與 1.1 的兩個步驟共用）", rows: 6 },
+      ...[2, 3, 4, 5, 6].map(k => ({ id: "bg_b" + k, type: "promptbox", afterOut: true, label: `第 ${k} 則 Prompt`, when: p => bgParts(p).length >= k,
+        hint: "上一則送出、NotebookLM 回覆「已收到」後，在同一個對話接著送出", copyLabel: `${"②③④⑤⑥"[k - 2]} 複製第 ${k} 則（同一個對話接著送出）`, build: p => bgParts(p)[k - 1] || "" })),
     ],
     rules: () => ["citation", "style", "verify"],
     seed: () => bgSeed(),
     seedFrom: "前面步驟", seedNote: "研究主題、背景資料與研究缺口由 0.5 定稿題目、3.1／0.3 研究架構、上一步回覆與 0.3 回覆帶入",
-    build: (p, R) => blank(p.bg_topic) ? "" : T.bg({ topic: p.bg_topic.trim(), facts: p.bg_facts, gaps: p.bg_gaps, draft: (p.as_draft || "").trim() }) + R,
+    status: p => bgParts(p).length > 1 ? `內容較長，Prompt 自動分成 ${bgParts(p).length} 則：前幾則是參考資料（NotebookLM 只會回覆「已收到」），最後一則才開始撰寫；請在同一個對話依序送出，只把最後一則的回覆貼到「AI 回覆」。` : "",
+    build: (p, R) => { BG_R = R || ""; return bgParts(p)[0] || ""; },
     empty: "（請填入研究主題與研究架構）",
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話；【待補資料】請自行查找後補入。"
   },
@@ -906,6 +909,12 @@ function mdSection(text, names) {   // 取出「## 名稱」一節（含其下�
     const body = L.slice(start + 1, end).join("\n").trim();
     return body ? `${n}\n${body}` : "";
   }).filter(Boolean).join("\n\n");
+}
+let BG_R = "";   // 研究背景與動機：最近一次的共用規則文字（分則時附在最後一則）
+function bgParts(p) {
+  if (blank(p.bg_topic)) return [];
+  const q = { topic: p.bg_topic.trim(), facts: p.bg_facts, gaps: p.bg_gaps, draft: (p.as_draft || "").trim() };
+  return splitForNLM(T.bg_mat(q), T.bg_task(q) + BG_R, "研究背景與動機");
 }
 function bgSeed() {
   const v = store.values, r = store.replies || {};

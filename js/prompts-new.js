@@ -303,13 +303,14 @@ function buildFocus(p) {
 }
 
 // 第一章：研究背景與動機
-T.bg = p => [
+T.bg_mat = p => [
   `本研究的主題與研究架構：${p.topic}`,
   "",
   ...(blank(p.facts) ? [] : ["以下是我提供的產業或實務背景資料（數據與事實只能使用這裡與來源中出現的內容）：", "---", p.facts.trim(), "---", ""]),
-  "若來源中有名稱含「研究情境與實務缺口」的來源，可作為產業數據與實務現象的依據，並沿用其中標註的出處。",
   ...(blank(p.gaps) ? [] : ["以下是先前整理出的研究缺口：", "---", p.gaps.trim(), "---", ""]),
   ...(p.draft ? ["以下是學生原本寫的內容，僅供參考，不是撰寫的主軸：論述一律以本研究的研究架構與此 Notebook 中上傳的文獻為準，學生內容可以完全改寫，不需保留原本的寫法或段落順序；其中的學術論點須有上傳文獻支持才能採用，數據與事實須出現在上方資料或上傳來源中才能採用，其餘一律捨棄。", "---", p.draft, "---", ""] : []),
+].join("\n");
+T.bg_task = p => [
   "任務：根據此 Notebook 中上傳的文獻與上方資料，撰寫論文第一章「研究背景與動機」。",
   "",
   "撰寫順序（由廣至窄）：",
@@ -331,6 +332,21 @@ T.bg = p => [
   ...(p.draft ? ["## 學生原稿檢核",
     "逐項列出學生原稿中的學術論點與事實陳述，每項格式為：[原文]學生寫的句子／[判斷]有文獻支持／與文獻不符／上傳文獻中找不到依據／與研究架構無關／[說明]依據的文獻（作者, 年份）或不符之處／[處理]已採用／已改寫為……／已捨棄。"] : [])
 ].join("\n");
+T.bg = p => T.bg_mat(p) + "\n" + T.bg_task(p);
+// NotebookLM 單次輸入有字數上限：太長時，先分則送出資料（只回覆「已收到」），最後一則送出撰寫任務
+function splitForNLM(material, task, what) {
+  const LIMIT = 2800;
+  if ((material + "\n" + task).length <= LIMIT) return [material + "\n" + task];
+  const head = (k, n) => `以下是撰寫「${what}」的參考資料（第 ${k}／${n} 則）。請先閱讀，只回覆「已收到第 ${k} 則」，先不要撰寫。\n\n`;
+  const chunks = []; let cur = "";
+  material.split("\n").forEach(line => {
+    while (line.length > LIMIT - 200) { if (cur) { chunks.push(cur); cur = ""; } chunks.push(line.slice(0, LIMIT - 200)); line = line.slice(LIMIT - 200); }
+    if ((cur + "\n" + line).length > LIMIT - 200) { chunks.push(cur); cur = line; } else cur = cur ? cur + "\n" + line : line;
+  });
+  if (cur.trim()) chunks.push(cur);
+  const n = chunks.length + 1;
+  return [...chunks.map((c, k) => head(k + 1, n) + c.trim()), `前面 ${n - 1} 則是撰寫「${what}」的參考資料（第 ${n}／${n} 則）。請依據這些資料與此 Notebook 中上傳的文獻開始撰寫。\n\n` + task];
+}
 
 // 第一章：研究目的與問題
 T.purpose = p => [
