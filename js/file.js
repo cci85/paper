@@ -91,7 +91,12 @@ function mdTable(rows) {
   return [rows[0].map(c), rows[0].map(() => "---"), ...rows.slice(1).map(r => r.map(c))].map(r => "| " + r.join(" | ") + " |").join("\n");
 }
 // 存檔中的長文字：試算表內容轉成表格，其他文字的標題降級
-const mdText = t => { const r = parseTsv(t); return r ? mdTable(r) : demote(t); };
+// 欄位多的試算表（例如文獻比較表）改成「一列一段」：第一欄為小標題，其餘欄位列為「- **欄名**：內容」
+function mdCards(rows) {
+  const h = rows[0].map(v => v.trim()), c = v => v.trim().replace(/\n+/g, "<br>");
+  return rows.slice(1).map(r => [`##### ${c(r[0]) || "（未命名）"}`, ...r.slice(1).map((v, i) => [h[i + 1], c(v)]).filter(([, v]) => v).map(([k, v]) => `- **${k || "欄位"}**：${v}`)].join("\n")).join("\n\n");
+}
+const mdText = t => { const r = parseTsv(t); return r ? (r[0].length > 6 ? mdCards(r) : mdTable(r)) : demote(t); };
 
 // AI 回覆中沒有圍籬的 Mermaid 圖：就地補上 ```mermaid 圍籬（包成 subgraph 的大圖拆成每群一張），其餘文字不動
 const MM_LINE = /-->|---|-\.->|==>|^\s*(subgraph|end|classDef|class|style|linkStyle|direction|%%)\b|^\s*[A-Za-z_][\w-]*\s*[\[\(\{]/;
