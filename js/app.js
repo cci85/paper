@@ -360,3 +360,25 @@ showAll();
 $("outd").addEventListener("toggle", () => {
   $("outd").querySelector("summary").textContent = $("outd").open ? "收合 Prompt" : "展開 Prompt";
 });
+
+// 網站更新提示：定期（與切回分頁時）讀取最新的 index.html，比對程式版本；不同時顯示提示，按下即載入新版
+(() => {
+  const ver = (document.querySelector('script[src*="js/app.js"]') || {}).src?.match(/v=(\w+)/)?.[1];
+  if (!ver) return;
+  let last = 0;
+  const check = async () => {
+    if (Date.now() - last < 60000) return; last = Date.now();
+    try {
+      const t = await (await fetch(location.pathname + "?nv=" + Date.now(), { cache: "no-store" })).text();
+      const nv = t.match(/js\/app\.js\?v=(\w+)/)?.[1];
+      if (nv && nv !== ver) $("newver").hidden = false;
+    } catch {}
+  };
+  setInterval(check, 5 * 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
+  window.addEventListener("focus", check);
+  $("newverbtn").addEventListener("click", async () => {
+    try { if (window.flushSave) await window.flushSave(); } catch {}
+    location.href = location.pathname + "?r=" + Date.now();
+  });
+})();

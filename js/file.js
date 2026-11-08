@@ -233,6 +233,7 @@ async function writeNow() {
   } finally { proj.busy = false; }
 }
 
+window.flushSave = () => writeNow();   // 重新整理前先存檔
 // app.js 每次 save() 後呼叫
 window.onStoreSave = () => {
   if (!bindOk() || proj.busy) return;

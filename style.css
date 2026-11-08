@@ -335,3 +335,7 @@ input.sv-note.filled { border: 1.5px solid var(--warn); background: var(--warn-s
 .pform { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px; border: 1px dashed var(--line); border-radius: 8px; }
 .pform input { padding: 6px 10px; width: 240px; }
 .pform .hint { flex-basis: 100%; margin: 0; }
+.newver { position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 16px; background: var(--warn-soft); color: var(--warn); border-bottom: 1px solid var(--warn); font-weight: 600; }
+.newver[hidden] { display: none; }
+.newver button { padding: 5px 12px; border: 1px solid var(--warn); border-radius: 8px; background: var(--warn); color: #fff; font: inherit; cursor: pointer; }
+.newver small { font-weight: 400; }
