@@ -307,7 +307,7 @@ const DEFS = {
       { id: "as_con", type: "text", label: "研究問題", hint: "選填；以一句話描述要探討的現象或問題，可幫助 AI 聚焦", placeholder: "例如：使用者滑 TikTok 或 Instagram Reels 時看到平台推薦的產品開箱影片，是否會因此產生衝動購買？" },
       { id: "as_path", type: "text", label: "研究情境中的歷程", hint: "選填；不填時由 AI 依構念與結果決定階段", placeholder: "例如：開啟應用程式、滑動影片、接觸商品相關內容、產生購買念頭" },
       { id: "as_prev", type: "textarea", label: "0.3 檢核的回覆", hint: "自動帶入 0.3「依文獻檢核架構」的 AI 回覆（兩則都貼在那裡時會一起帶入）；也可以自己貼上", rows: 8 },
-      { id: "as_draft", type: "textarea", label: "學生已寫的相關內容", hint: "選填；貼上學生寫好的研究背景、動機或產業描述。AI 會沿用其中可查證的內容並補上來源，逐項列出需要查證或修正之處", rows: 6 }
+      { id: "as_draft", type: "textarea", label: "學生原稿（僅供參考）", hint: "選填；貼上學生原本寫的研究背景、動機或產業描述，僅供參考。撰寫以研究架構與文獻為主軸，學生內容可被改寫或捨棄；回覆會逐項列出需要查證或修正之處（與 1.1 的兩個步驟共用）", rows: 6 }
     ],
     seed: () => ({ as_prev: (store.replies || {})["s0-5|archchk"] || "" }),
     seedFrom: "0.3「依文獻檢核架構」", seedNote: "「0.3 檢核的回覆」由 0.3「依文獻檢核架構」的 AI 回覆帶入",
@@ -323,10 +323,11 @@ const DEFS = {
     fields: [
       { id: "bg_topic", type: "textarea", label: "研究主題與研究架構", rows: 3, placeholder: "例如：品牌人格透過自我一致性影響品牌依附——以台灣精釀啤酒為例" },
       { id: "bg_facts", type: "textarea", label: "產業或實務背景資料", hint: "選填；貼上您手邊的數據與出處", rows: 4 },
-      { id: "bg_gaps", type: "textarea", label: "研究缺口", hint: "選填；可貼上 0.2 或 0.3 回覆中的研究缺口", rows: 4 }
+      { id: "bg_gaps", type: "textarea", label: "研究缺口", hint: "選填；可貼上 0.2 或 0.3 回覆中的研究缺口", rows: 4 },
+      { id: "as_draft", type: "textarea", label: "學生原稿（僅供參考）", hint: "選填；貼上學生原本寫的研究背景、動機或產業描述，僅供參考。撰寫以研究架構與文獻為主軸，學生內容可被改寫或捨棄；回覆會逐項列出需要查證或修正之處（與 1.1 的兩個步驟共用）", rows: 6 }
     ],
     rules: () => ["citation", "style", "verify"],
-    build: (p, R) => blank(p.bg_topic) ? "" : T.bg({ topic: p.bg_topic.trim(), facts: p.bg_facts, gaps: p.bg_gaps }) + R,
+    build: (p, R) => blank(p.bg_topic) ? "" : T.bg({ topic: p.bg_topic.trim(), facts: p.bg_facts, gaps: p.bg_gaps, draft: (p.as_draft || "").trim() }) + R,
     empty: "（請填入研究主題與研究架構）",
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話；【待補資料】請自行查找後補入。"
   },
