@@ -321,12 +321,14 @@ const DEFS = {
     label: "研究背景與動機", target: "nlm",
     hint: "由產業現象收斂到文獻缺口，撰寫研究背景與研究動機。產業數據只會用您提供的資料，缺的會標【待補資料】。",
     fields: [
-      { id: "bg_topic", type: "textarea", label: "研究主題與研究架構", rows: 3, placeholder: "例如：品牌人格透過自我一致性影響品牌依附——以台灣精釀啤酒為例" },
-      { id: "bg_facts", type: "textarea", label: "產業或實務背景資料", hint: "選填；貼上您手邊的數據與出處", rows: 4 },
-      { id: "bg_gaps", type: "textarea", label: "研究缺口", hint: "選填；可貼上 0.2 或 0.3 回覆中的研究缺口", rows: 4 },
+      { id: "bg_topic", type: "textarea", label: "研究主題與研究架構", hint: "自動帶入 0.5 定稿題目、研究情境與 3.1／0.3 的研究架構路徑", rows: 4, placeholder: "例如：品牌人格透過自我一致性影響品牌依附——以台灣精釀啤酒為例" },
+      { id: "bg_facts", type: "textarea", label: "產業或實務背景資料", hint: "自動帶入上一步回覆的「研究情境」「實務問題」「實務缺口」（請先確認網址）；內容太長時，可改把上一步回覆加入 NotebookLM 來源（命名含「研究情境與實務缺口」），並清空此欄", rows: 5 },
+      { id: "bg_gaps", type: "textarea", label: "研究缺口", hint: "自動帶入 0.3 回覆中的「研究缺口」", rows: 4 },
       { id: "as_draft", type: "textarea", label: "學生原稿（僅供參考）", hint: "選填；貼上學生原本寫的研究背景、動機或產業描述，僅供參考。撰寫以研究架構與文獻為主軸，學生內容可被改寫或捨棄；回覆會逐項列出需要查證或修正之處（與 1.1 的兩個步驟共用）", rows: 6 }
     ],
     rules: () => ["citation", "style", "verify"],
+    seed: () => bgSeed(),
+    seedFrom: "前面步驟", seedNote: "研究主題、背景資料與研究缺口由 0.5 定稿題目、3.1／0.3 研究架構、上一步回覆與 0.3 回覆帶入",
     build: (p, R) => blank(p.bg_topic) ? "" : T.bg({ topic: p.bg_topic.trim(), facts: p.bg_facts, gaps: p.bg_gaps, draft: (p.as_draft || "").trim() }) + R,
     empty: "（請填入研究主題與研究架構）",
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話；【待補資料】請自行查找後補入。"
@@ -891,6 +893,26 @@ function finalArch() {
   const A = parseArch(archSrcText(p)), vars = own ? ownVars(p) : A.vars;
   const d = own ? dgData("ow_diag") : archDiag(p);
   return { A, vars, d: { edges: d.edges || [], mods: d.mods || [], pos: d.pos || {} } };
+}
+// 1.1 研究背景與動機：由前面步驟帶入
+function mdSection(text, names) {   // 取出「## 名稱」一節（含其下的小標題，到下一個同級或更高標題為止）；同名者取最後一次出現
+  const L = String(text || "").replace(/\r\n?/g, "\n").replace(/\*\*/g, "").split("\n");
+  return names.map(n => {
+    let start = -1, lv = 0;
+    L.forEach((l, i) => { const m = l.match(/^(#{1,4})\s*(.*)$/); if (m && m[2].replace(/^[0-9一二三四五六七八九十、.．\s]+/, "").startsWith(n)) { start = i; lv = m[1].length; } });
+    if (start < 0) return "";
+    let end = L.length;
+    for (let i = start + 1; i < L.length; i++) { const m = L[i].match(/^(#{1,4})\s/); if (m && m[1].length <= lv) { end = i; break; } }
+    const body = L.slice(start + 1, end).join("\n").trim();
+    return body ? `${n}\n${body}` : "";
+  }).filter(Boolean).join("\n\n");
+}
+function bgSeed() {
+  const v = store.values, r = store.replies || {};
+  const { vars, d } = finalArch(), nm = k => ((vars.find(x => x.key === k) || {}).name || k).replace(/\s*[（(][^（）()]*[）)]\s*$/, "");
+  const paths = d.edges.map(e => `${nm(e.from)} → ${nm(e.to)}`).concat(d.mods.map(m => { const [a, b] = m.edge.split(">"); return `${nm(m.from)} 調節（${nm(a)} → ${nm(b)}）`; }));
+  const topic = [(v.tt_zh || "").trim() && "論文題目：" + v.tt_zh.trim(), (v.as_ctx || "").trim() && "研究情境：" + v.as_ctx.trim(), paths.length && "研究架構：" + paths.join("；")].filter(Boolean).join("\n");
+  return { bg_topic: topic, bg_facts: mdSection(r["s1-1|asp"], ["研究情境", "實務問題", "實務缺口"]), bg_gaps: mdSection(r["s0-5|archchk"], ["研究缺口"]) };
 }
 function ttlArch() { const { A, vars, d } = finalArch(); return vars.length && d.edges.length ? archText({ ...A, vars }, d) : ""; }
 function f31Text() {
