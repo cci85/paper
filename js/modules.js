@@ -306,11 +306,12 @@ const DEFS = {
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
       { id: "as_con", type: "text", label: "研究問題", hint: "選填；以一句話描述要探討的現象或問題，可幫助 AI 聚焦", placeholder: "例如：使用者滑 TikTok 或 Instagram Reels 時看到平台推薦的產品開箱影片，是否會因此產生衝動購買？" },
       { id: "as_path", type: "text", label: "研究情境中的歷程", hint: "選填；不填時由 AI 依構念與結果決定階段", placeholder: "例如：開啟應用程式、滑動影片、接觸商品相關內容、產生購買念頭" },
-      { id: "as_prev", type: "textarea", label: "0.3 檢核的回覆", hint: "自動帶入 0.3「依文獻檢核架構」的 AI 回覆（兩則都貼在那裡時會一起帶入）；也可以自己貼上", rows: 8 }
+      { id: "as_prev", type: "textarea", label: "0.3 檢核的回覆", hint: "自動帶入 0.3「依文獻檢核架構」的 AI 回覆（兩則都貼在那裡時會一起帶入）；也可以自己貼上", rows: 8 },
+      { id: "as_draft", type: "textarea", label: "學生已寫的相關內容", hint: "選填；貼上學生寫好的研究背景、動機或產業描述。AI 會沿用其中可查證的內容並補上來源，逐項列出需要查證或修正之處", rows: 6 }
     ],
     seed: () => ({ as_prev: (store.replies || {})["s0-5|archchk"] || "" }),
     seedFrom: "0.3「依文獻檢核架構」", seedNote: "「0.3 檢核的回覆」由 0.3「依文獻檢核架構」的 AI 回覆帶入",
-    build: p => blank(p.as_ctx) || blank(p.as_prev) ? "" : T.ask_practice({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), path: p.as_path.trim(), prev: p.as_prev }),
+    build: p => blank(p.as_ctx) || blank(p.as_prev) ? "" : T.ask_practice({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), path: p.as_path.trim(), prev: p.as_prev, draft: (p.as_draft || "").trim() }),
     empty: "（請填入研究情境，並貼上組合研究架構的回覆）",
     next: "下一步：逐一點開「來源核對」中的網址確認內容；AI 即使遵守上述規則，仍可能產生不存在的網址。確認後，研究情境與實務問題可貼到{#bg}的「產業或實務背景資料」，學術缺口與實務缺口可貼到「研究缺口」。"
   },
