@@ -458,13 +458,15 @@ const DEFS = {
     hint: "核實論文段落中的引用，再改寫。適用於任何一章。",
     fields: [
       { id: "dr_stage", type: "radio", label: "改寫方向", options: [["draft", "補強（字數不減）"], ["final", "精簡（術語查證＋字數必減）"]], value: "draft" },
-      { id: "dr_text", type: "textarea", label: "論文段落", rows: 8 }
+      { id: "dr_paras", type: "cands", label: "本節的段落", when: () => drParas().length > 0, render: () => drView() },
+      { id: "dr_rules", type: "promptbox", label: "共用規則", hint: "每個 NotebookLM 對話只要先送一次（NotebookLM 會回覆「已收到」），之後每一段都送下方的 Prompt 即可；避免每段都超過字數上限",
+        copyLabel: "先送這則：複製共用規則（每個對話一次）", build: () => DR_R ? T.rules_once(DR_R) : "" },
+      { id: "dr_text", type: "textarea", label: "論文段落", hint: "按上方「用這一段」自動帶入；也可以自己貼上", rows: 8 }
     ],
     variant: p => p.dr_stage,
     rules: p => p.dr_stage === "final" ? ["citation", "style"] : ["citation", "evidence", "style"],
-    build: (p, R) => blank(p.dr_text) ? "" : (p.dr_stage === "final"
-      ? T.dr_final({ draft: p.dr_text }) + R + "\n\n" + T.dr_final_tail({})
-      : T.dr_draft({ draft: p.dr_text }) + R),
+    build: (p, R) => { DR_R = R || ""; if (blank(p.dr_text)) return ""; const ref = DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "";
+      return p.dr_stage === "final" ? T.dr_final({ draft: p.dr_text }) + ref + "\n\n" + T.dr_final_tail({}) : T.dr_draft({ draft: p.dr_text }) + ref; },
     empty: "（請貼上論文段落）",
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。"
   },
@@ -906,6 +908,35 @@ function finalArch() {
   const d = own ? dgData("ow_diag") : archDiag(p);
   return { A, vars, d: { edges: d.edges || [], mods: d.mods || [], pos: d.pos || {} } };
 }
+// ── 段落核實改寫：把本節前面步驟的 AI 回覆拆成一段一段 ──
+let DR_R = "";   // 段落核實改寫的共用規則（另成一則，每個對話送一次）
+const VERIFY_HEAD = /^#{1,4}\s*(?:\d+[.、]\s*)?(待補清單|待補資料|需要研究者查證|學生原稿檢核|學生內容查證|來源核對)/m;
+function drParas() {
+  const s = ALL_SECS.find(x => x.id === store.sec); if (!s || !s.no) return [];
+  const out = [];
+  stepsOf(s).filter(st => !st.finish).forEach(st => {
+    let t = deLatex((store.replies || {})[s.id + "|" + st.mod] || ""); if (blank(t)) return;
+    const cut = t.search(VERIFY_HEAD); if (cut >= 0) t = t.slice(0, cut);
+    let head = "";
+    t.replace(/\r\n?/g, "\n").split(/\n\s*\n|\n(?=#)/).forEach(b => {
+      b = b.trim(); if (!b) return;
+      const lines = b.split("\n"), hs = lines.filter(l => /^#{1,6}\s/.test(l));
+      if (hs.length) head = hs[hs.length - 1].replace(/^#+\s*|\*\*/g, "").trim();
+      const body = lines.filter(l => !/^#{1,6}\s/.test(l) && !/^-{3,}$/.test(l.trim())).join("\n").trim();
+      if (body.replace(/\s/g, "").length >= 40) out.push({ head, text: body, key: s.id + "|" + body.replace(/\s/g, "").slice(0, 40) });
+    });
+  });
+  return out;
+}
+function drView() {
+  const ps = drParas(), done = store.values.dr_done || {}, cur = (store.values.dr_text || "").trim();
+  return `<p class="hint">本節共 ${ps.length} 段，已完成 ${ps.filter(x => done[x.key]).length} 段。按「用這一段」帶入下方，複製 Prompt 送出；回覆貼到「AI 回覆」後，按「完成」標記，再換下一段。</p>` +
+    ps.map((x, i) => `<div class="dr-para${done[x.key] ? " done" : ""}${cur === x.text.trim() ? " cur" : ""}"><b>${i + 1}</b>
+      <div class="dr-txt">${x.head ? `<small>${esc(x.head)}</small>` : ""}<span>${esc(x.text.length > 90 ? x.text.slice(0, 90) + "……" : x.text)}</span></div>
+      <span class="dr-btns"><button type="button" data-drpick="${i}">${cur === x.text.trim() ? "目前這段" : "用這一段"}</button>
+      <button type="button" data-drdone="${i}">${done[x.key] ? "✓ 已完成" : "完成"}</button></span></div>`).join("");
+}
+
 // ── 待補資料查證：第一～五章 AI 回覆中的【待補…】標記 ──
 const TB_RE = /【(待補[^：:】]*)(?:[：:]([^】]*))?】/g;
 const THESIS_SECS = () => OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).flatMap(c => c.secs);

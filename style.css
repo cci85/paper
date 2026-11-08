@@ -345,3 +345,9 @@ input.sv-note.filled { border: 1.5px solid var(--warn); background: var(--warn-s
 textarea.tb-in { width: 100%; border: 1px dashed var(--line); }
 textarea.tb-in.filled { border: 1.5px solid var(--accent); background: var(--accent-soft); }
 .tb-count { font-weight: 600; color: var(--accent); }
+.dr-para { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; margin: 6px 0; background: var(--panel); }
+.dr-para.cur { border-color: var(--accent); background: var(--accent-soft); }
+.dr-para.done { opacity: .6; }
+.dr-txt { flex: 1; font-size: 13.5px; line-height: 1.6; }
+.dr-txt small { display: block; color: var(--accent); font-weight: 600; }
+.dr-btns { display: flex; gap: 6px; flex-shrink: 0; }
