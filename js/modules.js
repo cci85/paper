@@ -137,7 +137,8 @@ const DEFS = {
     fields: [
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
       { id: "as_con", type: "text", label: "研究問題", hint: "選填；以一句話描述要探討的現象或問題，可幫助 AI 聚焦", placeholder: "例如：使用者滑 TikTok 或 Instagram Reels 時看到平台推薦的產品開箱影片，是否會因此產生衝動購買？" },
-      { id: "as_dv", type: "text", label: "已確定的依變數", hint: "選填；填了之後，所有候選架構都以它為依變數", placeholder: "例如：衝動購買意向（Impulsive Buying Intention）" },
+      { id: "as_iv", type: "textarea", label: "已確定的自變數", hint: "選填；每行一個，只寫名稱即可（貼上含定義的整段也可以，網頁只取變數名稱）；填了之後，所有候選架構都包含這些自變數", rows: 2, placeholder: "例如：特惠偏好度（Deal Proneness）" },
+      { id: "as_dv", type: "textarea", label: "已確定的依變數", hint: "選填；每行一個，可填兩個以上；填了之後，所有候選架構都以這些變數為依變數", rows: 2, placeholder: "例如：認知型衝動購買（Cognitive Impulse Buying）\n情感型衝動購買（Affective Impulse Buying）" },
       { id: "as_method", type: "radio", label: "研究方法", options: [["any", "不限"], ["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "panel data"]], value: "survey" },
       { id: "as_n", type: "radio", label: "架構數量", options: [["2", "2 個"], ["3", "3 個"], ["4", "4 個"], ["5", "5 個"], ["6", "6 個"]], value: "4" },
       { id: "as_more_on", type: "checks", below: true, label: "補充變數清單", options: [["on", "接著在同一個對話補充變數清單（列出每個變數可擔任的所有角色）"]], value: [] },
@@ -155,7 +156,8 @@ const DEFS = {
       return "";
     },
     seedNote: "研究情境、研究問題與依變數由 0.1「研究方向聚焦」的 AI 回覆帶入，可自行修改",
-    build: (p, R) => blank(p.as_ctx) ? "" : T.ask_frame({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), dv: (p.as_dv || "").trim(), method: p.as_method, n: p.as_n }) + R,
+    build: (p, R) => blank(p.as_ctx) ? "" : T.ask_frame({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), ivs: fixedNames(p.as_iv), dvs: fixedNames(p.as_dv), method: p.as_method, n: p.as_n }) + R,
+    seedQuiet: ["as_dv"],
     empty: "（請填入研究情境）",
     next: "下一步：回覆貼到下方「AI 回覆」。需要更完整的變數時，勾選最下方的「補充變數清單」，在同一個對話接著問。完成後到{#asmix}。"
   },

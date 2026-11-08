@@ -550,7 +550,8 @@ T.ask_frame = p => {
   const m = FRAME_METHOD[p.method] || FRAME_METHOD.any;
   return [
     `請依據上傳文獻，以${p.ctx}為研究情境` + (p.con ? `，圍繞以下研究問題：「${p.con}」` : "") + `，提出 ${p.n} 個可行的研究架構，供我選擇。`,
-    ...(p.dv ? [`依變數已確定為「${p.dv}」：所有研究架構的依變數皆須為此變數，架構之間以自變數、中介或調節機制區分。`] : []),
+    ...(p.ivs.length || p.dvs.length ? [[p.ivs.length ? `自變數已確定為：${p.ivs.map(x => "「" + x + "」").join("、")}` : "", p.dvs.length ? `依變數已確定為：${p.dvs.map(x => "「" + x + "」").join("、")}` : ""].filter(Boolean).join("；") +
+      `。所有研究架構都必須包含${[p.ivs.length ? "這些自變數" : "", p.dvs.length ? "這些依變數" : ""].filter(Boolean).join("與")}，名稱照寫，不得替換或合併${p.dvs.length > 1 ? "（多個依變數同時存在於同一架構）" : ""}；架構之間以${p.ivs.length ? "" : "自變數、"}中介或調節機制區分。「## 變數清單」中也必須列出這些變數。`] : []),
     INDEX_NOTE,
     "",
     "## 構念層次",
@@ -1118,14 +1119,28 @@ function mechXY(p) {
   return { xs, ys };
 }
 // 步驟 1 填了「已確定的依變數」時，在變數清單中自動勾選名稱相符的依變數（同一個依變數只自動勾一次）
+// 「已確定的自變數／依變數」：每行一個；貼上含定義、量表與題項的整段時，只取變數名稱
+function fixedNames(text) {
+  const out = [];
+  String(text || "").split(/\r?\n/).forEach(l => {
+    l = l.replace(/^[\s>*•\-–]+|^\s*\d+[.、)]\s*/g, "").trim();
+    if (!l || /^(一句話定義|定義|量表|代表題項|題項|出處|["“「'])/.test(l)) return;
+    const name = l.split(/\s*[｜|]\s*/)[0].replace(/[，,。；;].*$/, "").trim();
+    if (name && name.length <= 60 && !out.includes(name)) out.push(name);
+  });
+  return out;
+}
+// 步驟 1 填了「已確定的自變數／依變數」時，在步驟 2 的變數清單中自動勾選名稱相符者（同一組設定只自動勾一次）
 function autoPickDV() {
-  const v = store.values, dv = (v.as_dv || "").trim();
-  if (!dv || v.as_dvauto === dv) return;
+  const v = store.values, want = [...fixedNames(v.as_iv).map(n => ["iv", n]), ...fixedNames(v.as_dv).map(n => ["dv", n])];
+  const sig = JSON.stringify(want);
+  if (!want.length || v.as_dvauto === sig) return;
   const norm = s => dgLabel(s)[0].replace(/\s+/g, "");
-  const target = norm(dv), hit = parseVarList(v.as_vlist).filter(x => x.role === "dv" && (norm(x.name).includes(target) || target.includes(norm(x.name))));
+  const list = parseVarList(v.as_vlist);
+  const hit = want.flatMap(([role, n]) => { const t = norm(n); return list.filter(x => x.role === role && (norm(x.name).includes(t) || t.includes(norm(x.name)))); });
   if (!hit.length) return;
   v.as_pick = [...new Set([...(v.as_pick || []), ...hit.map(x => x.key)])];
-  v.as_dvauto = dv;
+  v.as_dvauto = sig;
 }
 
 // ── 組合研究架構：依勾選的變數請 AI 提出候選架構 → 網頁畫出各候選 → 選定後說明研究缺口與學術貢獻 ──

@@ -199,7 +199,7 @@ function update() {
   let sdiff = "";
   if (m.seed) {
     const sd = m.seed(), F = Object.fromEntries(m.fields.map(f => [f.id, f]));
-    const diff = Object.keys(sd).filter(k => !blank(sd[k]) && sd[k].trim() !== String(p[k] || "").trim());
+    const diff = Object.keys(sd).filter(k => !(m.seedQuiet || []).includes(k) && !blank(sd[k]) && sd[k].trim() !== String(p[k] || "").trim());
     if (diff.length) sdiff = `請確認：${m.seedFrom}與這裡的${diff.map(k => "「" + F[k].label + "」").join("、")}不同，要採用${m.seedFrom}的版本，請按「重新帶入」。` +
       diff.filter(k => F[k].type !== "textarea").map(k => `\n${m.seedFrom}的${F[k].label}：${sd[k]}`).join("");
   }
