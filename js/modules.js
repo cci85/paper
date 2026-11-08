@@ -306,17 +306,32 @@ const DEFS = {
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
       { id: "as_con", type: "text", label: "研究問題", hint: "選填；以一句話描述要探討的現象或問題，可幫助 AI 聚焦", placeholder: "例如：使用者滑 TikTok 或 Instagram Reels 時看到平台推薦的產品開箱影片，是否會因此產生衝動購買？" },
       { id: "as_path", type: "text", label: "研究情境中的歷程", hint: "選填；不填時由 AI 依構念與結果決定階段", placeholder: "例如：開啟應用程式、滑動影片、接觸商品相關內容、產生購買念頭" },
+      { id: "bg_plan", type: "textarea", label: "選定的寫法", hint: "貼上上一步回覆中你選的那一種寫法（段落大綱）；AI 會依其中需要的統計數據上網查台灣資料。與下一步共用", rows: 5 },
       { id: "as_prev", type: "textarea", label: "0.3 檢核的回覆", hint: "自動帶入 0.3「依文獻檢核架構」的 AI 回覆（兩則都貼在那裡時會一起帶入）；也可以自己貼上", rows: 8 },
       { id: "as_draft", type: "textarea", label: "學生原稿（僅供參考）", hint: "選填；貼上學生原本寫的研究背景、動機或產業描述，僅供參考。撰寫以研究架構與文獻為主軸，學生內容可被改寫或捨棄；回覆會逐項列出需要查證或修正之處（與 1.1 的兩個步驟共用）", rows: 6 }
     ],
     seed: () => ({ as_prev: (store.replies || {})["s0-5|archchk"] || "" }),
     seedFrom: "0.3「依文獻檢核架構」", seedNote: "「0.3 檢核的回覆」由 0.3「依文獻檢核架構」的 AI 回覆帶入",
-    build: p => blank(p.as_ctx) || blank(p.as_prev) ? "" : T.ask_practice({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), path: p.as_path.trim(), prev: p.as_prev, draft: (p.as_draft || "").trim() }),
+    build: p => blank(p.as_ctx) || blank(p.as_prev) ? "" : T.ask_practice({ ctx: p.as_ctx.trim(), con: p.as_con.trim(), path: p.as_path.trim(), prev: p.as_prev, plan: (p.bg_plan || "").trim(), draft: (p.as_draft || "").trim() }),
     empty: "（請填入研究情境，並貼上組合研究架構的回覆）",
     next: "下一步：逐一點開「來源核對」中的網址確認內容；AI 即使遵守上述規則，仍可能產生不存在的網址。確認後，研究情境與實務問題可貼到{#bg}的「產業或實務背景資料」，學術缺口與實務缺口可貼到「研究缺口」。"
   },
 
   // ─── 新增：第一章、第三章 ───
+  bgplan: {
+    label: "背景與動機的寫法", target: "nlm",
+    hint: "請 NotebookLM 綜合上傳文獻的研究背景與動機寫法：與本研究題目相關、必須交代的背景要素；文獻用了哪些統計數據、本研究至少要寫幾點，以及可改用的台灣資料；文獻從理論、實務資料或研究缺口切入的方式；最後整理出幾種寫法供你選擇。",
+    fields: [
+      { id: "bp_topic", type: "textarea", label: "研究題目與研究架構", hint: "自動帶入 0.5 定稿題目、研究情境與研究架構", rows: 4 },
+      { id: "bp_n", type: "radio", label: "寫法數量", options: [["2", "2 種"], ["3", "3 種"], ["4", "4 種"]], value: "3" }
+    ],
+    seed: () => ({ bp_topic: bgSeed().bg_topic }),
+    seedFrom: "前面步驟", seedNote: "研究題目與研究架構由 0.5 定稿題目、研究情境與 3.1／0.3 的研究架構帶入",
+    rules: () => ["citation"],
+    build: (p, R) => blank(p.bp_topic) ? "" : T.bgplan({ topic: p.bp_topic.trim(), n: p.bp_n }) + R,
+    empty: "（請先完成 0.5 論文題目或 0.3 研究架構）",
+    next: "下一步：從回覆的「寫法選項」中選一種（可以合併或修改），把那一種的段落大綱貼到{#asp}的「選定的寫法」，請有網路搜尋的 AI 查台灣資料。"
+  },
   bg: {
     label: "研究背景與動機", target: "nlm",
     hint: "由產業現象收斂到文獻缺口，撰寫研究背景與研究動機。產業數據只會用您提供的資料，缺的會標【待補資料】。",
@@ -324,6 +339,7 @@ const DEFS = {
       { id: "bg_topic", type: "textarea", label: "研究主題與研究架構", hint: "自動帶入 0.5 定稿題目、研究情境與 3.1／0.3 的研究架構路徑", rows: 4, placeholder: "例如：品牌人格透過自我一致性影響品牌依附——以台灣精釀啤酒為例" },
       { id: "bg_facts", type: "textarea", label: "產業或實務背景資料", hint: "自動帶入上一步回覆的「研究情境」「實務問題」「實務缺口」（請先確認網址）", rows: 5 },
       { id: "bg_gaps", type: "textarea", label: "研究缺口", hint: "自動帶入 0.3 回覆中的「研究缺口」", rows: 4 },
+      { id: "bg_plan", type: "textarea", label: "選定的寫法", hint: "與步驟 2 共用；AI 會照這個段落大綱撰寫", rows: 5 },
       { id: "as_draft", type: "textarea", label: "學生原稿（僅供參考）", hint: "選填；貼上學生原本寫的研究背景、動機或產業描述，僅供參考。撰寫以研究架構與文獻為主軸，學生內容可被改寫或捨棄；回覆會逐項列出需要查證或修正之處（與 1.1 的兩個步驟共用）", rows: 6 },
       ...[2, 3, 4, 5, 6].map(k => ({ id: "bg_b" + k, type: "promptbox", afterOut: true, label: `第 ${k} 則 Prompt`, when: p => bgParts(p).length >= k,
         hint: "上一則送出、NotebookLM 回覆「已收到」後，在同一個對話接著送出", copyLabel: `${"②③④⑤⑥"[k - 2]} 複製第 ${k} 則（同一個對話接著送出）`, build: p => bgParts(p)[k - 1] || "" })),
@@ -917,12 +933,13 @@ function drParas() {
   stepsOf(s).filter(st => !st.finish).forEach(st => {
     let t = deLatex((store.replies || {})[s.id + "|" + st.mod] || ""); if (blank(t)) return;
     const cut = t.search(VERIFY_HEAD); if (cut >= 0) t = t.slice(0, cut);
-    let head = "";
+    let head = ""; const hasHead = /^#{1,6}\s/m.test(t);
     t.replace(/\r\n?/g, "\n").split(/\n\s*\n|\n(?=#)/).forEach(b => {
       b = b.trim(); if (!b) return;
       const lines = b.split("\n"), hs = lines.filter(l => /^#{1,6}\s/.test(l));
       if (hs.length) head = hs[hs.length - 1].replace(/^#+\s*|\*\*/g, "").trim();
       const body = lines.filter(l => !/^#{1,6}\s/.test(l) && !/^-{3,}$/.test(l.trim())).join("\n").trim();
+      if (hasHead && !head) return;   // 第一個標題之前是 AI 的開場說明，不是論文段落
       if (body.replace(/\s/g, "").length >= 40) out.push({ head, text: body, key: s.id + "|" + body.replace(/\s/g, "").slice(0, 40) });
     });
   });
@@ -999,7 +1016,7 @@ function mdSection(text, names) {   // 取出「## 名稱」一節（含其下�
 let BG_R = "";   // 研究背景與動機：最近一次的共用規則文字（分則時附在最後一則）
 function bgParts(p) {
   if (blank(p.bg_topic)) return [];
-  const q = { topic: p.bg_topic.trim(), facts: p.bg_facts, gaps: p.bg_gaps, draft: (p.as_draft || "").trim() };
+  const q = { topic: p.bg_topic.trim(), facts: p.bg_facts, gaps: p.bg_gaps, plan: (p.bg_plan || "").trim(), draft: (p.as_draft || "").trim() };
   return splitForNLM(T.bg_mat(q), T.bg_task(q) + BG_R, "研究背景與動機");
 }
 function bgSeed() {
@@ -1007,7 +1024,7 @@ function bgSeed() {
   const { vars, d } = finalArch(), nm = k => ((vars.find(x => x.key === k) || {}).name || k).replace(/\s*[（(][^（）()]*[）)]\s*$/, "");
   const paths = d.edges.map(e => `${nm(e.from)} → ${nm(e.to)}`).concat(d.mods.map(m => { const [a, b] = m.edge.split(">"); return `${nm(m.from)} 調節（${nm(a)} → ${nm(b)}）`; }));
   const topic = [(v.tt_zh || "").trim() && "論文題目：" + v.tt_zh.trim(), (v.as_ctx || "").trim() && "研究情境：" + v.as_ctx.trim(), paths.length && "研究架構：" + paths.join("；")].filter(Boolean).join("\n");
-  return { bg_topic: topic, bg_facts: mdSection(r["s1-1|asp"], ["研究情境", "實務問題", "實務缺口"]), bg_gaps: mdSection(r["s0-5|archchk"], ["研究缺口"]) };
+  return { bg_topic: topic, bg_facts: mdSection(r["s1-1|asp"], ["台灣統計資料", "研究情境", "實務問題", "實務缺口"]), bg_gaps: mdSection(r["s0-5|archchk"], ["研究缺口"]) };
 }
 function ttlArch() { const { A, vars, d } = finalArch(); return vars.length && d.edges.length ? archText({ ...A, vars }, d) : ""; }
 function f31Text() {
@@ -1084,8 +1101,9 @@ const OUTLINE = [
   ] },
   { ch: "第一章 緒論", secs: [
     { id: "s1-1", no: "1.1", title: "研究背景與動機", desc: "由產業現象收斂到文獻缺口。", steps: [
-      { mod: "asp", note: "先查實務面：把{#archchk}兩則的完整回覆交給有網路搜尋的 AI，寫成研究情境、實務問題與實務缺口。" },
-      { mod: "bg", note: "準備研究架構、手邊的產業數據，以及 0.2 選定的研究缺口；上一步的研究情境與實務問題可貼到「產業或實務背景資料」。" }], finish: FIN_FULL },
+      { mod: "bgplan", note: "先看相關文獻怎麼寫研究背景與動機：必寫的要素、要放幾點統計數據、從理論或從實務資料切入，並整理出幾種寫法供你選擇。" },
+      { mod: "asp", note: "依選定的寫法查台灣的統計與實務資料：把選定寫法的段落大綱與{#archchk}的回覆交給有網路搜尋的 AI，寫成研究情境、實務問題與實務缺口，並整理台灣統計資料。" },
+      { mod: "bg", note: "依選定的寫法撰寫；研究主題、選定的寫法、背景資料與研究缺口會自動帶入。" }], finish: FIN_FULL },
     { id: "s1-2", no: "1.2", title: "研究目的與問題", desc: "研究目的要對應動機，研究問題要能由假說回答。", steps: [
       { mod: "purpose", note: "準備研究架構（假說清單）與 1.1 寫好的研究動機。" }], finish: FIN_FULL },
     { id: "s1-3", no: "1.3", title: "名詞釋義", desc: "界定本研究主要構念的意涵。", steps: [

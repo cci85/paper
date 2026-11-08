@@ -351,3 +351,9 @@ textarea.tb-in.filled { border: 1.5px solid var(--accent); background: var(--acc
 .dr-txt { flex: 1; font-size: 13.5px; line-height: 1.6; }
 .dr-txt small { display: block; color: var(--accent); font-weight: 600; }
 .dr-btns { display: flex; gap: 6px; flex-shrink: 0; }
+#cands-dr_paras { display: block; }
+#cands-dr_paras .dr-txt { font-size: 15px; }
+#cands-dr_paras .dr-txt small { font-size: 13px; }
+#cands-dr_paras .dr-para { padding: 12px 14px; }
+#cands-dr_paras .dr-txt { font-size: 16px; line-height: 1.75; }
+#cands-dr_paras .dr-para > b { font-size: 18px; min-width: 1.6em; }
