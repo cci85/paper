@@ -391,7 +391,13 @@ $("pane").addEventListener("click", async e => {
     return;
   }
   if (e.target.closest("button[data-findedup]")) {   // 本節定稿：刪除所有完全相同的重複段落
-    const seen = new Set(); setFin(store.sec, finBlocks(finText(store.sec)).filter(b => !seen.has(b) && seen.add(b)).join("\n\n"));
+    const before = finBlocks(finText(store.sec)).length;
+    if (!confirm("清除重複段落：每組重複只保留最後面（最新）的那一段。確定嗎？（之後可按「復原清除重複前的內容」）")) return;
+    (store.values.fin_undo ||= {})[store.sec] = finText(store.sec); setFin(store.sec, finDedupLatest(finText(store.sec))); alert(`已刪除 ${before - finBlocks(finText(store.sec)).length} 段重複的段落。`);
+    save(); renderPane(); update(); const fbx = $("finbox"); if (fbx) fbx.open = true; return;
+  }
+  if (e.target.closest("button[data-finundo]")) {
+    const u = (store.values.fin_undo || {})[store.sec]; if (u) { setFin(store.sec, u); delete store.values.fin_undo[store.sec]; }
     save(); renderPane(); update(); const fbx = $("finbox"); if (fbx) fbx.open = true; return;
   }
   const fd = e.target.closest("button[data-findel]");
