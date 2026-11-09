@@ -1207,6 +1207,18 @@ function finText(sid) {
   return hs.length === 1 && t.startsWith("#### ") ? t.replace(/^#### .*\n*/, "") : t;   // 只有一個小標題（例如「研究背景與動機」）時去掉，正文不設小標題
 }
 const setFin = (sid, t) => { (store.values.fin ||= {})[sid] = t; };
+// 重複段落：去掉空白與標點後，以兩字片段的重疊比例判斷（一段包含另一段也算）
+function blockSim(a, b) {
+  const n = x => x.replace(/[\s，。、；：「」（）()【】,.;:\-—]/g, ""), A = n(a), B = n(b); if (A.length < 20 || B.length < 20) return 0;
+  if (A.includes(B) || B.includes(A)) return 1;
+  const g = x => { const s = new Set(); for (let i = 0; i < x.length - 1; i++) s.add(x.slice(i, i + 2)); return s; }, ga = g(A), gb = g(B);
+  let k = 0; ga.forEach(x => { if (gb.has(x)) k++; }); return k / Math.min(ga.size, gb.size);
+}
+function finDups(t) {   // [{ i, j, sim }]：第 j 段與前面的第 i 段重複或幾乎相同
+  const bs = finBlocks(t), out = [];
+  bs.forEach((b, j) => { for (let i = 0; i < j; i++) { const s = blockSim(bs[i], b); if (s >= 0.8) { out.push({ i, j, sim: s }); break; } } });
+  return out;
+}
 const finBlocks = t => String(t || "").split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
 function finHtml(t, ed) {   // 定稿的簡易排版：#### 小標題、段落、【待補】標記；ed：每段可直接點擊修改
   return finBlocks(t).map((b, i) => { const a = ed ? ` contenteditable="true" spellcheck="false" data-fp="${i}"` : "";
@@ -1219,10 +1231,18 @@ function finBox() {   // 第一～五章各節：所有步驟下方的「本節�
   const t = finText(s.id), own = typeof (store.values.fin || {})[s.id] === "string";
   const miss = t ? finRefMiss(s) : 0;
   return `<details class="fin" id="finbox"><summary>本節論文內容（定稿）${t ? "" : "：尚未撰寫"}${miss ? `<span class="fin-refhint">　📚 尚缺 ${miss} 筆參考文獻，點開到最下方「查找參考文獻」</span>` : ""}</summary>
-    ${t ? `<p class="hint">直接點文字即可修改，自動存檔；段落中按兩次 Enter 可拆成兩段，整段刪空即刪除該段。</p>` : ""}
+    ${finDupBox(t)}${t ? `<p class="hint">直接點文字即可修改，自動存檔；段落中按兩次 Enter 可拆成兩段，整段刪空即刪除該段。</p>` : ""}
     <div class="fin-view fin-ed" id="finview">${finHtml(t, true) || `<p class="hint">完成本節的撰寫步驟並貼上 AI 回覆後，正文會自動出現在這裡。</p>`}</div>
     <p class="fin-btns">${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}
     <span class="hint">論文.md 與「論文全文」只放這裡的內容</span></p>${finRefBox(s)}</details>`;
+}
+function finDupBox(t) {
+  const ds = finDups(t); if (!ds.length) return "";
+  const bs = finBlocks(t), cut = x => x.length > 40 ? x.slice(0, 40) + "…" : x;
+  return `<div class="note warn fin-dup"><b>發現 ${ds.length} 組重複的段落</b>（通常是同一段被「加到本節定稿最後」或貼上了兩次）。幾乎相同時，較後面的通常是修改過的新版；請比對後刪除不要的那一段：` +
+    ds.map(d => `<div class="fin-duprow">${d.sim >= 0.999 ? "兩段相同" : "兩段幾乎相同"}
+      <div>前：「${esc(cut(bs[d.i]))}」 <button type="button" data-findel="${d.i}">刪除這段</button></div>
+      <div>後：「${esc(cut(bs[d.j]))}」 <button type="button" data-findel="${d.j}">刪除這段</button></div></div>`).join("") + `</div>`;
 }
 // 本節定稿下方：查找本節缺少的參考文獻 → 貼上 AI 回覆 → 自動匯入參考文獻頁
 function finRefMiss(s) { const rows = refRows().filter(r => r.secs.has(s.no)); return rows.length - rows.filter(r => r.entry.trim() && (r.saved || refApa(r.entry))).length; }
@@ -1281,7 +1301,7 @@ function drResultView(t) {
 function drReplace(mode) {
   const sid = store.sec, r = drLatest((store.replies || {})[replyKey()] || ""); if (!r) return;
   let t = finText(sid); const ps = drParas();
-  if (mode === "append") t = (t ? t + "\n\n" : "") + r;
+  if (mode === "append") { if (finBlocks(t).some(b => blockSim(b, r) >= 0.8) && !confirm("本節定稿中已有相同或幾乎相同的段落，仍要再加到最後嗎？")) return; t = (t ? t + "\n\n" : "") + r; }
   else if (mode === "one") { const p = ps.find(x => x.text.trim() === (store.values.dr_text || "").trim()); if (!p) return; t = t.replace(p.text, r); store.values.dr_text = r; }
   else { const sel = ps.filter(x => (store.values.dr_sel || []).includes(x.key)); if (!sel.length) return; t = t.replace(sel[0].text, r); sel.slice(1).forEach(x => { t = t.replace(x.text, ""); }); t = t.replace(/\n{3,}/g, "\n\n").trim(); store.values.dr_sel = []; }
   setFin(sid, t);

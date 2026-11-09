@@ -407,3 +407,4 @@ textarea.fin-edit { width: 100%; min-height: 360px; font-size: 15px; line-height
 .fin-ref { border-top: 1px dashed var(--line); margin-top: 10px; padding-top: 6px; } .fin-ref h4 { margin: 4px 0; } .fin-ref textarea { width: 100%; margin-top: 4px; }
 .fin-refhint { font-size: 14px; font-weight: normal; color: var(--warn, #a15c00); }
 .fin-ed [contenteditable] { border-radius: 4px; padding: 2px 4px; margin-left: -4px; margin-right: -4px; cursor: text; } .fin-ed [contenteditable]:hover { outline: 1px dashed var(--line); } .fin-ed [contenteditable]:focus { outline: 2px solid var(--accent); background: var(--card, transparent); }
+.fin-dup { margin: 6px 0; } .fin-duprow { margin-top: 6px; } .fin-duprow button { margin-left: 6px; }

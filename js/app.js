@@ -390,6 +390,11 @@ $("pane").addEventListener("click", async e => {
     const el = $("fmsg-" + f.id); if (el) { el.textContent = msg || ""; el.className = "note" + (/沒有|無法/.test(msg) ? " warn" : ""); }
     return;
   }
+  const fd = e.target.closest("button[data-findel]");
+  if (fd) {   // 本節定稿：刪除重複的段落
+    const bs = finBlocks(finText(store.sec)); bs.splice(+fd.dataset.findel, 1); setFin(store.sec, bs.join("\n\n")); save(); renderPane(); update();
+    const fbx = $("finbox"); if (fbx) fbx.open = true; return;
+  }
   const fr = e.target.closest("button[data-finrefcopy]");
   if (fr) {   // 本節定稿：複製查找文獻 Prompt
     const it = refFillItems(fr.dataset.finrefcopy), text = it ? T.ref_fill({ items: it }) : "", old = fr.textContent;
