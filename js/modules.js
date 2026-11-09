@@ -1238,8 +1238,8 @@ function finBox() {   // 第一～五章各節：所有步驟下方的「本節�
   const t = finText(s.id), own = typeof (store.values.fin || {})[s.id] === "string";
   const miss = t ? finRefMiss(s) : 0, dup = t ? finDups(t).length : 0;
   return `<details class="fin" id="finbox"><summary>本節論文內容（定稿）${t ? "" : "：尚未撰寫"}${miss ? `<span class="fin-refhint">　📚 尚缺 ${miss} 筆參考文獻，點開到最下方「查找參考文獻」</span>` : ""}${dup ? `<span class="fin-refhint">　⚠ 有 ${dup} 組重複段落</span>` : ""}</summary>
-    ${finDupBox(t)}${t ? `<p class="hint">直接點文字即可修改，自動存檔；段落中按兩次 Enter 可拆成兩段，整段刪空即刪除該段。</p>` : ""}
-    <div class="fin-view fin-ed" id="finview">${finHtml(t, true) || `<p class="hint">完成本節的撰寫步驟並貼上 AI 回覆後，正文會自動出現在這裡。</p>`}</div>
+    ${finDupBox(t)}${t ? `<p class="hint">直接點文字即可修改，整節連在一起，可以跨段落選取；自動存檔。按 Enter 另起一段，刪掉段落之間的分隔即合併兩段。</p>
+    <div class="fin-view fin-ed" id="finview" contenteditable="true" spellcheck="false" data-fall="1">${finHtml(t)}</div>` : `<div class="fin-view" id="finview"><p class="hint">完成本節的撰寫步驟並貼上 AI 回覆後，正文會自動出現在這裡。</p></div>`}
     <p class="fin-btns">${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}${(store.values.fin_undo || {})[s.id] ? `<button type="button" data-finundo="1">復原上一次清除或取代前的內容</button>` : ""}
     <span class="hint">論文.md 與「論文全文」只放這裡的內容</span></p>${finRefBox(s)}</details>`;
 }

@@ -256,15 +256,21 @@ $("sechead").addEventListener("click", e => {
   const b = e.target.closest("button[data-step]"); if (!b) return;
   store.step[store.sec] = +b.dataset.step; renderSection(); renderPane(); foldOut(); update();
 });
-// 本節定稿直接修改：開始修改時記下各段，離開時依新內容重畫（段落拆分、刪除後編號才會正確）
-let FP_BASE = null;
-$("pane").addEventListener("focusin", e => { if (e.target.dataset && e.target.dataset.fp !== undefined) FP_BASE = finBlocks(finText(store.sec)); });
+// 本節定稿直接修改：整節是一個可編輯的區塊；每次修改依區塊內的段落重組文字，離開時重新排版
+function finFromView(v) {
+  const out = [];
+  v.childNodes.forEach(n => {
+    const txt = (n.nodeType === 3 ? n.textContent : n.innerText || "").replace(/\u00a0/g, " ").replace(/\n{3,}/g, "\n\n").trim(); if (!txt) return;
+    out.push(n.nodeType === 1 && n.tagName === "H4" ? "#### " + txt.replace(/\s*\n\s*/g, " ") : txt);
+  });
+  return out.join("\n\n");
+}
 $("pane").addEventListener("focusout", e => {
-  if (!(e.target.dataset && e.target.dataset.fp !== undefined)) return;
-  FP_BASE = null; const v = $("finview"); if (v) v.innerHTML = finHtml(finText(store.sec), true);
+  if (!(e.target.dataset && e.target.dataset.fall)) return;
+  const v = $("finview"); if (v) v.innerHTML = finHtml(finText(store.sec));
 });
 $("pane").addEventListener("paste", e => {   // 貼上時只保留純文字
-  if (!(e.target.closest && e.target.closest("[data-fp]"))) return;
+  if (!(e.target.closest && e.target.closest("[data-fall]"))) return;
   e.preventDefault(); document.execCommand("insertText", false, (e.clipboardData || window.clipboardData).getData("text/plain"));
 });
 $("pane").addEventListener("input", e => {
@@ -300,12 +306,7 @@ $("pane").addEventListener("input", e => {
     $("out").textContent = refList().join("\n"); $("copy").disabled = !refList().length;
     return;
   }
-  if (t.dataset && t.dataset.fp !== undefined && FP_BASE) {   // 本節定稿：直接在呈現頁面修改段落
-    const b = FP_BASE.slice(), i = +t.dataset.fp; let v = t.innerText.replace(/\u00a0/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-    if (t.tagName === "H4" && v) v = "#### " + v.replace(/\s*\n\s*/g, " ");
-    b[i] = v; setFin(store.sec, b.filter(Boolean).join("\n\n")); save();
-    return;
-  }
+  if (t.dataset && t.dataset.fall) { setFin(store.sec, finFromView(t)); save(); return; }   // 本節定稿：直接在呈現頁面修改
   if (t.dataset.finref) {   // 本節定稿：貼上 AI 整理的參考文獻 → 自動配對
     (store.values.rf_paste ||= {})[t.dataset.finref] = t.value; save();
     const c = $("finrefcount"); if (c) c.innerHTML = finRefCount(sec());
@@ -348,7 +349,7 @@ $("pane").addEventListener("click", async e => {
     $("pane").scrollIntoView({ behavior: "smooth" }); return;
   }
   const pa = e.target.closest("button[data-poadopt], button[data-poundo]");
-  if (pa) { if (pa.dataset.poundo) poUndo(+pa.dataset.poundo); else poAdopt(+pa.dataset.poadopt); save(); renderReplyView(); const fv = $("finview"); if (fv) fv.innerHTML = finHtml(finText(store.sec), true); const ta = document.querySelector("textarea[data-fin]"); if (ta) ta.value = finText(store.sec); return; }
+  if (pa) { if (pa.dataset.poundo) poUndo(+pa.dataset.poundo); else poAdopt(+pa.dataset.poadopt); save(); renderReplyView(); const fv = $("finview"); if (fv) fv.innerHTML = finHtml(finText(store.sec)); const ta = document.querySelector("textarea[data-fin]"); if (ta) ta.value = finText(store.sec); return; }
   const rp = e.target.closest("button[data-refpick]");   // 同年多筆：選定一筆，去掉年份字母
   if (rp) { const r = refRows().find(x => x.key === rp.dataset.refpick), a = r && r.alts[+rp.dataset.i];
     if (a) { (store.values.refs ||= {})[r.key] = refNoLetter(a, r.year); save(); update(); } return; }
