@@ -1122,7 +1122,7 @@ function refRows() {
   const cites = citeScan(), cands = refCandidates(), saved = store.values.refs || {};
   const bulk = refLines([store.values.rf_bulk, ...Object.values(store.values.rf_paste || {})].join("\n"));   // 參考文獻頁與各節定稿貼上的書目
   return cites.map(c => { const b = c.key in saved ? "" : refAuto(c, bulk);
-    const entry = c.key in saved ? saved[c.key] : b ? zhRef(b) : refAuto(c, cands);
+    const entry = c.key in saved ? saved[c.key] : refTidy(b ? zhRef(b) : refAuto(c, cands));
     return { ...c, saved: c.key in saved, bulk: !!b, entry, alts: entry.trim() ? [] : refAlts(c, bulk.concat(cands)).map(zhRef) }; });
 }
 function refFillItems(no) {   // 缺出處或格式不符 APA 的引用（no：只列該節），附上回覆中的線索（含網址的行）
@@ -1134,8 +1134,15 @@ function refFillItems(no) {   // 缺出處或格式不符 APA 的引用（no：�
     return `- （${r.label}）` + (clue.length ? "\n  線索：" + clue.join("\n  線索：") : "");
   }).join("\n");
 }
+// AI 常把網址寫成 Markdown 連結（[文字](網址)），還會重複附上來源連結：改成純文字網址，只留一次
+function refTidy(e) {
+  let t = String(e || "").replace(/\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g, " $2 ").replace(/<(https?:\/\/[^>\s]+)>/g, "$1");
+  const seen = new Set();
+  t = t.replace(/https?:\/\/[^\s，。）)】」]+/g, u => { const k = u.replace(/[.,;]+$/, ""); if (seen.has(k)) return ""; seen.add(k); return u; });
+  return t.replace(/[ \t\u3000]{2,}/g, " ").replace(/。\s+(?=https?:)/g, "。").replace(/\s+$/g, "").trim();
+}
 function refList() {   // APA 第七版：中文在前（筆畫），英文在後（字母）
-  const es = refRows().map(r => r.entry.trim()).filter(Boolean);
+  const es = refRows().map(r => refTidy(r.entry)).filter(Boolean);
   return [...new Set(es)].sort((a, b) => (CJK.test(a[0]) ? 0 : 1) - (CJK.test(b[0]) ? 0 : 1) || (CJK.test(a[0]) ? refCollator.compare(a, b) : enCollator.compare(a, b)));
 }
 function refView() {
