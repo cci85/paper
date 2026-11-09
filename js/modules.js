@@ -1303,7 +1303,7 @@ function drResultView(t) {
   const btn = merge ? (sel.length ? `<button type="button" class="copy" data-drrep="merge">以此取代所選的 ${sel.length} 段（合併為一段）</button>` : "")
     : (cur >= 0 ? `<button type="button" class="copy" data-drrep="one">以此取代第 ${cur + 1} 段</button>` : "");
   return `<div class="drres"><h3>最新的${merge ? "融合" : "改寫"}結果</h3><div class="fin-view">${finHtml(r)}</div>
-    ${used ? `<p class="note">✓ 這個結果已經在「本節論文內容」中，不需要再加入。</p>` : `<p class="fin-btns">${btn}<button type="button" data-drrep="append">不取代，另外加在本節最後</button>
+    ${used ? `<p class="note">✓ 這個結果已經在「本節論文內容」中，不需要再加入。</p>` : `${btn ? "" : `<p class="note warn">沒有出現「以此取代」按鈕：原本選的段落已不在本節定稿中（可能已修改或刪除）。請在上方「本節的段落」重新按「用這一段」${merge ? "或勾選「加入融合」" : ""}，選好要被取代的段落後，就會出現取代按鈕。</p>`}<p class="fin-btns">${btn}<button type="button" data-drrep="append">不取代，另外加在本節最後</button>
     <span class="hint">一般請按「以此取代」；取代後會更新「本節論文內容」與論文.md</span></p>`}</div>`;
 }
 function drReplace(mode) {
