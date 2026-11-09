@@ -979,15 +979,20 @@ function finalArch() {
 }
 // ── 背景與動機的寫法：把回覆中的「寫法選項」拆成可勾選的卡片 ──
 function bpOptions(text) {
-  const body = mdSection(text, ["寫法選項"]) || "";
+  // 每種寫法以「寫法一／寫法二……」開頭（可能是 ### 小標題、粗體或一般行）；其下的「1. 切入方式」等不是寫法
+  const wHead = l => /^\s*(#{1,6}\s*)?[*_\-\s]*(寫法|選項|方案)\s*[一二三四五六七八九十\d]+/.test(l);
+  let body = mdSection(text, ["寫法選項"]) || "";
+  if (!body.split("\n").slice(1).some(wHead)) {   // 寫法用了與「寫法選項」同級的標題時，改取「寫法選項」之後的全部內容
+    const t = String(text || "").replace(/\r\n?/g, "\n").replace(/\*\*/g, ""), i = t.search(/^#{1,4}\s*[0-9一二三四五六七八九十、.．\s]*寫法選項/m);
+    if (i >= 0) body = t.slice(i);
+  }
   const L = body.split("\n").slice(1), opts = []; let cur = null;
-  const isHead = l => /^#{3,5}\s/.test(l) || /^\s*[*_]*\s*(寫法|選項|方案)\s*[一二三四五六七八九十\d]+/.test(l);
-  const useHead = L.some(l => /^#{3,5}\s/.test(l));
+  const head = L.some(wHead) ? wHead : l => /^#{3,5}\s/.test(l);
   L.forEach(l => {
-    if (useHead ? /^#{3,5}\s/.test(l) : isHead(l)) { cur = { title: l.replace(/^#+\s*|\*\*/g, "").trim(), lines: [] }; opts.push(cur); }
+    if (head(l)) { cur = { title: l.replace(/^\s*#+\s*|\*\*/g, "").replace(/^[*_\-\s]+/, "").trim(), lines: [] }; opts.push(cur); }
     else if (cur) cur.lines.push(l);
   });
-  return opts.map(o => ({ title: o.title, text: o.lines.join("\n").trim() })).filter(o => o.text);
+  return opts.map(o => ({ title: o.title, text: o.lines.join("\n").replace(/^\s*#+\s*/gm, "").trim() })).filter(o => o.text);
 }
 function bpView(t) {
   const os = bpOptions(t); if (!os.length) return blank(t) ? "" : `<p class="note warn">回覆中沒有找到「寫法選項」一節，請重新複製 Prompt（新版會以「### 寫法一：名稱」分開各寫法）。</p>`;
