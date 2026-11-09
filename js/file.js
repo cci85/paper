@@ -438,7 +438,7 @@ function whyNoFs() {
   if (/Line\/|FBAN|FBAV|Instagram|Obsidian|Electron/i.test(ua)) return "網頁開在其他程式的內建瀏覽器裡，請複製網址，改在 Chrome 或 Edge 開啟。" + tail;
   if (/Firefox\//.test(ua)) return "Firefox 不支援資料夾存取，請改用 Chrome 或 Edge 開啟。" + tail;
   if (/Safari\//.test(ua) && !/Chrome\//.test(ua)) return "Safari 不支援資料夾存取，請改用 Chrome 或 Edge 開啟。" + tail;
-  if (!window.isSecureContext) return "網頁不是以 https 開啟，無法存取資料夾，請使用 https://cci85.github.io/paper/。" + tail;
+  if (!window.isSecureContext) return "網頁不是以 https 開啟，無法存取資料夾，請使用 https://cci85.github.io/pr/。" + tail;
   return "這個瀏覽器不支援資料夾存取，請改用電腦版 Chrome 或 Edge 開啟。" + tail;
 }
 
