@@ -397,3 +397,7 @@ textarea.fin-edit { width: 100%; min-height: 360px; font-size: 15px; line-height
 .ref-item textarea { width: 100%; margin-top: 6px; font-size: 14.5px; }
 .ref-item small { color: var(--muted); }
 .fulltext .ref-line { text-indent: -2em; padding-left: 2em; }
+.po-item { border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 10px 0; font-size: 15px; line-height: 1.8; }
+.po-item.used { border-color: var(--accent); background: var(--accent-soft); }
+.po-item small { display: inline-block; min-width: 3em; margin-right: 6px; font-weight: 700; color: var(--muted); }
+.po-from { color: var(--muted); } .po-to { font-weight: 600; } .po-why { font-size: 14px; color: var(--muted); }

@@ -315,6 +315,8 @@ $("pane").addEventListener("click", async e => {
     adoptRevised(); save(); renderPane(); update();
     $("pane").scrollIntoView({ behavior: "smooth" }); return;
   }
+  const pa = e.target.closest("button[data-poadopt]");
+  if (pa) { poAdopt(+pa.dataset.poadopt); save(); renderReplyView(); const fv = $("finview"); if (fv) fv.innerHTML = finHtml(finText(store.sec)); const ta = document.querySelector("textarea[data-fin]"); if (ta) ta.value = finText(store.sec); return; }
   const rd = e.target.closest("button[data-refdel]");
   if (rd) { delete (store.values.refs || {})[rd.dataset.refdel]; save(); renderPane(); update(); return; }
   const fb2 = e.target.closest("button[data-finedit], button[data-finreset], button[data-drrep]");

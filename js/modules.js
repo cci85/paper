@@ -498,11 +498,14 @@ const DEFS = {
     label: "潤色與去 AI 味", target: "ai",
     hint: "潤色：只修正語病與邏輯漏洞，原文通順就保留。去 AI 味：把機器味、翻譯腔重寫成自然的學術表達。不涉及查證文獻，所以貼到一般 AI 即可。",
     fields: [
-      { id: "po_mode", type: "radio", label: "處理方式", options: [["polish", "潤色"], ["dehai", "去 AI 味"]], value: "polish" },
-      { id: "po_lang", type: "radio", label: "段落語言", options: [["zh", "中文"], ["en", "英文"]], value: "zh" },
+      { id: "po_mode", type: "radio", label: "處理方式", options: [["suggest", "逐句修改建議（只列需要改的句子，逐句採用）"], ["polish", "潤色（輸出全文）"], ["dehai", "去 AI 味（輸出全文）"]], value: "suggest" },
+      { id: "po_lang", type: "radio", label: "段落語言", options: [["zh", "中文"], ["en", "英文"]], value: "zh", when: p => p.po_mode !== "suggest" },
+      { id: "po_load", type: "button", label: "帶入本節定稿", hint: "把「本節論文內容」的全文帶入下方；也可以只貼其中幾段", when: () => THESIS_SECS().some(x => x.id === store.sec),
+        run: () => { const t = finText(store.sec); if (blank(t)) return "本節還沒有定稿內容。"; store.values.po_text = t; return "已帶入本節定稿。"; } },
       { id: "po_text", type: "textarea", label: "論文段落", rows: 8 }
     ],
-    build: p => blank(p.po_text) ? "" : T[`${p.po_mode}_${p.po_lang}`]({ text: p.po_text.trim() }),
+    replyView: t => store.values.po_mode === "suggest" || !store.values.po_mode ? poView(t) : "",
+    build: p => blank(p.po_text) ? "" : p.po_mode === "suggest" ? T.polish_suggest({ text: p.po_text.trim() }) : T[`${p.po_mode}_${p.po_lang}`]({ text: p.po_text.trim() }),
     empty: "（請貼上論文段落）",
     next: "下一步：貼到一般 AI 對話。若段落含引用且尚未核實，請先用{#dr}。"
   },
@@ -1053,6 +1056,32 @@ function refView() {
       <b>（${esc(r.label)}）</b><small>　出現於 ${esc([...r.secs].join("、"))}　${r.saved && r.entry.trim() ? "已確認" : r.entry ? "自動帶入，請核對" : "找不到出處，請填入"}</small>
       <textarea data-ref="${esc(r.key)}" rows="2" placeholder="完整的 APA 第七版參考文獻，例如：經濟部統計處（2026）。報告名稱。https://……">${esc(r.entry)}</textarea></div>`).join("") +
     (orphan.length ? `<h4>正文已不再引用的出處（${orphan.length}）</h4>` + orphan.map(k => `<div class="ref-item orphan"><span>${esc(saved[k])}</span> <button type="button" data-refdel="${esc(k)}">刪除</button></div>`).join("") : "");
+}
+
+// ── 潤色：逐句修改建議，按「採用」才替換本節定稿中的那一句 ──
+function poParse(text) {
+  const t = deLatex(String(text || "")).replace(/\r\n?/g, "\n").replace(/\*\*/g, "");
+  const strip = v => (v || "").trim().replace(/^[「『"“]|[」』"”]$/g, "").trim();
+  return t.split(/^#{2,4}\s*建議\s*\d+[^\n]*$/m).slice(1).map(b => ({
+    from: strip((b.match(/^\s*原句[：:]\s*(.+)$/m) || [])[1]),
+    to: strip((b.match(/^\s*建議[：:]\s*(.+)$/m) || [])[1]),
+    why: strip((b.match(/^\s*理由[：:]\s*(.+)$/m) || [])[1])
+  })).filter(x => x.from && x.to);
+}
+function poView(t) {
+  const ss = poParse(t); if (!ss.length) return blank(t) ? "" : `<p class="hint">（回覆中沒有找到「### 建議 1」這類格式的修改建議）</p>`;
+  const fin = THESIS_SECS().some(x => x.id === store.sec) ? finText(store.sec) : null, done = store.values.po_done || {};
+  return `<div class="posug"><h3>逐句修改建議（${ss.length} 句）</h3><p class="hint">按「採用」才會替換「本節論文內容」中的那一句；不採用的句子保持原樣。</p>` + ss.map((x, i) => {
+    const key = store.sec + "|" + x.from, used = done[key], found = fin !== null && fin.includes(x.from);
+    return `<div class="po-item${used ? " used" : ""}"><div class="po-from"><small>原句</small>${esc(x.from)}</div><div class="po-to"><small>建議</small>${esc(x.to)}</div>
+      ${x.why ? `<div class="po-why"><small>理由</small>${esc(x.why)}</div>` : ""}
+      <p class="fin-btns">${used ? "✓ 已採用" : fin === null ? `<span class="hint">（不在第一～五章的節內，請自行替換）</span>` : found ? `<button type="button" data-poadopt="${i}">採用</button>` : `<span class="hint">本節定稿中找不到這一句（可能已修改過）</span>`}</p></div>`;
+  }).join("") + `</div>`;
+}
+function poAdopt(i) {
+  const x = poParse((store.replies || {})[replyKey()] || "")[i]; if (!x) return;
+  const t = finText(store.sec); if (!t.includes(x.from)) return;
+  setFin(store.sec, t.replace(x.from, x.to)); (store.values.po_done ||= {})[store.sec + "|" + x.from] = true;
 }
 
 // ── 本節定稿：論文.md 與網頁「本節論文內容」「論文全文」只放定稿 ──
