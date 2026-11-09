@@ -1091,7 +1091,7 @@ function webRef(p) {
   const S = (p.rw_site || "").trim(), site = S && S !== A ? S : "", zh = CJK.test(A + T), rep = p.rw_type === "report";
   const dm = (p.rw_date || "").match(/(\d{4})(?:\s*[\/\-.年]\s*(\d{1,2})(?:\s*[\/\-.月]\s*(\d{1,2}))?)?/), y = dm ? dm[1] : "", mo = dm && !rep ? +dm[2] || 0 : 0, d = dm && mo ? +dm[3] || 0 : 0;
   if (zh) {
-    const date = !y ? "無日期" : mo ? `${y}，${mo} 月${d ? ` ${d} 日` : ""}` : y;
+    const date = !y ? "無日期" : mo ? `${y} 年 ${mo} 月${d ? ` ${d} 日` : ""}` : y;   // 中文 APA：（2026 年 7 月 27 日）
     return { year: y || "無日期", text: `${A}（${date}）。${T}。${site ? site + "。" : ""}${U}`.trim() };
   }
   const M = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -1119,7 +1119,7 @@ const MONTHS = ["january", "february", "march", "april", "may", "june", "july", 
 const zhDate = d => d.replace(/([A-Za-z]+)\s*(\d{1,2})?/, (m, mo, day) => { const k = MONTHS.indexOf(mo.toLowerCase()) + 1; return k ? `${k} 月${day ? " " + day + " 日" : ""}` : m; });
 function zhRef(e) {
   if (!CJK.test(e.charAt(0))) return e;
-  return e.replace(/^([^()（）]+?)\.?\s*\((\d{4}[a-z]?|n\.d\.)(?:,\s*([^)]*))?\)\.\s*/, (m, a, y, d) => `${a.trim().replace(/,?\s*&\s*|,\s*/g, "、")}（${y === "n.d." ? "無日期" : y}${d ? "，" + zhDate(d) : ""}）。`)
+  return e.replace(/^([^()（）]+?)\.?\s*\((\d{4}[a-z]?|n\.d\.)(?:,\s*([^)]*))?\)\.\s*/, (m, a, y, d) => `${a.trim().replace(/,?\s*&\s*|,\s*/g, "、")}（${y === "n.d." ? "無日期" : y}${d ? " 年 " + zhDate(d) : ""}）。`)
     .replace(/([\u3400-\u9fff》〉」）])\.(\s+|$)/g, "$1。").replace(/([\u3400-\u9fff》〉」]),\s*(?=[\u3400-\u9fff\d])/g, "$1，")
     .replace(/(\d+)\((\d+)\),\s*/, "$1（$2），").replace(/(\d+[–-]\d+)\.(\s+|$)/, "$1。");
 }
