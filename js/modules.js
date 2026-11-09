@@ -479,8 +479,8 @@ const DEFS = {
     fields: [
       { id: "dr_stage", type: "radio", label: "改寫方向", options: [["draft", "補強（字數不減）"], ["final", "精簡（術語查證＋字數必減）"], ["merge", "融合（多段合併，討論先後邏輯）"]], value: "draft" },
       { id: "dr_paras", type: "cands", label: "本節的段落", when: () => drParas().length > 0, render: () => drView() },
-      { id: "dr_rules", type: "promptbox", label: "共用規則", hint: "每個 NotebookLM 對話只要先送一次（NotebookLM 會回覆「已收到」），之後每一段都送下方的 Prompt 即可；避免每段都超過字數上限",
-        copyLabel: "先送這則：複製共用規則（每個對話一次）", build: () => DR_R ? T.rules_once(DR_R) : "" },
+      { id: "dr_rules", type: "promptbox", get label() { return inCh1() ? "第一章共用規則（引用格式、文字風格、第一章寫作規範）" : "共用規則"; }, hint: "每個 NotebookLM 對話只要先送一次（NotebookLM 會回覆「已收到」），之後每一段都送下方的 Prompt 即可；避免每段都超過字數上限",
+        get copyLabel() { return `先送這則：複製${inCh1() ? "第一章" : ""}共用規則（每個對話一次）`; }, build: () => DR_R ? T.rules_once(DR_R) : "" },
       { id: "dr_text", type: "textarea", label: "論文段落", hint: "按上方「用這一段」自動帶入；融合時按「加入融合」可選多段；也可以自己貼上", rows: 8 }
     ],
     variant: p => p.dr_stage,
