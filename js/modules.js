@@ -1077,15 +1077,23 @@ function poView(t) {
     return `<div class="po-item${used ? " used" : ""}"><div class="po-from"><small>原句</small>${esc(x.from)}</div><div class="po-to"><small>建議</small>${esc(x.to)}</div>
       ${x.why ? `<div class="po-why"><small>理由</small>${esc(x.why)}</div>` : ""}
       <label class="po-mine"><small>我的修改</small><span class="hint">可參考建議自行修改；按「採用」時以這裡的文字取代原句</span>
-        <textarea data-poedit="${i}" rows="2"${used ? " disabled" : ""}>${esc(mine ?? x.to)}</textarea></label>
-      <p class="fin-btns">${used ? "✓ 已採用" : fin === null ? `<span class="hint">（不在第一～五章的節內，請自行替換）</span>` : found ? `<button type="button" data-poadopt="${i}">採用</button>` : `<span class="hint">本節定稿中找不到這一句（可能已修改過）</span>`}</p></div>`;
+        <textarea data-poedit="${i}" rows="2">${esc(mine ?? x.to)}</textarea></label>
+      <p class="fin-btns">${used ? `✓ 已採用 <button type="button" data-poadopt="${i}">以上方修改後的文字重新採用</button><button type="button" data-poundo="${i}">復原原句</button>` : fin === null ? `<span class="hint">（不在第一～五章的節內，請自行替換）</span>` : found ? `<button type="button" data-poadopt="${i}">採用</button>` : `<span class="hint">本節定稿中找不到這一句（可能已修改過）</span>`}</p></div>`;
   }).join("") + `</div>`;
 }
+// 採用：記下放進定稿的文字，之後可以改用新的修改句重新採用，或復原原句
 function poAdopt(i) {
   const x = poParse((store.replies || {})[replyKey()] || "")[i]; if (!x) return;
-  const t = finText(store.sec); if (!t.includes(x.from)) return;
-  const mine = (store.values.po_edit || {})[store.sec + "|" + x.from], to = blank(mine) ? x.to : mine.trim();
-  setFin(store.sec, t.replace(x.from, to)); (store.values.po_done ||= {})[store.sec + "|" + x.from] = true;
+  const key = store.sec + "|" + x.from, done = (store.values.po_done ||= {}), cur = typeof done[key] === "string" ? done[key] : done[key] ? x.to : null;
+  const mine = (store.values.po_edit || {})[key], to = blank(mine) ? x.to : mine.trim(), t = finText(store.sec), from = cur && t.includes(cur) ? cur : x.from;
+  if (!t.includes(from)) { alert("本節定稿中找不到這一句（可能已在「本節論文內容」中修改過），請到那裡直接修改。"); return; }
+  setFin(store.sec, t.replace(from, to)); done[key] = to;
+}
+function poUndo(i) {
+  const x = poParse((store.replies || {})[replyKey()] || "")[i]; if (!x) return;
+  const key = store.sec + "|" + x.from, done = store.values.po_done || {}, cur = typeof done[key] === "string" ? done[key] : x.to, t = finText(store.sec);
+  if (!t.includes(cur)) { alert("本節定稿中找不到採用後的句子（可能已再修改過），請到「本節論文內容」直接修改。"); return; }
+  setFin(store.sec, t.replace(cur, x.from)); delete done[key];
 }
 
 // ── 本節定稿：論文.md 與網頁「本節論文內容」「論文全文」只放定稿 ──
