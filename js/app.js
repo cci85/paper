@@ -138,13 +138,14 @@ function renderPane() {
   };
   // when：依其他欄位決定是否顯示；below：放在「AI 回覆」下方
   const shown = m.fields.filter(f => !(f.id in fixed) && (!f.when || f.when(p)));
-  const fields = shown.filter(f => !f.below && !f.afterOut).map(fieldHtml).join("");
+  const fields = shown.filter(f => !f.below && !f.afterOut && !f.top).map(fieldHtml).join("");
+  const top = shown.filter(f => f.top).map(fieldHtml).join("");   // top：放在步驟說明之前，最醒目的位置
   const afterOut = shown.filter(f => f.afterOut).map(fieldHtml).join("");
   const below = shown.filter(f => f.below).map(fieldHtml).join("");
   const gd = (GUIDE_CH1.secs || {})[store.sec];   // 第一章各節：可展開的本節寫作規範
   $("pane").innerHTML = `${gd ? `<details class="guide"><summary>本節寫作規範（第一章）　點開查看</summary><div class="guide-body">${gd}</div>
       <p><button type="button" data-go="q-ch1g" data-gostep="0">查看第一章完整寫作規範 →</button></p></details>` : ""}<h3>${sec().no ? `步驟 ${stepIdx() + 1}　` : ""}${esc(m.label)}</h3>
-    <p class="target t-${m.target}">${esc(TARGETS[m.target])}</p>
+    <p class="target t-${m.target}">${esc(TARGETS[m.target])}</p>${top ? `<div class="topfield">${top}</div>` : ""}
     <p class="stepnote">${esc(ref(step().note))}</p>
     <p class="hint">${esc(ref(m.hint))}</p>${fields}
     ${m.rules ? `<fieldset class="struct"><legend>附加共用規則</legend><div class="chips" id="rules"></div>

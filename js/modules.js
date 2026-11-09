@@ -479,7 +479,7 @@ const DEFS = {
     label: "段落核實改寫", target: "nlm",
     hint: "核實論文段落中的引用，再改寫。適用於任何一章。",
     fields: [
-      { id: "dr_stage", type: "radio", label: "改寫方向", options: [["draft", "補強（字數不減）"], ["final", "精簡（術語查證＋字數必減）"], ["whole", "整節統整（整節去重複、調整段落順序與邏輯）"], ["merge", "融合（多段合併，討論先後邏輯）"]], value: "draft" },
+      { id: "dr_stage", type: "radio", top: true, label: "改寫方向", options: [["draft", "補強（字數不減）"], ["final", "精簡（術語查證＋字數必減）"], ["whole", "整節統整（整節去重複、調整段落順序與邏輯）"], ["merge", "融合（多段合併，討論先後邏輯）"]], value: "draft" },
       { id: "dr_paras", type: "cands", label: "本節的段落", when: p => drParas().length > 0 && p.dr_stage !== "whole", render: () => drView() },
       { id: "dw_info", type: "cands", label: "", when: p => p.dr_stage === "whole", render: () => { const t = finText(store.sec);
         return t ? `<p class="note">整節統整會自動帶入「本節論文內容」的全文（約 ${zhCount(t)} 字），請 NotebookLM 先診斷各段重點與重複之處，再輸出修訂後的全文；只能沿用原文已有的引用。</p>` : `<p class="note warn">本節還沒有定稿內容。</p>`; } },
@@ -1475,8 +1475,8 @@ function archLabel(p) {
 const FIN_FULL = ["dr", "polish"], FIN_POLISH = ["polish"];
 const OUTLINE = [
   { ch: "常用", quick: true, secs: [
-    { id: "q-draft", no: "", title: "核實改寫：補強或精簡", desc: "補強：段落還缺東西時使用（引用不確定、論點接不起來、細節不夠），字數不減。精簡：內容已齊全但太冗長，或想確認術語時使用，字數必須減少，可設定目標長度。兩者都會先核實引用。", steps: [
-      { mod: "dr", note: "在「改寫方向」選補強或精簡；一次貼一段，任何一章都可以。精簡可接在補強之後使用。" }] },
+    { id: "q-draft", no: "", title: "修訂論文", desc: "補強：段落還缺東西時使用，字數不減。精簡：內容齊全但太冗長，字數必須減少，可設定目標長度。整節統整：整節去除重複、調整段落順序與邏輯。融合：把幾段合併成一段。都會先核實引用，任何一章都可以用。", steps: [
+      { mod: "dr", note: "先在上方「改寫方向」選擇做法。補強、精簡一次一段；整節統整會自動帶入本節全文；融合可選多段。" }] },
     { id: "q-var", no: "", title: "了解變數", desc: "步驟 1 深入了解單一變數：定義、維度、理論、操作型定義與量表、施測情境、前因與後果、相近構念。步驟 2 區辨相近變數：兩個以上的變數看起來很像時，分辨它們在研究架構上的異同。任何階段都可以用。", steps: [
       { mod: "vdeep", note: "一次問一個變數；文獻不足時，先針對這個變數補上傳文獻再問。「施測情境」常因原文只簡短交代而標示「未提及」，請回到原文的方法章節或附錄查看。" },
       { mod: "vcomp", note: "每行填一個變數；可直接從組合研究架構的勾選區複製名稱。" }] },

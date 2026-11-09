@@ -408,3 +408,4 @@ textarea.fin-edit { width: 100%; min-height: 360px; font-size: 15px; line-height
 .fin-refhint { font-size: 14px; font-weight: normal; color: var(--warn, #a15c00); }
 .fin-ed[contenteditable] { border-radius: 6px; padding: 4px 8px; cursor: text; outline: 1px dashed var(--line); } .fin-ed[contenteditable]:focus { outline: 2px solid var(--accent); }
 .fin-dup { margin: 6px 0; } .fin-duprow { margin-top: 6px; } .fin-duprow button { margin-left: 6px; }
+.topfield { background: var(--accent-soft); border: 1.5px solid var(--accent); border-radius: 10px; padding: 8px 14px 12px; margin: 10px 0; }
