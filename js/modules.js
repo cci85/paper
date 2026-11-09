@@ -1110,7 +1110,8 @@ function cleanBody(text) {   // 撰寫步驟的回覆 → 論文正文：去掉�
 function finText(sid) {
   const v = (store.values.fin || {})[sid]; if (typeof v === "string") return v;
   const s = ALL_SECS.find(x => x.id === sid), st = s && writeStep(s);
-  return st ? cleanBody((store.replies || {})[sid + "|" + st.mod]) : "";
+  const t = st ? cleanBody((store.replies || {})[sid + "|" + st.mod]) : "", hs = t.match(/^#### .*$/gm) || [];
+  return hs.length === 1 && t.startsWith("#### ") ? t.replace(/^#### .*\n*/, "") : t;   // 只有一個小標題（例如「研究背景與動機」）時去掉，正文不設小標題
 }
 const setFin = (sid, t) => { (store.values.fin ||= {})[sid] = t; };
 function finHtml(t) {   // 定稿的簡易排版：#### 小標題、段落、【待補】標記

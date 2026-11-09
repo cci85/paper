@@ -269,7 +269,8 @@ $("pane").addEventListener("input", e => {
     const os = bpOptions(deLatex((store.replies || {})[replyKey()] || ""));
     const picked = [...document.querySelectorAll("input[data-bppick]:checked")].map(x => os[+x.dataset.bppick]).filter(Boolean);
     store.values.bp_pick = picked.map(o => o.title);
-    store.values.bg_plan = picked.map(o => `${o.title}\n${o.text}`).join("\n\n");
+    const gapPat = (mdSection(deLatex((store.replies || {})[replyKey()] || ""), ["缺口句型"]) || "").split("\n").slice(1).join("\n").trim();
+    store.values.bg_plan = picked.map(o => `${o.title}\n${o.text}`).join("\n\n") + (picked.length && gapPat ? "\n\n【參考的缺口句型】\n" + gapPat : "");
     save(); t.closest(".bp-opt").classList.toggle("on", t.checked);
     return;
   }
