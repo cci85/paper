@@ -1038,7 +1038,8 @@ function citeScan() {   // 各節定稿中的引用：{ key, author, year, label
 // 參考文獻條目的開頭：「作者（年份…）。」或「Author, A. (2019).」；作者在年份括號之前，不含句號
 const REF_HEAD = /^([^。（()）]{1,150}?)\s*[（(](\d{4}[a-z]?|無日期|n\.d\.)[^（）()]{0,30}[）)]\s*([。.，,])/;
 const refClean = l => l.replace(/^[\s>*•\-–]+|^\d+[.、)]\s*|\*\*/g, "").replace(/^\[引用來源\]\s*/, "").trim();
-const refLines = t => deLatex(String(t || "")).split(/\r?\n/).map(refClean).filter(l => l.length >= 20 && l.length <= 600 && REF_HEAD.test(l));
+// 一行一筆；貼上時若多筆擠在同一行，在「句點或網址之後、下一位作者（Surname, A. 或 中文作者（年份））之前」切開
+const refLines = t => deLatex(String(t || "")).split(/\r?\n|(?<=[.。]|https?:\/\/\S+)\s+(?=[A-Z][A-Za-z'’\-]+,\s+(?:[A-Z]\.|[A-Z][a-z]+\.)|[\u3400-\u9fff]{2,20}\.?\s*[（(]\d{4})/).map(refClean).filter(l => l.length >= 20 && l.length <= 600 && REF_HEAD.test(l));
 function refCandidates() {   // 各步驟回覆中的參考文獻條目（只取「作者（年份）」開頭的行，正文段落不採用）
   const out = [];
   Object.values(store.replies || {}).concat(Object.entries(store.values || {}).filter(([k, v]) => k !== "rf_bulk" && typeof v === "string" && v.length > 200).map(([, v]) => v))
@@ -1048,7 +1049,7 @@ function refCandidates() {   // 各步驟回覆中的參考文獻條目（只取
 const refSur = c => CJK.test(c.author) ? c.author.replace(/\s/g, "") : c.author.split(/\s|,|&/)[0];
 function refAuto(c, cands) {
   const sur = refSur(c), yr = c.year.replace(/^n\.d\.$/, "n.d.");
-  const hit = cands.filter(l => { const m = l.match(REF_HEAD); return m && m[2] === yr && (CJK.test(sur) ? m[1].replace(/\s/g, "") : m[1]).includes(sur); });
+  const hit = cands.filter(l => { const m = l.match(REF_HEAD); return m && m[2] === yr && (CJK.test(sur) ? m[1].replace(/\s/g, "") : m[1]).startsWith(sur); });   // 條目須以該作者開頭
   return hit.sort((a, b) => (/[。.]$/.test(b.match(REF_HEAD)[3]) - /[。.]$/.test(a.match(REF_HEAD)[3])) || (/https?:|doi/i.test(b) - /https?:|doi/i.test(a)) || b.length - a.length)[0] || "";
 }
 const refApa = e => (m => !!m && /[。.]/.test(m[3]))(String(e || "").match(REF_HEAD));   // 開頭符合 APA（年份括號後接句號）
