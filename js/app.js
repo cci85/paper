@@ -144,7 +144,7 @@ function renderPane() {
   const below = shown.filter(f => f.below).map(fieldHtml).join("");
   const gd = (GUIDE_CH1.secs || {})[store.sec];   // 第一章各節：可展開的本節寫作規範
   $("pane").innerHTML = `${gd ? `<details class="guide"><summary>本節寫作規範（第一章）　點開查看</summary><div class="guide-body">${gd}</div>
-      <p><button type="button" data-go="q-ch1g" data-gostep="0">查看第一章完整寫作規範 →</button></p></details>` : ""}<h3>${sec().no ? `步驟 ${stepIdx() + 1}　` : ""}${esc(m.label)}</h3>
+      <p><button type="button" data-go="q-ch1g" data-gostep="0">查看第一章完整寫作規範 →</button></p></details>` : ""}${steps().length === 1 && !sec().no ? "" : `<h3>${sec().no ? `步驟 ${stepIdx() + 1}　` : ""}${esc(m.label)}</h3>`}
     <p class="target t-${m.target}">${esc(TARGETS[m.target])}</p>${top ? `<div class="topfield">${top}</div>` : ""}
     <p class="stepnote">${esc(ref(step().note))}</p>
     <p class="hint">${esc(ref(m.hint))}</p>${fields}
