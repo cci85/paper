@@ -561,7 +561,14 @@ const DEFS = {
   refs: {
     label: "參考文獻", target: "tool",
     hint: "正文中每一筆引用列成一項：自動帶入的出處（黃框）請核對後修改；找不到出處的（紅框）請填入完整的 APA 參考文獻；填過的會變成綠框並保存。",
-    fields: [{ id: "rf_view", type: "cands", label: "", render: () => refView() }],
+    fields: [
+      { id: "rf_bulk", type: "textarea", label: "一次貼上書目（選填）", rows: 3,
+        hint: "可貼 Zotero 匯出的書目，或一般 AI 整理的參考文獻清單（一行一筆）；網站依作者與年份自動配對到下方各筆引用，配到的會變成黃框，請核對。Zotero 中文文獻的英文標點會自動改成中文 APA 格式。",
+        placeholder: "Zheng, X., Men, J., Yang, F., & Gong, X. (2019). Understanding impulse buying in mobile commerce…" },
+      { id: "rf_ai", type: "promptbox", label: "請一般 AI 查證並整理缺少的參考文獻", when: () => !!refFillItems(),
+        hint: "列出找不到出處、或格式不是 APA 的引用（網路資料會附上回覆中的網址當線索）。貼到開啟網路搜尋的一般 AI，把回覆貼到上方「一次貼上書目」。學術文獻以 Zotero 匯出較可靠。",
+        copyLabel: "複製 Prompt（貼到一般 AI，需開啟網路搜尋）", build: () => (it => it ? T.ref_fill({ items: it }) : "")(refFillItems()) },
+      { id: "rf_view", type: "cands", label: "", render: () => refView() }],
     build: () => refList().join("\n"),
     empty: "（正文中還沒有引用，或尚未填入任何出處）",
     copyLabel: "複製參考文獻清單",
@@ -1028,25 +1035,47 @@ function citeScan() {   // 各節定稿中的引用：{ key, author, year, label
   });
   return [...map.values()];
 }
-function refCandidates() {   // 各步驟回覆中看起來像參考文獻的行
+// 參考文獻條目的開頭：「作者（年份…）。」或「Author, A. (2019).」；作者在年份括號之前，不含句號
+const REF_HEAD = /^([^。（()）]{1,150}?)\s*[（(](\d{4}[a-z]?|無日期|n\.d\.)[^（）()]{0,30}[）)]\s*([。.，,])/;
+const refClean = l => l.replace(/^[\s>*•\-–]+|^\d+[.、)]\s*|\*\*/g, "").replace(/^\[引用來源\]\s*/, "").trim();
+const refLines = t => deLatex(String(t || "")).split(/\r?\n/).map(refClean).filter(l => l.length >= 20 && l.length <= 600 && REF_HEAD.test(l));
+function refCandidates() {   // 各步驟回覆中的參考文獻條目（只取「作者（年份）」開頭的行，正文段落不採用）
   const out = [];
-  Object.values(store.replies || {}).concat(Object.values(store.values || {}).filter(v => typeof v === "string" && v.length > 200)).forEach(r => {
-    deLatex(String(r || "")).split(/\r?\n/).forEach(l => {
-      l = l.replace(/^[\s>*•\-–]+|^\d+[.、)]\s*|\*\*/g, "").replace(/^\[引用來源\]\s*/, "").trim();
-      if (l.length >= 25 && l.length <= 500 && /(\d{4}|無日期|n\.d\.)/.test(l) && (/https?:\/\//.test(l) || /\(\d{4}[a-z]?\)\.|（\d{4}）[。，]|\d+\s*\(\d+\)|doi/i.test(l))) out.push(l);
-    });
-  });
+  Object.values(store.replies || {}).concat(Object.entries(store.values || {}).filter(([k, v]) => k !== "rf_bulk" && typeof v === "string" && v.length > 200).map(([, v]) => v))
+    .forEach(r => out.push(...refLines(r)));
   return [...new Set(out)];
 }
+const refSur = c => CJK.test(c.author) ? c.author.replace(/\s/g, "") : c.author.split(/\s|,|&/)[0];
 function refAuto(c, cands) {
-  const sur = CJK.test(c.author) ? c.author.replace(/\s/g, "") : c.author.split(/\s|,|&/)[0];
-  const hit = cands.filter(l => l.slice(0, 60).replace(/\s/g, CJK.test(sur) ? "" : " ").includes(sur) && l.includes(c.year.replace(/^n\.d\.$/, "n.d.")));
-  return hit.sort((a, b) => (/https?:|doi/i.test(b) - /https?:|doi/i.test(a)) || b.length - a.length)[0] || "";
+  const sur = refSur(c), yr = c.year.replace(/^n\.d\.$/, "n.d.");
+  const hit = cands.filter(l => { const m = l.match(REF_HEAD); return m && m[2] === yr && (CJK.test(sur) ? m[1].replace(/\s/g, "") : m[1]).includes(sur); });
+  return hit.sort((a, b) => (/[。.]$/.test(b.match(REF_HEAD)[3]) - /[。.]$/.test(a.match(REF_HEAD)[3])) || (/https?:|doi/i.test(b) - /https?:|doi/i.test(a)) || b.length - a.length)[0] || "";
+}
+const refApa = e => (m => !!m && /[。.]/.test(m[3]))(String(e || "").match(REF_HEAD));   // 開頭符合 APA（年份括號後接句號）
+// Zotero 以 APA 輸出中文文獻時是英文標點：「陳立儀. (2026). 標題. 網站.」→「陳立儀（2026）。標題。網站。」
+const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+const zhDate = d => d.replace(/([A-Za-z]+)\s*(\d{1,2})?/, (m, mo, day) => { const k = MONTHS.indexOf(mo.toLowerCase()) + 1; return k ? `${k} 月${day ? " " + day + " 日" : ""}` : m; });
+function zhRef(e) {
+  if (!CJK.test(e.charAt(0))) return e;
+  return e.replace(/^([^()（）]+?)\.?\s*\((\d{4}[a-z]?|n\.d\.)(?:,\s*([^)]*))?\)\.\s*/, (m, a, y, d) => `${a.trim().replace(/,?\s*&\s*|,\s*/g, "、")}（${y === "n.d." ? "無日期" : y}${d ? "，" + zhDate(d) : ""}）。`)
+    .replace(/([\u3400-\u9fff》〉」）])\.(\s+|$)/g, "$1。").replace(/([\u3400-\u9fff》〉」]),\s*(?=[\u3400-\u9fff\d])/g, "$1，")
+    .replace(/(\d+)\((\d+)\),\s*/, "$1（$2），").replace(/(\d+[–-]\d+)\.(\s|$)/, "$1。$2");
 }
 const refCollator = new Intl.Collator("zh-TW-u-co-stroke"), enCollator = new Intl.Collator("en");
 function refRows() {
   const cites = citeScan(), cands = refCandidates(), saved = store.values.refs || {};
-  return cites.map(c => ({ ...c, saved: c.key in saved, entry: c.key in saved ? saved[c.key] : refAuto(c, cands) }));
+  const bulk = refLines(store.values.rf_bulk);
+  return cites.map(c => { const b = c.key in saved ? "" : refAuto(c, bulk);
+    return { ...c, saved: c.key in saved, bulk: !!b, entry: c.key in saved ? saved[c.key] : b ? zhRef(b) : refAuto(c, cands) }; });
+}
+function refFillItems() {   // 缺出處或格式不符 APA 的引用，附上回覆中的線索（含網址的行優先）
+  const rows = refRows().filter(r => !r.entry.trim() || (!r.saved && !refApa(r.entry)));
+  if (!rows.length) return "";
+  const src = Object.values(store.replies || {}).concat(THESIS_SECS().map(s => finText(s.id))).join("\n").split(/\r?\n/).map(refClean);
+  return rows.map(r => {
+    const sur = refSur(r), clue = r.entry.trim() ? [r.entry.trim()] : [...new Set(src.filter(l => l.includes(sur) && l.includes(r.year) && /https?:\/\//.test(l)))].slice(0, 2).map(l => l.length > 220 ? l.slice(0, 220) + "…" : l);
+    return `- （${r.label}）` + (clue.length ? "\n  線索：" + clue.join("\n  線索：") : "");
+  }).join("\n");
 }
 function refList() {   // APA 第七版：中文在前（筆畫），英文在後（字母）
   const es = refRows().map(r => r.entry.trim()).filter(Boolean);
@@ -1058,7 +1087,7 @@ function refView() {
   const n = { ok: rows.filter(r => r.saved && r.entry.trim()).length, auto: rows.filter(r => !r.saved && r.entry).length, miss: rows.filter(r => !r.entry.trim()).length };
   return `<p class="tb-count">共 ${rows.length} 筆引用：已確認 ${n.ok}、自動帶入待核對 ${n.auto}、找不到出處 ${n.miss}</p>` +
     rows.map(r => `<div class="ref-item ${r.saved && r.entry.trim() ? "ok" : r.entry ? "auto" : "miss"}">
-      <b>（${esc(r.label)}）</b><small>　出現於 ${esc([...r.secs].join("、"))}　${r.saved && r.entry.trim() ? "已確認" : r.entry ? "自動帶入，請核對" : "找不到出處，請填入"}</small>
+      <b>（${esc(r.label)}）</b><small>　出現於 ${esc([...r.secs].join("、"))}　${r.saved && r.entry.trim() ? "已確認" : r.entry ? (r.bulk ? "由貼上的書目帶入，請核對" : "自動帶入，請核對") + (refApa(r.entry) ? "" : "（格式不是 APA，請修改或請 AI 整理）") : "找不到出處，請填入"}</small>
       <textarea data-ref="${esc(r.key)}" rows="2" placeholder="完整的 APA 第七版參考文獻，例如：經濟部統計處（2026）。報告名稱。https://……">${esc(r.entry)}</textarea></div>`).join("") +
     (orphan.length ? `<h4>正文已不再引用的出處（${orphan.length}）</h4>` + orphan.map(k => `<div class="ref-item orphan"><span>${esc(saved[k])}</span> <button type="button" data-refdel="${esc(k)}">刪除</button></div>`).join("") : "");
 }
