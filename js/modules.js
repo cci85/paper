@@ -568,6 +568,15 @@ const DEFS = {
       { id: "rf_ai", type: "promptbox", label: "請一般 AI 查證並整理缺少的參考文獻", when: () => !!refFillItems(),
         hint: "列出找不到出處、或格式不是 APA 的引用（網路資料會附上回覆中的網址當線索）。貼到開啟網路搜尋的一般 AI，把回覆貼到上方「一次貼上書目」。學術文獻以 Zotero 匯出較可靠。",
         copyLabel: "複製 Prompt（貼到一般 AI，需開啟網路搜尋）", build: () => (it => it ? T.ref_fill({ items: it }) : "")(refFillItems()) },
+      { id: "rf_web_on", type: "checks", label: "網路文獻格式產生器", options: [["on", "填入網頁、新聞、報告的資訊，產生 APA 第七版參考文獻"]], value: [] },
+      { id: "rw_type", type: "radio", label: "類型", options: [["page", "網頁／新聞"], ["report", "報告／統計資料（PDF）"]], value: "page", when: p => isOn(p.rf_web_on) },
+      { id: "rw_author", type: "text", label: "作者或機構", placeholder: "例如：經濟部統計處；個人作者寫姓名", when: p => isOn(p.rf_web_on) },
+      { id: "rw_date", type: "text", label: "發布日期", hint: "網頁、新聞寫到日，例如 2026/6/30；報告寫年即可；查不到留白（會寫成「無日期」）", placeholder: "2026/6/30", when: p => isOn(p.rf_web_on) },
+      { id: "rw_title", type: "text", label: "標題", hint: "網頁或報告上的完整標題", when: p => isOn(p.rf_web_on) },
+      { id: "rw_site", type: "text", label: "網站名稱或出版機構", hint: "與作者相同時可留白（APA 規定相同時省略）", placeholder: "例如：經濟日報", when: p => isOn(p.rf_web_on) },
+      { id: "rw_url", type: "text", label: "網址", when: p => isOn(p.rf_web_on) },
+      { id: "rw_prev", type: "cands", label: "", when: p => isOn(p.rf_web_on), render: p => webRefView(p) },
+      { id: "rw_fill", type: "button", label: "填入對應的引用", when: p => isOn(p.rf_web_on), run: p => webRefFill(p) },
       { id: "rf_view", type: "cands", label: "", render: () => refView() }],
     build: () => refList().join("\n"),
     empty: "（正文中還沒有引用，或尚未填入任何出處）",
@@ -1052,6 +1061,31 @@ function refAuto(c, cands, yr = c.year.replace(/^n\.d\.$/, "n.d.")) {
   const hit = cands.filter(l => { const m = l.match(REF_HEAD); return m && (yr instanceof RegExp ? yr.test(m[2]) : m[2] === yr) && (CJK.test(sur) ? m[1].replace(/\s/g, "") : m[1]).startsWith(sur); });   // 條目須以該作者開頭
   if (yr instanceof RegExp) return [...new Set(hit)];
   return hit.sort((a, b) => (/[。.]$/.test(b.match(REF_HEAD)[3]) - /[。.]$/.test(a.match(REF_HEAD)[3])) || (/https?:|doi/i.test(b) - /https?:|doi/i.test(a)) || b.length - a.length)[0] || "";
+}
+// 網路文獻：依填入的資訊產生 APA 第七版參考文獻
+function webRef(p) {
+  const A = (p.rw_author || "").trim(), T = (p.rw_title || "").trim().replace(/[。.]$/, ""), U = (p.rw_url || "").trim(); if (!A || !T) return null;
+  const S = (p.rw_site || "").trim(), site = S && S !== A ? S : "", zh = CJK.test(A + T), rep = p.rw_type === "report";
+  const dm = (p.rw_date || "").match(/(\d{4})(?:\s*[\/\-.年]\s*(\d{1,2})(?:\s*[\/\-.月]\s*(\d{1,2}))?)?/), y = dm ? dm[1] : "", mo = dm && !rep ? +dm[2] || 0 : 0, d = dm && mo ? +dm[3] || 0 : 0;
+  if (zh) {
+    const date = !y ? "無日期" : mo ? `${y}，${mo} 月${d ? ` ${d} 日` : ""}` : y;
+    return { year: y || "無日期", text: `${A}（${date}）。${T}。${site ? site + "。" : ""}${U}`.trim() };
+  }
+  const M = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const date = !y ? "n.d." : mo ? `${y}, ${M[mo - 1]}${d ? " " + d : ""}` : y, a = /[.]$/.test(A) ? A : A + ".";
+  return { year: y || "n.d.", text: `${a} (${date}). ${T}. ${site ? site + ". " : ""}${U}`.trim() };
+}
+function webRefTarget(p) { const r = webRef(p); return r ? refRows().find(x => x.key === citeKey((p.rw_author || "").trim(), r.year)) : null; }
+function webRefView(p) {
+  const r = webRef(p); if (!r) return `<p class="hint">填入作者或機構與標題後，這裡會出現格式化的參考文獻。</p>`;
+  const t = webRefTarget(p);
+  return `<div class="ref-item auto"><small>產生的參考文獻</small><div style="margin-top:4px">${esc(r.text)}</div></div>` +
+    `<p class="note${t ? "" : " warn"}">${t ? `按下方按鈕，會填入正文引用（${esc(t.label)}）並存檔。` : `正文中找不到（${esc((p.rw_author || "").trim())}，${esc(r.year)}）這筆引用：請確認作者與年份是否與正文一致，或直接複製上方文字使用。`}</p>`;
+}
+function webRefFill(p) {
+  const r = webRef(p), t = webRefTarget(p); if (!r) return "請先填入作者或機構與標題。"; if (!t) return "正文中沒有對應的引用，無法填入。";
+  (store.values.refs ||= {})[t.key] = r.text; ["rw_author", "rw_date", "rw_title", "rw_site", "rw_url"].forEach(k => store.values[k] = "");
+  return `已填入（${t.label}），欄位已清空，可以接著填下一筆。`;
 }
 // 同一作者同一年有多筆（2019a、2019b），正文卻只寫 2019：列出候選讓使用者選
 const refAlts = (c, lines) => /^\d{4}$/.test(c.year) ? refAuto(c, lines, new RegExp(`^${c.year}[a-z]$`)) : [];
