@@ -19,7 +19,7 @@ try {
   store.migrated = true;
 } catch {}
 // 2026-11 第零章重整：步驟移到新的節，AI 回覆跟著搬（舊存檔讀入時也會套用）
-const REPLY_MOVE = { "s0-1|gapsel": "s0-4|gapsel", "s0-4|lr": "s2-2|lr", "s0-4|astat": "s0-6|astat", "s0-4|asq": "s0-6|asq" };
+const REPLY_MOVE = { "s0-1|gapsel": "s0-4|gapsel", "s0-4|lr": "s2-2|lr", "s0-4|astat": "s0-6|astat", "s0-4|asq": "s0-6|asq", "q-final|dr": "q-draft|dr" };
 function migrateReplies(r) {
   if (!r) return r;
   Object.entries(REPLY_MOVE).forEach(([a, b]) => {
@@ -54,6 +54,10 @@ if ((store.layout || 0) < 5) {   // 0.2 併成兩步：補充變數清單併入�
   store.layout = 5;
 }
 if ((store.layout || 0) < 6) store.layout = 6;
+if ((store.layout || 0) < 7) {   // 常用「核實改寫：補強」「核實改寫：精簡」合併為「核實改寫：補強或精簡」
+  if (store.sec === "q-final") { store.sec = "q-draft"; store.values.dr_stage = "final"; }
+  delete store.step["q-final"]; store.layout = 7;
+}
 if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} if (window.onStoreSave) window.onStoreSave(); };
 
