@@ -576,8 +576,8 @@ const DEFS = {
     next: "第一章各步驟的 Prompt 會自動附上精簡版規範（附加共用規則中的「第一章寫作規範」）。"
   },
   scope: {
-    label: "研究範圍與論文架構", target: "nlm",
-    hint: "依研究題目、研究架構、研究情境與研究對象，撰寫「研究範圍」（情境、對象、變數邊界與排除項目）與「論文架構」（各章內容概述）。",
+    label: "研究範圍與流程", target: "nlm",
+    hint: "依研究題目、研究架構、研究情境與研究對象，撰寫「研究範圍」（情境、對象、變數邊界與排除項目）與「研究流程」（研究的主要階段、各階段的目的，以及對應的章節）。",
     fields: [
       { id: "sc_topic", type: "textarea", label: "研究題目與研究架構", hint: "自動帶入 0.5 定稿題目、研究情境與研究架構", rows: 4 },
       { id: "sc_target", type: "text", label: "研究對象", hint: "自動帶入 0.4 的研究對象", placeholder: "例如：年滿 18 歲、過去半年曾在蝦皮購物的消費者" },
@@ -1353,7 +1353,7 @@ const OUTLINE = [
       { mod: "bg", rules: ["citation", "style", "verify", "ch1"], note: "依選定的寫法撰寫；研究主題、選定的寫法、背景資料與研究缺口會自動帶入。" }], finish: FIN_FULL },
     { id: "s1-2", no: "1.2", title: "研究目的與問題", desc: "研究目的要對應動機，研究問題要能由假說回答。", steps: [
       { mod: "purpose", rules: ["style", "ch1"], note: "準備研究架構（假說清單）與 1.1 寫好的研究動機。" }], finish: FIN_FULL },
-    { id: "s1-3", no: "1.3", title: "研究範圍與論文架構", desc: "界定研究的情境、對象與變數邊界，並概述全文各章內容。", steps: [
+    { id: "s1-3", no: "1.3", title: "研究範圍與流程", desc: "界定研究的情境、對象與變數邊界，並說明研究流程與各章安排。", steps: [
       { mod: "scope", rules: ["style", "ch1"], note: "研究題目、研究架構、研究情境與研究對象會自動帶入；可補充要排除的範圍。" }], finish: FIN_FULL }
   ] },
   { ch: "第二章 文獻探討", secs: [
