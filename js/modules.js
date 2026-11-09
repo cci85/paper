@@ -1229,8 +1229,8 @@ function finHtml(t, ed) {   // 定稿的簡易排版：#### 小標題、段落�
 function finBox() {   // 第一～五章各節：所有步驟下方的「本節論文內容」
   const s = sec(); if (!THESIS_SECS().some(x => x.id === s.id)) return "";
   const t = finText(s.id), own = typeof (store.values.fin || {})[s.id] === "string";
-  const miss = t ? finRefMiss(s) : 0;
-  return `<details class="fin" id="finbox"><summary>本節論文內容（定稿）${t ? "" : "：尚未撰寫"}${miss ? `<span class="fin-refhint">　📚 尚缺 ${miss} 筆參考文獻，點開到最下方「查找參考文獻」</span>` : ""}</summary>
+  const miss = t ? finRefMiss(s) : 0, dup = t ? finDups(t).length : 0;
+  return `<details class="fin" id="finbox"><summary>本節論文內容（定稿）${t ? "" : "：尚未撰寫"}${miss ? `<span class="fin-refhint">　📚 尚缺 ${miss} 筆參考文獻，點開到最下方「查找參考文獻」</span>` : ""}${dup ? `<span class="fin-refhint">　⚠ 有 ${dup} 組重複段落</span>` : ""}</summary>
     ${finDupBox(t)}${t ? `<p class="hint">直接點文字即可修改，自動存檔；段落中按兩次 Enter 可拆成兩段，整段刪空即刪除該段。</p>` : ""}
     <div class="fin-view fin-ed" id="finview">${finHtml(t, true) || `<p class="hint">完成本節的撰寫步驟並貼上 AI 回覆後，正文會自動出現在這裡。</p>`}</div>
     <p class="fin-btns">${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}
@@ -1238,8 +1238,10 @@ function finBox() {   // 第一～五章各節：所有步驟下方的「本節�
 }
 function finDupBox(t) {
   const ds = finDups(t); if (!ds.length) return "";
-  const bs = finBlocks(t), cut = x => x.length > 40 ? x.slice(0, 40) + "…" : x;
-  return `<div class="note warn fin-dup"><b>發現 ${ds.length} 組重複的段落</b>（通常是同一段被「加到本節定稿最後」或貼上了兩次）。幾乎相同時，較後面的通常是修改過的新版；請比對後刪除不要的那一段：` +
+  const bs = finBlocks(t), cut = x => x.length > 40 ? x.slice(0, 40) + "…" : x, same = ds.filter(d => d.sim >= 0.999 && bs[d.i] === bs[d.j]).length;
+  return `<div class="note warn fin-dup"><b>發現 ${ds.length} 組重複的段落</b>（通常是同一段被「加到本節定稿最後」或貼上了兩次）。` +
+    (same ? `<p><button type="button" class="copy" data-findedup="1">一次刪除 ${same} 段完全相同的重複段落（保留第一次出現的）</button></p>` : "") +
+    `幾乎相同時，較後面的通常是修改過的新版；請比對後刪除不要的那一段：` +
     ds.map(d => `<div class="fin-duprow">${d.sim >= 0.999 ? "兩段相同" : "兩段幾乎相同"}
       <div>前：「${esc(cut(bs[d.i]))}」 <button type="button" data-findel="${d.i}">刪除這段</button></div>
       <div>後：「${esc(cut(bs[d.j]))}」 <button type="button" data-findel="${d.j}">刪除這段</button></div></div>`).join("") + `</div>`;

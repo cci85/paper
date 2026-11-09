@@ -390,6 +390,10 @@ $("pane").addEventListener("click", async e => {
     const el = $("fmsg-" + f.id); if (el) { el.textContent = msg || ""; el.className = "note" + (/沒有|無法/.test(msg) ? " warn" : ""); }
     return;
   }
+  if (e.target.closest("button[data-findedup]")) {   // 本節定稿：刪除所有完全相同的重複段落
+    const seen = new Set(); setFin(store.sec, finBlocks(finText(store.sec)).filter(b => !seen.has(b) && seen.add(b)).join("\n\n"));
+    save(); renderPane(); update(); const fbx = $("finbox"); if (fbx) fbx.open = true; return;
+  }
   const fd = e.target.closest("button[data-findel]");
   if (fd) {   // 本節定稿：刪除重複的段落
     const bs = finBlocks(finText(store.sec)); bs.splice(+fd.dataset.findel, 1); setFin(store.sec, bs.join("\n\n")); save(); renderPane(); update();
