@@ -1059,7 +1059,7 @@ function zhRef(e) {
   if (!CJK.test(e.charAt(0))) return e;
   return e.replace(/^([^()（）]+?)\.?\s*\((\d{4}[a-z]?|n\.d\.)(?:,\s*([^)]*))?\)\.\s*/, (m, a, y, d) => `${a.trim().replace(/,?\s*&\s*|,\s*/g, "、")}（${y === "n.d." ? "無日期" : y}${d ? "，" + zhDate(d) : ""}）。`)
     .replace(/([\u3400-\u9fff》〉」）])\.(\s+|$)/g, "$1。").replace(/([\u3400-\u9fff》〉」]),\s*(?=[\u3400-\u9fff\d])/g, "$1，")
-    .replace(/(\d+)\((\d+)\),\s*/, "$1（$2），").replace(/(\d+[–-]\d+)\.(\s|$)/, "$1。$2");
+    .replace(/(\d+)\((\d+)\),\s*/, "$1（$2），").replace(/(\d+[–-]\d+)\.(\s+|$)/, "$1。");
 }
 const refCollator = new Intl.Collator("zh-TW-u-co-stroke"), enCollator = new Intl.Collator("en");
 function refRows() {
