@@ -1207,19 +1207,21 @@ function finText(sid) {
   return hs.length === 1 && t.startsWith("#### ") ? t.replace(/^#### .*\n*/, "") : t;   // 只有一個小標題（例如「研究背景與動機」）時去掉，正文不設小標題
 }
 const setFin = (sid, t) => { (store.values.fin ||= {})[sid] = t; };
-function finHtml(t) {   // 定稿的簡易排版：#### 小標題、段落、【待補】標記
-  return String(t || "").split(/\n\s*\n/).map(b => b.trim()).filter(Boolean).map(b => /^#{1,6}\s/.test(b) && !b.includes("\n")
-    ? `<h4>${esc(b.replace(/^#+\s*/, ""))}</h4>`
-    : `<p>${esc(b).replace(/\n/g, "<br>").replace(/【待補[^】]*】/g, m => `<mark>${m}</mark>`)}</p>`).join("");
+const finBlocks = t => String(t || "").split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+function finHtml(t, ed) {   // 定稿的簡易排版：#### 小標題、段落、【待補】標記；ed：每段可直接點擊修改
+  return finBlocks(t).map((b, i) => { const a = ed ? ` contenteditable="true" spellcheck="false" data-fp="${i}"` : "";
+    return /^#{1,6}\s/.test(b) && !b.includes("\n")
+    ? `<h4${a}>${esc(b.replace(/^#+\s*/, ""))}</h4>`
+    : `<p${a}>${esc(b).replace(/\n/g, "<br>").replace(/【待補[^】]*】/g, m => `<mark>${m}</mark>`)}</p>`; }).join("");
 }
 function finBox() {   // 第一～五章各節：所有步驟下方的「本節論文內容」
   const s = sec(); if (!THESIS_SECS().some(x => x.id === s.id)) return "";
   const t = finText(s.id), own = typeof (store.values.fin || {})[s.id] === "string";
   const miss = t ? finRefMiss(s) : 0;
   return `<details class="fin" id="finbox"><summary>本節論文內容（定稿）${t ? "" : "：尚未撰寫"}${miss ? `<span class="fin-refhint">　📚 尚缺 ${miss} 筆參考文獻，點開到最下方「查找參考文獻」</span>` : ""}</summary>
-    <div class="fin-view" id="finview">${finHtml(t) || `<p class="hint">完成本節的撰寫步驟並貼上 AI 回覆後，正文會自動出現在這裡。</p>`}</div>
-    <textarea class="fin-edit" data-fin="${s.id}" hidden>${esc(t)}</textarea>
-    <p class="fin-btns"><button type="button" data-finedit="1">修改文字</button>${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}
+    ${t ? `<p class="hint">直接點文字即可修改，自動存檔；段落中按兩次 Enter 可拆成兩段，整段刪空即刪除該段。</p>` : ""}
+    <div class="fin-view fin-ed" id="finview">${finHtml(t, true) || `<p class="hint">完成本節的撰寫步驟並貼上 AI 回覆後，正文會自動出現在這裡。</p>`}</div>
+    <p class="fin-btns">${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}
     <span class="hint">論文.md 與「論文全文」只放這裡的內容</span></p>${finRefBox(s)}</details>`;
 }
 // 本節定稿下方：查找本節缺少的參考文獻 → 貼上 AI 回覆 → 自動匯入參考文獻頁

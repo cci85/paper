@@ -406,3 +406,4 @@ textarea.fin-edit { width: 100%; min-height: 360px; font-size: 15px; line-height
 .ref-alt { margin: 6px 0; } .ref-altrow { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; border-top: 1px dashed var(--line); font-size: 14.5px; } .ref-altrow span { flex: 1; } .ref-altrow button { white-space: nowrap; }
 .fin-ref { border-top: 1px dashed var(--line); margin-top: 10px; padding-top: 6px; } .fin-ref h4 { margin: 4px 0; } .fin-ref textarea { width: 100%; margin-top: 4px; }
 .fin-refhint { font-size: 14px; font-weight: normal; color: var(--warn, #a15c00); }
+.fin-ed [contenteditable] { border-radius: 4px; padding: 2px 4px; margin-left: -4px; margin-right: -4px; cursor: text; } .fin-ed [contenteditable]:hover { outline: 1px dashed var(--line); } .fin-ed [contenteditable]:focus { outline: 2px solid var(--accent); background: var(--card, transparent); }
