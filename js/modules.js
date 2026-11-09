@@ -481,8 +481,11 @@ const DEFS = {
     fields: [
       { id: "dr_stage", type: "radio", top: true, label: "改寫方向", options: [["draft", "補強（字數不減）"], ["final", "精簡（術語查證＋字數必減）"], ["whole", "整節統整（整節去重複、調整段落順序與邏輯）"], ["merge", "融合（多段合併，討論先後邏輯）"]], value: "draft" },
       { id: "dr_paras", type: "cands", label: "本節的段落", when: p => drParas().length > 0 && p.dr_stage !== "whole", render: () => drView() },
-      { id: "dw_info", type: "cands", label: "", when: p => p.dr_stage === "whole", render: () => { const t = finText(store.sec);
-        return t ? `<p class="note">整節統整會自動帶入「本節論文內容」的全文（約 ${zhCount(t)} 字），請 NotebookLM 先診斷各段重點與重複之處，再輸出修訂後的全文；只能沿用原文已有的引用。</p>` : `<p class="note warn">本節還沒有定稿內容。</p>`; } },
+      { id: "dw_sec", type: "radio", label: "要統整哪一節", hint: "列出已有定稿內容的章節", when: p => p.dr_stage === "whole" && !inThesisSec(),
+        get options() { const ss = THESIS_SECS().filter(s => !blank(finText(s.id))); return ss.length ? ss.map(s => [s.id, `${s.no} ${s.title}`]) : [["", "（還沒有任何章節有定稿內容）"]]; } },
+      { id: "dw_info", type: "cands", label: "", when: p => p.dr_stage === "whole", render: () => { const sid = dwSid(), t = sid ? finText(sid) : "";
+        if (!sid) return `<p class="note warn">請先在上方選擇要統整的章節。</p>`;
+        return t ? `<p class="note">整節統整會自動帶入「${esc(secLabel(sid))}」定稿的全文（約 ${zhCount(t)} 字），請 NotebookLM 先診斷各段重點與重複之處，再輸出修訂後的全文；只能沿用原文已有的引用。</p>` : `<p class="note warn">本節還沒有定稿內容。</p>`; } },
       { id: "dr_len", type: "radio", label: "精簡目標", options: [["auto", "比原文少即可"], ["70", "約原文 70%"], ["50", "約原文 50%"], ["n", "指定字數"]], value: "auto", when: p => p.dr_stage === "final" },
       { id: "dr_lenN", type: "text", label: "目標字數", placeholder: "例如 600", when: p => p.dr_stage === "final" && p.dr_len === "n" },
       { id: "dr_stat", type: "checks", label: "統計數據", options: [["on", "每個論點最多保留 1–2 個關鍵數字，其餘改成文字概述"]], value: ["on"], when: p => p.dr_stage === "final" },
@@ -1312,24 +1315,27 @@ function drResultView(t) {
   const r = drLatest(t); if (!r) return blank(t) ? "" : `<p class="hint">（回覆中沒有找到「## 改寫後段落」或「## 融合後的段落」；新版 Prompt 會固定用這兩個標題）</p>`;
   const ps = drParas(), merge = store.values.dr_stage === "merge", whole = store.values.dr_stage === "whole", sel = (store.values.dr_sel || []).filter(k => ps.some(x => x.key === k));
   const cur = ps.findIndex(x => x.text.trim() === (store.values.dr_text || "").trim());
-  const have = new Set(finBlocks(finText(store.sec))), used = finBlocks(r).every(b => have.has(b));   // 結果已在定稿中：不再顯示加入按鈕，避免重複加入
+  const have = new Set(finBlocks(finText(whole ? dwSid() : store.sec))), used = finBlocks(r).every(b => have.has(b));   // 結果已在定稿中：不再顯示加入按鈕，避免重複加入
   const btn = whole ? `<button type="button" class="copy" data-drrep="all">以此取代本節全部內容</button>` : merge ? (sel.length ? `<button type="button" class="copy" data-drrep="merge">以此取代所選的 ${sel.length} 段（合併為一段）</button>` : "")
     : (cur >= 0 ? `<button type="button" class="copy" data-drrep="one">以此取代第 ${cur + 1} 段</button>` : "");
   return `<div class="drres"><h3>最新的${whole ? "整節統整" : merge ? "融合" : "改寫"}結果</h3><div class="fin-view">${finHtml(r)}</div>
     ${used ? `<p class="note">✓ 這個結果已經在「本節論文內容」中，不需要再加入。</p>` : `${btn ? "" : `<p class="note warn">沒有出現「以此取代」按鈕：原本選的段落已不在本節定稿中（可能已修改或刪除）。請在上方「本節的段落」重新按「用這一段」${merge ? "或勾選「加入融合」" : ""}，選好要被取代的段落後，就會出現取代按鈕。</p>`}<p class="fin-btns">${btn}${whole ? "" : `<button type="button" data-drrep="all">以此取代本節全部內容</button>`}<button type="button" data-drrep="append">不取代，另外加在本節最後</button>
     <span class="hint">一般請按「以此取代」；取代後會更新「本節論文內容」與論文.md</span></p>`}</div>`;
 }
-// 整節統整：本節全文先分則送出，最後一則才是統整任務
+// 整節統整：本節全文先分則送出，最後一則才是統整任務；在「常用 → 修訂論文」使用時，由使用者選章節
+const inThesisSec = () => THESIS_SECS().some(x => x.id === store.sec);
+const dwSid = () => inThesisSec() ? store.sec : (THESIS_SECS().some(x => x.id === store.values.dw_sec) ? store.values.dw_sec : "");
+const secLabel = sid => (s => s ? `${s.no} ${s.title}` : "")(ALL_SECS.find(x => x.id === sid));
 function dwParts(p) {
-  const t = finText(store.sec); if (blank(t)) return [];
-  const s = ALL_SECS.find(x => x.id === store.sec) || {}, ref = DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "";
-  const mat = `以下是論文「${s.no || ""} ${s.title || ""}」一節目前的全文：\n---\n${t}\n---`, task = T.dr_whole({ sec: `${s.no || ""} ${s.title || ""}`.trim(), intro: store.sec === "s1-1" }) + ref;
+  const sid = dwSid(), t = sid ? finText(sid) : ""; if (blank(t)) return [];
+  const s = ALL_SECS.find(x => x.id === sid) || {}, ref = DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "";
+  const mat = `以下是論文「${s.no || ""} ${s.title || ""}」一節目前的全文：\n---\n${t}\n---`, task = T.dr_whole({ sec: `${s.no || ""} ${s.title || ""}`.trim(), intro: sid === "s1-1" }) + ref;
   return (mat + "\n\n" + task).length <= 2800 ? [mat + "\n\n" + task] : splitForNLM(mat, task, "整節統整");
 }
 function drReplace(mode) {
-  const sid = store.sec, r = drLatest((store.replies || {})[replyKey()] || ""); if (!r) return;
+  const sid = mode === "all" && store.values.dr_stage === "whole" ? dwSid() : store.sec, r = drLatest((store.replies || {})[replyKey()] || ""); if (!r || !sid) return;
   let t = finText(sid); const ps = drParas();
-  if (mode === "all") { if (!confirm("以這個結果取代「本節論文內容」的全部文字？（之後可按「復原取代前的內容」）")) return; (store.values.fin_undo ||= {})[sid] = t; t = r; }
+  if (mode === "all") { if (!confirm(`以這個結果取代「${secLabel(sid) || "本節"}」定稿的全部文字？（之後可在該節定稿下方按「復原上一次清除或取代前的內容」）`)) return; (store.values.fin_undo ||= {})[sid] = t; t = r; }
   else if (mode === "append") { if (finBlocks(t).some(b => blockSim(b, r) >= 0.8) && !confirm("本節定稿中已有相同或幾乎相同的段落，仍要再加到最後嗎？")) return; t = (t ? t + "\n\n" : "") + r; }
   else if (mode === "one") { const p = ps.find(x => x.text.trim() === (store.values.dr_text || "").trim()); if (!p) return; t = t.replace(p.text, r); store.values.dr_text = r; }
   else { const sel = ps.filter(x => (store.values.dr_sel || []).includes(x.key)); if (!sel.length) return; t = t.replace(sel[0].text, r); sel.slice(1).forEach(x => { t = t.replace(x.text, ""); }); t = t.replace(/\n{3,}/g, "\n\n").trim(); store.values.dr_sel = []; }
