@@ -295,9 +295,16 @@ $("pane").addEventListener("click", async e => {
     adoptRevised(); save(); renderPane(); update();
     $("pane").scrollIntoView({ behavior: "smooth" }); return;
   }
-  const dp = e.target.closest("button[data-drpick], button[data-drdone]");
-  if (dp) {   // 段落核實改寫：選段落、標記完成
+  const dp = e.target.closest("button[data-drpick], button[data-drdone], button[data-drsel]");
+  if (dp) {   // 段落核實改寫：選段落、標記完成、選取要融合的段落
     const ps = drParas();
+    if (dp.dataset.drsel) {
+      const k = ps[+dp.dataset.drsel].key, sel = (store.values.dr_sel ||= []);
+      store.values.dr_sel = sel.includes(k) ? sel.filter(x => x !== k) : [...sel, k];
+      const chosen = ps.filter(x => store.values.dr_sel.includes(x.key));
+      store.values.dr_text = chosen.map((x, j) => `【段落${"一二三四五六七八九十"[j] || j + 1}】${x.head ? "（" + x.head + "）" : ""}\n${x.text}`).join("\n\n");
+      save(); renderPane(); update(); return;
+    }
     if (dp.dataset.drpick) { store.values.dr_text = ps[+dp.dataset.drpick].text; save(); renderPane(); update(); const ta = document.querySelector('textarea[data-f="dr_text"]'); if (ta) ta.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
     const k = ps[+dp.dataset.drdone].key, d = (store.values.dr_done ||= {}); if (d[k]) delete d[k]; else d[k] = true;
     save(); update(); return;

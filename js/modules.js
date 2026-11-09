@@ -474,15 +474,16 @@ const DEFS = {
     label: "段落核實改寫", target: "nlm",
     hint: "核實論文段落中的引用，再改寫。適用於任何一章。",
     fields: [
-      { id: "dr_stage", type: "radio", label: "改寫方向", options: [["draft", "補強（字數不減）"], ["final", "精簡（術語查證＋字數必減）"]], value: "draft" },
+      { id: "dr_stage", type: "radio", label: "改寫方向", options: [["draft", "補強（字數不減）"], ["final", "精簡（術語查證＋字數必減）"], ["merge", "融合（多段合併，討論先後邏輯）"]], value: "draft" },
       { id: "dr_paras", type: "cands", label: "本節的段落", when: () => drParas().length > 0, render: () => drView() },
       { id: "dr_rules", type: "promptbox", label: "共用規則", hint: "每個 NotebookLM 對話只要先送一次（NotebookLM 會回覆「已收到」），之後每一段都送下方的 Prompt 即可；避免每段都超過字數上限",
         copyLabel: "先送這則：複製共用規則（每個對話一次）", build: () => DR_R ? T.rules_once(DR_R) : "" },
-      { id: "dr_text", type: "textarea", label: "論文段落", hint: "按上方「用這一段」自動帶入；也可以自己貼上", rows: 8 }
+      { id: "dr_text", type: "textarea", label: "論文段落", hint: "按上方「用這一段」自動帶入；融合時按「加入融合」可選多段；也可以自己貼上", rows: 8 }
     ],
     variant: p => p.dr_stage,
     rules: p => p.dr_stage === "final" ? ["citation", "style"] : ["citation", "evidence", "style"],
     build: (p, R) => { DR_R = R || ""; if (blank(p.dr_text)) return ""; const ref = DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "";
+      if (p.dr_stage === "merge") return T.dr_merge({ arch: bgSeed().bg_topic, text: p.dr_text }) + ref;
       return p.dr_stage === "final" ? T.dr_final({ draft: p.dr_text }) + ref + "\n\n" + T.dr_final_tail({}) : T.dr_draft({ draft: p.dr_text }) + ref; },
     empty: "（請貼上論文段落）",
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。"
@@ -967,12 +968,13 @@ function drParas() {
 }
 function drView() {
   const ps = drParas(), done = store.values.dr_done || {}, cur = (store.values.dr_text || "").trim();
-  return `<p class="hint">本節共 ${ps.length} 段，已完成 ${ps.filter(x => done[x.key]).length} 段。按「用這一段」帶入下方，複製 Prompt 送出；回覆貼到「AI 回覆」後，按「完成」標記，再換下一段。</p>` +
-    ps.map((x, i) => `<div class="dr-para${done[x.key] ? " done" : ""}${cur === x.text.trim() ? " cur" : ""}"><b>${i + 1}</b>
+  const merge = store.values.dr_stage === "merge", sel = store.values.dr_sel || [];
+  return `<p class="hint">本節共 ${ps.length} 段，已完成 ${ps.filter(x => done[x.key]).length} 段。${merge ? "融合：按「加入融合」選兩段以上（依清單順序帶入），複製 Prompt 送出，AI 會先提出排序方案再寫出融合後的段落。" : "按「用這一段」帶入下方，複製 Prompt 送出；回覆貼到「AI 回覆」後，按「完成」標記，再換下一段。"}</p>` +
+    ps.map((x, i) => `<div class="dr-para${done[x.key] ? " done" : ""}${(merge ? sel.includes(x.key) : cur === x.text.trim()) ? " cur" : ""}"><b>${i + 1}</b>
       <div class="dr-txt">${x.head ? `<small>${esc(x.head)}</small>` : ""}${x.text.length > 90
         ? `<details><summary>${esc(x.text.slice(0, 90))}……<span class="dr-more">展開全文</span></summary><div class="dr-full">${esc(x.text)}</div></details>`
         : `<span>${esc(x.text)}</span>`}</div>
-      <span class="dr-btns"><button type="button" data-drpick="${i}">${cur === x.text.trim() ? "目前這段" : "用這一段"}</button>
+      <span class="dr-btns">${merge ? `<button type="button" data-drsel="${i}" class="${sel.includes(x.key) ? "on" : ""}">${sel.includes(x.key) ? "✓ 已加入" : "加入融合"}</button>` : `<button type="button" data-drpick="${i}">${cur === x.text.trim() ? "目前這段" : "用這一段"}</button>`}
       <button type="button" data-drdone="${i}">${done[x.key] ? "✓ 已完成" : "完成"}</button></span></div>`).join("");
 }
 
