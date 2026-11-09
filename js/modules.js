@@ -1103,13 +1103,13 @@ function zhRef(e) {
 const refCollator = new Intl.Collator("zh-TW-u-co-stroke"), enCollator = new Intl.Collator("en");
 function refRows() {
   const cites = citeScan(), cands = refCandidates(), saved = store.values.refs || {};
-  const bulk = refLines(store.values.rf_bulk);
+  const bulk = refLines([store.values.rf_bulk, ...Object.values(store.values.rf_paste || {})].join("\n"));   // 參考文獻頁與各節定稿貼上的書目
   return cites.map(c => { const b = c.key in saved ? "" : refAuto(c, bulk);
     const entry = c.key in saved ? saved[c.key] : b ? zhRef(b) : refAuto(c, cands);
     return { ...c, saved: c.key in saved, bulk: !!b, entry, alts: entry.trim() ? [] : refAlts(c, bulk.concat(cands)).map(zhRef) }; });
 }
-function refFillItems() {   // 缺出處或格式不符 APA 的引用，附上回覆中的線索（含網址的行優先）
-  const rows = refRows().filter(r => !r.alts.length && (!r.entry.trim() || (!r.saved && !refApa(r.entry))));
+function refFillItems(no) {   // 缺出處或格式不符 APA 的引用（no：只列該節），附上回覆中的線索（含網址的行）
+  const rows = refRows().filter(r => (!no || r.secs.has(no)) && !r.alts.length && (!r.entry.trim() || (!r.saved && !refApa(r.entry))));
   if (!rows.length) return "";
   const src = Object.values(store.replies || {}).concat(THESIS_SECS().map(s => finText(s.id))).join("\n").split(/\r?\n/).map(refClean);
   return rows.map(r => {
@@ -1202,7 +1202,20 @@ function finBox() {   // 第一～五章各節：所有步驟下方的「本節�
     <div class="fin-view" id="finview">${finHtml(t) || `<p class="hint">完成本節的撰寫步驟並貼上 AI 回覆後，正文會自動出現在這裡。</p>`}</div>
     <textarea class="fin-edit" data-fin="${s.id}" hidden>${esc(t)}</textarea>
     <p class="fin-btns"><button type="button" data-finedit="1">修改文字</button>${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}
-    <span class="hint">論文.md 與「論文全文」只放這裡的內容</span></p></details>`;
+    <span class="hint">論文.md 與「論文全文」只放這裡的內容</span></p>${finRefBox(s)}</details>`;
+}
+// 本節定稿下方：查找本節缺少的參考文獻 → 貼上 AI 回覆 → 自動匯入參考文獻頁
+function finRefCount(s) {
+  const rows = refRows().filter(r => r.secs.has(s.no)); if (!rows.length) return "";
+  const ok = rows.filter(r => r.entry.trim() && (r.saved || refApa(r.entry))).length;
+  return `本節共 ${rows.length} 筆引用，已有 APA 格式出處 ${ok} 筆${ok < rows.length ? `，尚缺 ${rows.length - ok} 筆` : "，全部齊全"}。逐筆核對在「論文整理 → 參考文獻」。`;
+}
+function finRefBox(s) {
+  const c = finRefCount(s); if (!c) return "";
+  const pasted = (store.values.rf_paste || {})[s.id] || "", need = !!refFillItems(s.no);
+  return `<div class="fin-ref"><h4>本節參考文獻</h4><p class="hint" id="finrefcount">${c}</p>` + (need || pasted ? `
+    <p><b>①</b> <button type="button" data-finrefcopy="${esc(s.no)}">複製查找文獻 Prompt（貼到一般 AI）</button> <span class="hint">需開啟網路搜尋；接在查過資料的同一個對話最準</span></p>
+    <label><b>②</b> 貼上 AI 回覆，自動匯入參考文獻<textarea data-finref="${s.id}" rows="3" placeholder="貼上 AI 列出的 APA 參考文獻（一行一筆）">${esc(pasted)}</textarea></label>` : "") + `</div>`;
 }
 function thesisBody() {   // 論文全文（Markdown）：題目＋各章節定稿
   const zh = (store.values.tt_zh || "").trim(), en = (store.values.tt_en || "").trim();

@@ -404,3 +404,4 @@ textarea.fin-edit { width: 100%; min-height: 360px; font-size: 15px; line-height
 .po-mine { display: block; margin-top: 6px; } .po-mine textarea { width: 100%; font-size: 15px; line-height: 1.7; margin-top: 4px; border: 1.5px solid var(--accent); }
 
 .ref-alt { margin: 6px 0; } .ref-altrow { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; border-top: 1px dashed var(--line); font-size: 14.5px; } .ref-altrow span { flex: 1; } .ref-altrow button { white-space: nowrap; }
+.fin-ref { border-top: 1px dashed var(--line); margin-top: 10px; padding-top: 6px; } .fin-ref h4 { margin: 4px 0; } .fin-ref textarea { width: 100%; margin-top: 4px; }

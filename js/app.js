@@ -285,6 +285,11 @@ $("pane").addEventListener("input", e => {
     $("out").textContent = refList().join("\n"); $("copy").disabled = !refList().length;
     return;
   }
+  if (t.dataset.finref) {   // 本節定稿：貼上 AI 整理的參考文獻 → 自動配對
+    (store.values.rf_paste ||= {})[t.dataset.finref] = t.value; save();
+    const c = $("finrefcount"); if (c) c.innerHTML = finRefCount(sec());
+    return;
+  }
   if (t.dataset.fin) {   // 本節定稿：直接修改文字
     setFin(t.dataset.fin, t.value); save();
     const v = $("finview"); if (v) v.innerHTML = finHtml(t.value);
@@ -363,6 +368,15 @@ $("pane").addEventListener("click", async e => {
     save(); renderPane(); update();
     const el = $("fmsg-" + f.id); if (el) { el.textContent = msg || ""; el.className = "note" + (/沒有|無法/.test(msg) ? " warn" : ""); }
     return;
+  }
+  const fr = e.target.closest("button[data-finrefcopy]");
+  if (fr) {   // 本節定稿：複製查找文獻 Prompt
+    const it = refFillItems(fr.dataset.finrefcopy), text = it ? T.ref_fill({ items: it }) : "", old = fr.textContent;
+    if (!text) { fr.textContent = "本節的參考文獻已齊全"; setTimeout(() => (fr.textContent = old), 1500); return; }
+    try { await navigator.clipboard.writeText(text); } catch {
+      const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+    }
+    fr.textContent = "已複製 ✓"; setTimeout(() => (fr.textContent = old), 1500); return;
   }
   const pc = e.target.closest("button[data-pcopy]");
   if (pc) {   // 欄位中的第二個 Prompt（例如讀圖 Prompt）
