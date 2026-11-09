@@ -481,6 +481,9 @@ const DEFS = {
     fields: [
       { id: "dr_stage", type: "radio", label: "改寫方向", options: [["draft", "補強（字數不減）"], ["final", "精簡（術語查證＋字數必減）"], ["merge", "融合（多段合併，討論先後邏輯）"]], value: "draft" },
       { id: "dr_paras", type: "cands", label: "本節的段落", when: () => drParas().length > 0, render: () => drView() },
+      { id: "dr_len", type: "radio", label: "精簡目標", options: [["auto", "比原文少即可"], ["70", "約原文 70%"], ["50", "約原文 50%"], ["n", "指定字數"]], value: "auto", when: p => p.dr_stage === "final" },
+      { id: "dr_lenN", type: "text", label: "目標字數", placeholder: "例如 600", when: p => p.dr_stage === "final" && p.dr_len === "n" },
+      { id: "dr_stat", type: "checks", label: "統計數據", options: [["on", "每個論點最多保留 1–2 個關鍵數字，其餘改成文字概述"]], value: ["on"], when: p => p.dr_stage === "final" },
       { id: "dr_rules", type: "promptbox", get label() { return inCh1() ? "第一章共用規則（引用格式、文字風格、第一章寫作規範）" : "共用規則"; }, hint: "每個 NotebookLM 對話只要先送一次（NotebookLM 會回覆「已收到」），之後每一段都送下方的 Prompt 即可；避免每段都超過字數上限",
         get copyLabel() { return `先送這則：複製${inCh1() ? "第一章" : ""}共用規則（每個對話一次）`; }, build: () => DR_R ? T.rules_once(DR_R) : "" },
       { id: "dr_text", type: "textarea", label: "論文段落", hint: "按上方「用這一段」自動帶入；融合時按「加入融合」可選多段；也可以自己貼上", rows: 8 }
@@ -490,7 +493,8 @@ const DEFS = {
     rules: p => inCh1() ? ["citation", "style", "ch1"] : p.dr_stage === "final" ? ["citation", "style"] : ["citation", "evidence", "style"],
     build: (p, R) => { DR_R = R || ""; if (blank(p.dr_text)) return ""; const ref = DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "";
       if (p.dr_stage === "merge") return T.dr_merge({ arch: bgSeed().bg_topic, text: p.dr_text }) + ref;
-      return p.dr_stage === "final" ? T.dr_final({ draft: p.dr_text }) + ref + "\n\n" + T.dr_final_tail({}) : T.dr_draft({ draft: p.dr_text }) + ref; },
+      return p.dr_stage === "final" ? T.dr_final({ draft: p.dr_text }) + drLenReq(p) + ref + "\n\n" + T.dr_final_tail({}) : T.dr_draft({ draft: p.dr_text }) + ref; },
+    status: p => p.dr_stage === "final" && !blank(p.dr_text) ? drLenNote(p) : "",
     empty: "（請貼上論文段落）",
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。"
   },
@@ -992,6 +996,19 @@ function finalArch() {
   const A = parseArch(archSrcText(p)), vars = own ? ownVars(p) : A.vars;
   const d = own ? dgData("ow_diag") : archDiag(p);
   return { A, vars, d: { edges: d.edges || [], mods: d.mods || [], pos: d.pos || {} } };
+}
+// 精簡：目標字數與統計數據規則
+const zhCount = t => String(t || "").replace(/\s/g, "").length;
+function drTarget(p) {
+  const n = zhCount(p.dr_text);
+  return p.dr_len === "70" ? Math.round(n * 0.7) : p.dr_len === "50" ? Math.round(n * 0.5) : p.dr_len === "n" ? +(String(p.dr_lenN || "").match(/\d+/) || [0])[0] : 0;
+}
+function drLenNote(p) { const n = zhCount(p.dr_text), m = drTarget(p); return `原文約 ${n} 字` + (m ? `，精簡目標約 ${m} 字。` : "。"); }
+function drLenReq(p) {
+  const m = drTarget(p), out = [];
+  if (m) out.push(`字數目標：原文約 ${zhCount(p.dr_text)} 字（不含空白），改寫後請控制在約 ${m} 字（上下 10% 以內），以此取代上方第 5 點的「盡量壓縮」。為達到字數目標，優先刪除次要的例證、重複的論點與過多的數據，保留核心論點與其引用。`);
+  if (isOn(p.dr_stat)) out.push("統計數據：每個論點最多保留 1–2 個最關鍵的數字，其餘數字改以文字概述（例如「涵蓋清潔、衣著、居家與美妝等日常商品」）；保留的數字須維持原有的引用。");
+  return out.length ? "\n\n[精簡要求]\n" + out.map((x, i) => `${i + 1}. ${x}`).join("\n") : "";
 }
 // ── 背景與動機的寫法：把回覆中的「寫法選項」拆成可勾選的卡片 ──
 function bpOptions(text) {
