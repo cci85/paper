@@ -1047,11 +1047,15 @@ function refCandidates() {   // 各步驟回覆中的參考文獻條目（只取
   return [...new Set(out)];
 }
 const refSur = c => CJK.test(c.author) ? c.author.replace(/\s/g, "") : c.author.split(/\s|,|&/)[0];
-function refAuto(c, cands) {
-  const sur = refSur(c), yr = c.year.replace(/^n\.d\.$/, "n.d.");
-  const hit = cands.filter(l => { const m = l.match(REF_HEAD); return m && m[2] === yr && (CJK.test(sur) ? m[1].replace(/\s/g, "") : m[1]).startsWith(sur); });   // 條目須以該作者開頭
+function refAuto(c, cands, yr = c.year.replace(/^n\.d\.$/, "n.d.")) {
+  const sur = refSur(c);
+  const hit = cands.filter(l => { const m = l.match(REF_HEAD); return m && (yr instanceof RegExp ? yr.test(m[2]) : m[2] === yr) && (CJK.test(sur) ? m[1].replace(/\s/g, "") : m[1]).startsWith(sur); });   // 條目須以該作者開頭
+  if (yr instanceof RegExp) return [...new Set(hit)];
   return hit.sort((a, b) => (/[。.]$/.test(b.match(REF_HEAD)[3]) - /[。.]$/.test(a.match(REF_HEAD)[3])) || (/https?:|doi/i.test(b) - /https?:|doi/i.test(a)) || b.length - a.length)[0] || "";
 }
+// 同一作者同一年有多筆（2019a、2019b），正文卻只寫 2019：列出候選讓使用者選
+const refAlts = (c, lines) => /^\d{4}$/.test(c.year) ? refAuto(c, lines, new RegExp(`^${c.year}[a-z]$`)) : [];
+const refNoLetter = (e, y) => e.replace(new RegExp(`([（(]${y})[a-z]`), "$1");
 const refApa = e => (m => !!m && /[。.]/.test(m[3]))(String(e || "").match(REF_HEAD));   // 開頭符合 APA（年份括號後接句號）
 // Zotero 以 APA 輸出中文文獻時是英文標點：「陳立儀. (2026). 標題. 網站.」→「陳立儀（2026）。標題。網站。」
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
@@ -1067,10 +1071,11 @@ function refRows() {
   const cites = citeScan(), cands = refCandidates(), saved = store.values.refs || {};
   const bulk = refLines(store.values.rf_bulk);
   return cites.map(c => { const b = c.key in saved ? "" : refAuto(c, bulk);
-    return { ...c, saved: c.key in saved, bulk: !!b, entry: c.key in saved ? saved[c.key] : b ? zhRef(b) : refAuto(c, cands) }; });
+    const entry = c.key in saved ? saved[c.key] : b ? zhRef(b) : refAuto(c, cands);
+    return { ...c, saved: c.key in saved, bulk: !!b, entry, alts: entry.trim() ? [] : refAlts(c, bulk.concat(cands)).map(zhRef) }; });
 }
 function refFillItems() {   // 缺出處或格式不符 APA 的引用，附上回覆中的線索（含網址的行優先）
-  const rows = refRows().filter(r => !r.entry.trim() || (!r.saved && !refApa(r.entry)));
+  const rows = refRows().filter(r => !r.alts.length && (!r.entry.trim() || (!r.saved && !refApa(r.entry))));
   if (!rows.length) return "";
   const src = Object.values(store.replies || {}).concat(THESIS_SECS().map(s => finText(s.id))).join("\n").split(/\r?\n/).map(refClean);
   return rows.map(r => {
@@ -1085,11 +1090,13 @@ function refList() {   // APA 第七版：中文在前（筆畫），英文在�
 function refView() {
   const rows = refRows(); if (!rows.length) return `<p class="hint">各節定稿中還沒有行內引用。</p>`;
   const saved = store.values.refs || {}, cited = new Set(rows.map(r => r.key)), orphan = Object.keys(saved).filter(k => !cited.has(k));
-  const n = { ok: rows.filter(r => r.saved && r.entry.trim()).length, auto: rows.filter(r => !r.saved && r.entry).length, miss: rows.filter(r => !r.entry.trim()).length };
-  return `<p class="tb-count">共 ${rows.length} 筆引用：已確認 ${n.ok}、自動帶入待核對 ${n.auto}、找不到出處 ${n.miss}</p>` +
+  const n = { ok: rows.filter(r => r.saved && r.entry.trim()).length, auto: rows.filter(r => !r.saved && r.entry).length, alt: rows.filter(r => r.alts.length).length, miss: rows.filter(r => !r.entry.trim() && !r.alts.length).length };
+  const altBox = r => `<div class="ref-alt"><p class="note warn">書目中有 ${r.alts.length} 筆 ${esc(refSur(r))} ${esc(r.year)}（${r.alts.map(a => esc((a.match(REF_HEAD) || [])[2] || "")).join("、")}），無法判斷正文引用的是哪一筆。請按「用這一筆」選定（年份後的字母會自動去掉）。若正文確實引用了其中兩筆以上，請到該節的「本節論文內容」把引用年份分別改成 ${esc(r.year)}a、${esc(r.year)}b，網站會各自配對。</p>` +
+    r.alts.map((a, i) => `<div class="ref-altrow"><span>${esc(a)}</span> <button type="button" data-refpick="${esc(r.key)}" data-i="${i}">用這一筆</button></div>`).join("") + `</div>`;
+  return `<p class="tb-count">共 ${rows.length} 筆引用：已確認 ${n.ok}、自動帶入待核對 ${n.auto}${n.alt ? `、同年多筆待選 ${n.alt}` : ""}、找不到出處 ${n.miss}</p>` +
     rows.map(r => `<div class="ref-item ${r.saved && r.entry.trim() ? "ok" : r.entry ? "auto" : "miss"}">
-      <b>（${esc(r.label)}）</b><small>　出現於 ${esc([...r.secs].join("、"))}　${r.saved && r.entry.trim() ? "已確認" : r.entry ? (r.bulk ? "由貼上的書目帶入，請核對" : "自動帶入，請核對") + (refApa(r.entry) ? "" : "（格式不是 APA，請修改或請 AI 整理）") : "找不到出處，請填入"}</small>
-      <textarea data-ref="${esc(r.key)}" rows="2" placeholder="完整的 APA 第七版參考文獻，例如：經濟部統計處（2026）。報告名稱。https://……">${esc(r.entry)}</textarea></div>`).join("") +
+      <b>（${esc(r.label)}）</b><small>　出現於 ${esc([...r.secs].join("、"))}　${r.saved && r.entry.trim() ? "已確認" : r.alts.length ? "同一作者同年有多筆，請選定" : r.entry ? (r.bulk ? "由貼上的書目帶入，請核對" : "自動帶入，請核對") + (refApa(r.entry) ? "" : "（格式不是 APA，請修改或請 AI 整理）") : "找不到出處，請填入"}</small>
+      ${r.alts.length ? altBox(r) : ""}<textarea data-ref="${esc(r.key)}" rows="2" placeholder="完整的 APA 第七版參考文獻，例如：經濟部統計處（2026）。報告名稱。https://……">${esc(r.entry)}</textarea></div>`).join("") +
     (orphan.length ? `<h4>正文已不再引用的出處（${orphan.length}）</h4>` + orphan.map(k => `<div class="ref-item orphan"><span>${esc(saved[k])}</span> <button type="button" data-refdel="${esc(k)}">刪除</button></div>`).join("") : "");
 }
 

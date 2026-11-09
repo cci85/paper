@@ -323,6 +323,9 @@ $("pane").addEventListener("click", async e => {
   }
   const pa = e.target.closest("button[data-poadopt], button[data-poundo]");
   if (pa) { if (pa.dataset.poundo) poUndo(+pa.dataset.poundo); else poAdopt(+pa.dataset.poadopt); save(); renderReplyView(); const fv = $("finview"); if (fv) fv.innerHTML = finHtml(finText(store.sec)); const ta = document.querySelector("textarea[data-fin]"); if (ta) ta.value = finText(store.sec); return; }
+  const rp = e.target.closest("button[data-refpick]");   // 同年多筆：選定一筆，去掉年份字母
+  if (rp) { const r = refRows().find(x => x.key === rp.dataset.refpick), a = r && r.alts[+rp.dataset.i];
+    if (a) { (store.values.refs ||= {})[r.key] = refNoLetter(a, r.year); save(); update(); } return; }
   const rd = e.target.closest("button[data-refdel]");
   if (rd) { delete (store.values.refs || {})[rd.dataset.refdel]; save(); renderPane(); update(); return; }
   const fb2 = e.target.closest("button[data-finedit], button[data-finreset], button[data-drrep]");
