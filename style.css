@@ -401,3 +401,4 @@ textarea.fin-edit { width: 100%; min-height: 360px; font-size: 15px; line-height
 .po-item.used { border-color: var(--accent); background: var(--accent-soft); }
 .po-item small { display: inline-block; min-width: 3em; margin-right: 6px; font-weight: 700; color: var(--muted); }
 .po-from { color: var(--muted); } .po-to { font-weight: 600; } .po-why { font-size: 14px; color: var(--muted); }
+.po-mine { display: block; margin-top: 6px; } .po-mine textarea { width: 100%; font-size: 15px; line-height: 1.7; margin-top: 4px; border: 1.5px solid var(--accent); }

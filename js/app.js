@@ -273,6 +273,11 @@ $("pane").addEventListener("input", e => {
     save(); t.closest(".bp-opt").classList.toggle("on", t.checked);
     return;
   }
+  if (t.dataset.poedit) {   // 逐句修改建議：使用者自己的修改句
+    const x = poParse((store.replies || {})[replyKey()] || "")[+t.dataset.poedit];
+    if (x) { (store.values.po_edit ||= {})[store.sec + "|" + x.from] = t.value; save(); }
+    return;
+  }
   if (t.dataset.ref) {   // 參考文獻：逐筆核對或填入
     (store.values.refs ||= {})[t.dataset.ref] = t.value; save();
     const item = t.closest(".ref-item"); if (item) item.className = "ref-item " + (blank(t.value) ? "miss" : "ok");

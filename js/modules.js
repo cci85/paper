@@ -1073,15 +1073,19 @@ function poView(t) {
   const fin = THESIS_SECS().some(x => x.id === store.sec) ? finText(store.sec) : null, done = store.values.po_done || {};
   return `<div class="posug"><h3>逐句修改建議（${ss.length} 句）</h3><p class="hint">按「採用」才會替換「本節論文內容」中的那一句；不採用的句子保持原樣。</p>` + ss.map((x, i) => {
     const key = store.sec + "|" + x.from, used = done[key], found = fin !== null && fin.includes(x.from);
+    const mine = (store.values.po_edit || {})[key];
     return `<div class="po-item${used ? " used" : ""}"><div class="po-from"><small>原句</small>${esc(x.from)}</div><div class="po-to"><small>建議</small>${esc(x.to)}</div>
       ${x.why ? `<div class="po-why"><small>理由</small>${esc(x.why)}</div>` : ""}
+      <label class="po-mine"><small>我的修改</small><span class="hint">可參考建議自行修改；按「採用」時以這裡的文字取代原句</span>
+        <textarea data-poedit="${i}" rows="2"${used ? " disabled" : ""}>${esc(mine ?? x.to)}</textarea></label>
       <p class="fin-btns">${used ? "✓ 已採用" : fin === null ? `<span class="hint">（不在第一～五章的節內，請自行替換）</span>` : found ? `<button type="button" data-poadopt="${i}">採用</button>` : `<span class="hint">本節定稿中找不到這一句（可能已修改過）</span>`}</p></div>`;
   }).join("") + `</div>`;
 }
 function poAdopt(i) {
   const x = poParse((store.replies || {})[replyKey()] || "")[i]; if (!x) return;
   const t = finText(store.sec); if (!t.includes(x.from)) return;
-  setFin(store.sec, t.replace(x.from, x.to)); (store.values.po_done ||= {})[store.sec + "|" + x.from] = true;
+  const mine = (store.values.po_edit || {})[store.sec + "|" + x.from], to = blank(mine) ? x.to : mine.trim();
+  setFin(store.sec, t.replace(x.from, to)); (store.values.po_done ||= {})[store.sec + "|" + x.from] = true;
 }
 
 // ── 本節定稿：論文.md 與網頁「本節論文內容」「論文全文」只放定稿 ──
