@@ -1523,7 +1523,7 @@ const OUTLINE = [
       { mod: "asp", note: "依選定的寫法查台灣的統計與實務資料：把選定寫法的段落大綱與{#archchk}的回覆交給有網路搜尋的 AI，寫成研究情境、實務問題與實務缺口，並整理台灣統計資料。" },
       { mod: "bg", rules: ["citation", "style", "verify", "ch1"], note: "依選定的寫法撰寫；研究主題、選定的寫法、背景資料與研究缺口會自動帶入。" }], finish: FIN_FULL },
     { id: "s1-2", no: "1.2", title: "研究目的與問題", desc: "研究目的要對應動機，研究問題要能由假說回答。", steps: [
-      { mod: "purpose", rules: ["style", "ch1"], note: "研究架構（假說清單）由架構圖自動帶入，請補上預期方向；研究缺口自動帶入 1.1 定稿的最後一段。貼到寫 1.1 的同一個 NotebookLM 對話。" }] },
+      { mod: "purpose", rules: ["style", "ch1"], note: "研究架構（假說清單）由架構圖自動帶入，請補上預期方向；研究缺口自動帶入 1.1 定稿的最後一段。貼到寫 1.1 的同一個 NotebookLM 對話。" }], finish: FIN_POLISH },
     { id: "s1-3", no: "1.3", title: "研究範圍與流程", desc: "界定研究的情境、對象與變數邊界，並說明研究流程與各章安排。", steps: [
       { mod: "scope", rules: ["style", "ch1"], note: "研究題目、研究架構、研究情境與研究對象會自動帶入；可補充要排除的範圍。" }], finish: FIN_FULL }
   ] },
