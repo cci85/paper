@@ -363,8 +363,10 @@ const DEFS = {
     hint: "依研究架構與研究動機，寫出研究目的與研究問題，並檢核「動機 → 目的 → 問題 → 假說」是否一一對應。",
     fields: [
       { id: "hy_paths", type: "textarea", label: "研究架構", hint: "一行一條假說；與{#hypo}共用同一份內容", rows: 5, placeholder: "H1：品牌人格 → 自我一致性（正向）" },
-      { id: "pu_motive", type: "textarea", label: "研究動機", hint: "選填；貼上已寫好的研究動機或摘要", rows: 4 }
+      { id: "pu_motive", type: "textarea", label: "1.1 的研究缺口", hint: "自動帶入 1.1 定稿的最後一段（研究缺口）；可自行修改", rows: 4 }
     ],
+    seed: () => ({ hy_paths: archHyp(), pu_motive: (finBlocks(finText("s1-1")).filter(b => !/^#/.test(b)).slice(-1)[0] || "") }),
+    seedQuiet: ["hy_paths"], seedFrom: "架構圖與 1.1 定稿", seedNote: "研究架構由 3.1／0.3 架構圖帶入，研究缺口由 1.1 定稿最後一段帶入",
     rules: () => ["style"],
     build: (p, R) => blank(p.hy_paths) ? "" : T.purpose({ paths: p.hy_paths, motive: p.pu_motive }) + R,
     empty: "（請填入研究架構）",
@@ -1345,7 +1347,7 @@ function drReplace(mode) {
 
 // ── 段落核實改寫：把本節定稿拆成一段一段 ──
 let DR_R = "";   // 段落核實改寫的共用規則（另成一則，每個對話送一次）
-const VERIFY_HEAD = /^#{1,4}\s*(?:\d+[.、]\s*)?(待補清單|待補資料|需要研究者查證|學生原稿檢核|學生內容查證|來源核對)/m;
+const VERIFY_HEAD = /^#{1,4}\s*(?:\d+[.、]\s*)?(待補清單|待補資料|需要研究者查證|學生原稿檢核|學生內容查證|來源核對|對應檢核)/m;
 function drParas() {
   const s = ALL_SECS.find(x => x.id === store.sec); if (!s || !s.no) return [];
   const out = []; let head = "";
@@ -1441,6 +1443,12 @@ function bgSeed() {
   const topic = [(v.tt_zh || "").trim() && "論文題目：" + v.tt_zh.trim(), (v.as_ctx || "").trim() && "研究情境：" + v.as_ctx.trim(), paths.length && "研究架構：" + paths.join("；")].filter(Boolean).join("\n");
   return { bg_topic: topic, bg_facts: mdSection(r["s1-1|asp"], ["台灣統計資料", "研究情境", "實務問題", "實務缺口"]), bg_gaps: mdSection(r["s0-5|archchk"], ["研究缺口"]) };
 }
+// 由架構圖列出假說清單（一行一條；預期方向請研究者自行補上）
+function archHyp() {
+  const { vars, d } = finalArch(), nm = k => ((vars.find(x => x.key === k) || {}).name || k).replace(/\s*[（(][^（）()]*[）)]\s*$/, "");
+  const ls = d.edges.map(e => `${nm(e.from)} → ${nm(e.to)}`).concat(d.mods.map(m => { const [a, b] = m.edge.split(">"); return `${nm(m.from)} 調節（${nm(a)} → ${nm(b)}）`; }));
+  return ls.map((l, i) => `H${i + 1}：${l}`).join("\n");
+}
 function ttlArch() { const { A, vars, d } = finalArch(); return vars.length && d.edges.length ? archText({ ...A, vars }, d) : ""; }
 function f31Text() {
   const { A, vars } = finalArch(); if (!vars.length) return "";
@@ -1515,7 +1523,7 @@ const OUTLINE = [
       { mod: "asp", note: "依選定的寫法查台灣的統計與實務資料：把選定寫法的段落大綱與{#archchk}的回覆交給有網路搜尋的 AI，寫成研究情境、實務問題與實務缺口，並整理台灣統計資料。" },
       { mod: "bg", rules: ["citation", "style", "verify", "ch1"], note: "依選定的寫法撰寫；研究主題、選定的寫法、背景資料與研究缺口會自動帶入。" }], finish: FIN_FULL },
     { id: "s1-2", no: "1.2", title: "研究目的與問題", desc: "研究目的要對應動機，研究問題要能由假說回答。", steps: [
-      { mod: "purpose", rules: ["style", "ch1"], note: "準備研究架構（假說清單）與 1.1 寫好的研究動機。" }], finish: FIN_FULL },
+      { mod: "purpose", rules: ["style", "ch1"], note: "研究架構（假說清單）由架構圖自動帶入，請補上預期方向；研究缺口自動帶入 1.1 定稿的最後一段。貼到寫 1.1 的同一個 NotebookLM 對話。" }] },
     { id: "s1-3", no: "1.3", title: "研究範圍與流程", desc: "界定研究的情境、對象與變數邊界，並說明研究流程與各章安排。", steps: [
       { mod: "scope", rules: ["style", "ch1"], note: "研究題目、研究架構、研究情境與研究對象會自動帶入；可補充要排除的範圍。" }], finish: FIN_FULL }
   ] },

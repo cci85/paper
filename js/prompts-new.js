@@ -353,7 +353,7 @@ function splitForNLM(material, task, what) {
 T.purpose = p => [
   "以下是本研究的研究架構：",
   "", "---", p.paths.trim(), "---", "",
-  ...(blank(p.motive) ? [] : ["以下是本研究的研究動機（第一章已寫好的內容或摘要）：", "---", p.motive.trim(), "---", ""]),
+  ...(blank(p.motive) ? [] : ["以下是第一章第一節最後一段指出的研究缺口：", "---", p.motive.trim(), "---", ""]),
   "任務：根據上方研究架構與研究動機，並參考此 Notebook 中上傳的文獻，撰寫論文第一章「研究目的與研究問題」。",
   "",
   "撰寫要求：",

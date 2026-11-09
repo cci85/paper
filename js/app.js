@@ -58,6 +58,7 @@ if ((store.layout || 0) < 7) {   // 常用「核實改寫：補強」「核實�
   if (store.sec === "q-final") { store.sec = "q-draft"; store.values.dr_stage = "final"; }
   delete store.step["q-final"]; store.layout = 7;
 }
+if ((store.layout || 0) < 8) { if ((store.step || {})["s1-2"]) store.step["s1-2"] = 0; store.layout = 8; }   // 1.2 只保留撰寫步驟
 if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} if (window.onStoreSave) window.onStoreSave(); };
 
