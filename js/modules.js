@@ -5,8 +5,11 @@ const RULES = [
   { key: "style", label: "文字風格規範", text: T.style },
   { key: "verify", label: "完成後自我核對", text: T.verify },
   // opt：只在步驟預設有列入時才顯示
-  { key: "support", label: "文獻支持程度總結", text: T.support, opt: true }
+  { key: "support", label: "文獻支持程度總結", text: T.support, opt: true },
+  { key: "ch1", label: "第一章寫作規範", opt: true,
+    text: () => "\n\n[第一章寫作規範]\n本段屬於論文第一章緒論，請遵守以下規範；與其他規則衝突時，以本規範為準：\n" + GUIDE_CH1.ai }
 ];
+const inCh1 = () => /^s1-/.test(store.sec || "");
 
 // 共用規則中的引用格式（欄位內第二個 Prompt 使用）
 const citeText = () => { const r = RULES.find(x => x.key === "citation"); return typeof r.text === "function" ? r.text({}) : r.text; };
@@ -481,7 +484,7 @@ const DEFS = {
       { id: "dr_text", type: "textarea", label: "論文段落", hint: "按上方「用這一段」自動帶入；融合時按「加入融合」可選多段；也可以自己貼上", rows: 8 }
     ],
     variant: p => p.dr_stage,
-    rules: p => p.dr_stage === "final" ? ["citation", "style"] : ["citation", "evidence", "style"],
+    rules: p => inCh1() ? ["citation", "style", "ch1"] : p.dr_stage === "final" ? ["citation", "style"] : ["citation", "evidence", "style"],
     build: (p, R) => { DR_R = R || ""; if (blank(p.dr_text)) return ""; const ref = DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "";
       if (p.dr_stage === "merge") return T.dr_merge({ arch: bgSeed().bg_topic, text: p.dr_text }) + ref;
       return p.dr_stage === "final" ? T.dr_final({ draft: p.dr_text }) + ref + "\n\n" + T.dr_final_tail({}) : T.dr_draft({ draft: p.dr_text }) + ref; },
@@ -539,6 +542,30 @@ const DEFS = {
     build: (p, R) => blank(p.m7a_text) ? "" : T.m7a({ content: p.m7a_text }) + R,
     empty: "（請貼上要畫圖的文字）",
     next: "下一步：貼到 NotebookLM（建議在產生這段文字的同一個對話）；回覆整段複製後，到{#m7b}補好圍籬。"
+  },
+  ch1guide: {
+    label: "第一章寫作規範", target: "tool",
+    hint: "供撰寫與審查第一章時參考；下方「複製」可取得精簡版規範的純文字。",
+    fields: [{ id: "g1_view", type: "cands", label: "", render: () => `<div class="guide-body">${GUIDE_CH1.full}</div>` }],
+    build: () => GUIDE_CH1.ai,
+    copyLabel: "複製精簡版規範",
+    next: "第一章各步驟的 Prompt 會自動附上精簡版規範（附加共用規則中的「第一章寫作規範」）。"
+  },
+  scope: {
+    label: "研究範圍與論文架構", target: "nlm",
+    hint: "依研究題目、研究架構、研究情境與研究對象，撰寫「研究範圍」（情境、對象、變數邊界與排除項目）與「論文架構」（各章內容概述）。",
+    fields: [
+      { id: "sc_topic", type: "textarea", label: "研究題目與研究架構", hint: "自動帶入 0.5 定稿題目、研究情境與研究架構", rows: 4 },
+      { id: "sc_target", type: "text", label: "研究對象", hint: "自動帶入 0.4 的研究對象", placeholder: "例如：年滿 18 歲、過去半年曾在蝦皮購物的消費者" },
+      { id: "sc_extra", type: "textarea", label: "範圍補充", hint: "選填；例如要排除的平台、商品類別或購物情境", rows: 2 }
+    ],
+    seed: () => ({ sc_topic: bgSeed().bg_topic, sc_target: (store.values.as_target || "").trim() }),
+    seedFrom: "前面步驟", seedNote: "研究題目與研究架構由 0.5、3.1／0.3 帶入，研究對象由 0.4 帶入",
+    rules: () => ["style", "ch1"],
+    build: (p, R) => blank(p.sc_topic) ? "" : T.scope({ topic: p.sc_topic.trim(), target: (p.sc_target || "").trim(), extra: (p.sc_extra || "").trim(),
+      chapters: OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).map(c => c.ch + "（" + c.secs.map(s => s.title).join("、") + "）").join("；") }) + R,
+    empty: "（請先完成 0.5 論文題目或 0.3 研究架構）",
+    next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。"
   },
   tbfill: {
     label: "待補資料查證", target: "tool",
@@ -1041,7 +1068,11 @@ let BG_R = "";   // 研究背景與動機：最近一次的共用規則文字（
 function bgParts(p) {
   if (blank(p.bg_topic)) return [];
   const q = { topic: p.bg_topic.trim(), facts: p.bg_facts, gaps: p.bg_gaps, plan: (p.bg_plan || "").trim(), draft: (p.as_draft || "").trim() };
-  return splitForNLM(T.bg_mat(q), T.bg_task(q) + BG_R, "研究背景與動機");
+  const R = RULES.filter(r => activeRules(DEFS.bg, p).includes(r.key)).map(r => typeof r.text === "function" ? r.text(p) : r.text).join("");
+  const one = T.bg_mat(q) + "\n" + T.bg_task(q) + R;
+  if (one.length <= 2800) return [one];
+  // 太長：撰寫規則併入前面的參考資料分則送出，最後一則只放撰寫任務
+  return splitForNLM(T.bg_mat(q) + (R ? "\n\n【撰寫時須遵守的規則】" + R : ""), T.bg_task(q) + (R ? "\n\n撰寫時請遵守前面提供的「撰寫時須遵守的規則」。" : ""), "研究背景與動機");
 }
 function bgSeed() {
   const v = store.values, r = store.replies || {};
@@ -1100,6 +1131,8 @@ const OUTLINE = [
       { mod: "vcomp", note: "每行填一個變數；可直接從組合研究架構的勾選區複製名稱。" }] },
     { id: "r-method", no: "", title: "方法導向檢索", desc: "找特定領域中、實際使用某種統計方法的實證論文作為模仿範例：產生精準的 Google Scholar 檢索式與 Scholar Labs 問句。", steps: [
       { mod: "smethod", note: "貼到有網路搜尋的 AI 對話，不需要上傳文獻。" }] },
+    { id: "q-ch1g", no: "", title: "第一章寫作規範", desc: "整理自「如何寫論文」筆記本（畢恆達、Evans et al.、Swales CARS 模型等）：第一章的組成、各節寫作邏輯、該寫與不該寫、常見錯誤與精簡版規範。精簡版會自動附在第一章各步驟的 Prompt 中。", steps: [
+      { mod: "ch1guide", note: "第一章各節上方也有「本節寫作規範」可展開查看。" }] },
     { id: "q-tb", no: "", title: "待補資料查證", desc: "集中列出第一章到第五章 AI 回覆中所有【待補資料】【待補文獻】【待補引用】【待補量表】，查證後直接填入；論文草稿檔會以填入的內容取代標記。", steps: [
       { mod: "tbfill", note: "可隨時回來填寫；AI 回覆更新後，清單會自動重新整理。" }] }
   ] },
@@ -1125,13 +1158,13 @@ const OUTLINE = [
   ] },
   { ch: "第一章 緒論", secs: [
     { id: "s1-1", no: "1.1", title: "研究背景與動機", desc: "由產業現象收斂到文獻缺口。", steps: [
-      { mod: "bgplan", note: "先看相關文獻怎麼寫研究背景與動機：必寫的要素、要放幾點統計數據、從理論或從實務資料切入，並整理出幾種寫法供你選擇。" },
+      { mod: "bgplan", rules: ["citation", "ch1"], note: "先看相關文獻怎麼寫研究背景與動機：必寫的要素、要放幾點統計數據、從理論或從實務資料切入，並整理出幾種寫法供你選擇。" },
       { mod: "asp", note: "依選定的寫法查台灣的統計與實務資料：把選定寫法的段落大綱與{#archchk}的回覆交給有網路搜尋的 AI，寫成研究情境、實務問題與實務缺口，並整理台灣統計資料。" },
-      { mod: "bg", note: "依選定的寫法撰寫；研究主題、選定的寫法、背景資料與研究缺口會自動帶入。" }], finish: FIN_FULL },
+      { mod: "bg", rules: ["citation", "style", "verify", "ch1"], note: "依選定的寫法撰寫；研究主題、選定的寫法、背景資料與研究缺口會自動帶入。" }], finish: FIN_FULL },
     { id: "s1-2", no: "1.2", title: "研究目的與問題", desc: "研究目的要對應動機，研究問題要能由假說回答。", steps: [
-      { mod: "purpose", note: "準備研究架構（假說清單）與 1.1 寫好的研究動機。" }], finish: FIN_FULL },
-    { id: "s1-3", no: "1.3", title: "名詞釋義", desc: "界定本研究主要構念的意涵。", steps: [
-      { mod: "m5d", note: "列出要釋義的構念；產出的四面向解釋取「定義」部分改寫成名詞釋義。" }], finish: FIN_FULL }
+      { mod: "purpose", rules: ["style", "ch1"], note: "準備研究架構（假說清單）與 1.1 寫好的研究動機。" }], finish: FIN_FULL },
+    { id: "s1-3", no: "1.3", title: "研究範圍與論文架構", desc: "界定研究的情境、對象與變數邊界，並概述全文各章內容。", steps: [
+      { mod: "scope", rules: ["style", "ch1"], note: "研究題目、研究架構、研究情境與研究對象會自動帶入；可補充要排除的範圍。" }], finish: FIN_FULL }
   ] },
   { ch: "第二章 文獻探討", secs: [
     { id: "s2-1", no: "2.1", title: "各構念之定義與相關研究", desc: "每個構念各寫一節；這一節的步驟對每個構念重複一次。", steps: [
@@ -1150,6 +1183,7 @@ const OUTLINE = [
     { id: "s3-2", no: "3.2", title: "研究假說", desc: "逐條推導假說。", steps: [
       { mod: "hypo", note: "準備假說清單（含預期方向）；這份清單也會帶到 1.2、3.5 與 4.3。" }], finish: FIN_FULL },
     { id: "s3-3", no: "3.3", title: "操作型定義與衡量", desc: "構念定義與量表來源。", steps: [
+      { mod: "m5d", note: "選用：需要名詞釋義時使用（原第一章 1.3）。列出要釋義的構念；產出的四面向解釋取「定義」部分改寫成名詞釋義。" },
       { mod: "opdef", note: "準備構念清單；量表原始文獻要先上傳到 NotebookLM。" }], finish: FIN_FULL },
     { id: "s3-4", no: "3.4", title: "研究對象與抽樣", desc: "母體、抽樣方法與資料蒐集。", steps: [
       { mod: "sample", note: "準備母體、抽樣方法、蒐集期間與份數。" }], finish: FIN_POLISH },

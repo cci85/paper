@@ -369,3 +369,11 @@ textarea.tb-in.filled { border: 1.5px solid var(--accent); background: var(--acc
 .dr-txt details[open] summary { display: none; }
 .dr-full { white-space: pre-wrap; }
 .dr-btns button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+details.guide { margin: 0 0 14px; border: 1.5px solid var(--accent); border-radius: 10px; background: var(--accent-soft); padding: 8px 14px; }
+details.guide > summary { cursor: pointer; font-weight: 700; color: var(--accent); }
+.guide-body { font-size: 15px; line-height: 1.75; }
+.guide-body h2 { font-size: 18px; margin: 18px 0 6px; }
+.guide-body h3 { font-size: 16px; margin: 14px 0 4px; color: var(--accent); }
+.guide-body ul, .guide-body ol { padding-left: 1.4em; }
+details.guide button { padding: 5px 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--panel); color: var(--accent); cursor: pointer; }
+#cands-g1_view { display: block; }
