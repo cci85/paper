@@ -103,9 +103,7 @@ function renderSection() {
   const single = steps().length === 1 && !s.no;
   $("sechead").innerHTML = `<h2>${s.no ? `<span class="no">${s.no}</span>` : ""}${esc(s.title)}</h2><p class="hint">${esc(s.desc)}</p>
     <ol class="steps" ${single ? "hidden" : ""}>${steps().map((st, k) =>
-      st.finish && st.mod === "dr" && s.no   // 各節的「段落核實改寫」連到常用的「修訂論文」，並帶入這一節
-        ? `<li><button data-todr="${s.id}" class="fin" title="到「常用 → 修訂論文」修訂這一節"><b>${k + 1}</b>段落核實改寫 ↗ 修訂論文</button></li>`
-        : `<li><button data-step="${k}" class="${k === i ? "on" : ""}${st.finish ? " fin" : ""}"><b>${k + 1}</b>${esc(DEFS[st.mod].label)}</button></li>`).join("")}</ol>`;
+      `<li><button data-step="${k}" class="${k === i ? "on" : ""}${st.finish ? " fin" : ""}"><b>${k + 1}</b>${esc(DEFS[st.mod].label)}</button></li>`).join("")}</ol>`;
 }
 
 function renderPane() {

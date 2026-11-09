@@ -478,12 +478,12 @@ const DEFS = {
 
   // ─── 論文撰寫：各章通用 ───
   dr: {
-    label: "段落核實改寫", target: "nlm",
-    hint: "核實論文段落中的引用，再改寫。適用於任何一章。",
+    label: "修訂論文", target: "nlm",
+    hint: "補強：段落還缺東西時使用，字數不減。精簡：內容齊全但太冗長，字數必須減少，可設定目標長度。整節統整：整節去除重複、調整段落順序與邏輯。融合：把幾段合併成一段。都會先核實引用。",
     fields: [
       { id: "dr_stage", type: "radio", top: true, label: "改寫方向", options: [["draft", "補強（字數不減）"], ["final", "精簡（術語查證＋字數必減）"], ["whole", "整節統整（整節去重複、調整段落順序與邏輯）"], ["merge", "融合（多段合併，討論先後邏輯）"]], value: "draft" },
       { id: "dr_paras", type: "cands", label: "本節的段落", when: p => drParas().length > 0 && p.dr_stage !== "whole", render: () => drView() },
-      { id: "dr_sec", type: "radio", label: "要修訂哪一節", hint: "列出已有定稿內容的章節；從各節的「段落核實改寫」點過來時會自動選好", when: () => !inThesisSec(),
+      { id: "dr_sec", type: "radio", label: "要修訂哪一節", hint: "列出已有定稿內容的章節", when: () => !inThesisSec(),
         get options() { const ss = THESIS_SECS().filter(s => !blank(finText(s.id))); return ss.length ? ss.map(s => [s.id, `${s.no} ${s.title}`]) : [["", "（還沒有任何章節有定稿內容）"]]; } },
       { id: "dr_back", type: "cands", label: "", when: () => !inThesisSec() && !!drSid(), render: () => `<p class="hint"><button type="button" data-go="${drSid()}" data-gostep="0">← 回到 ${esc(secLabel(drSid()))}</button>　修訂結果按「以此取代」後，會直接更新該節的定稿。</p>` },
       { id: "dw_info", type: "cands", label: "", when: p => p.dr_stage === "whole", render: () => { const sid = drSid(), t = sid ? finText(sid) : "";
@@ -1574,7 +1574,7 @@ const OUTLINE = [
   ] },
   { ch: "論文整理", secs: [
     { id: "q-full", no: "", title: "論文全文", desc: "依章節顯示各節的定稿（就是「研究名稱_論文.md」的內容）；各節的定稿可在該節最下方的「本節論文內容」查看與修改。", steps: [
-      { mod: "fulltext", note: "定稿來自各節撰寫步驟的正文，段落核實改寫或融合後可取代為改寫版。" }] },
+      { mod: "fulltext", note: "定稿來自各節撰寫步驟的正文，修訂論文（補強、精簡、整節統整、融合）後可取代為改寫版。" }] },
     { id: "q-ref", no: "", title: "參考文獻", desc: "掃描各節定稿中的行內引用，從各步驟的 AI 回覆中找出完整出處；請逐筆核對或填入，論文.md 最後會附上依 APA 第七版排序的參考文獻。", steps: [
       { mod: "refs", note: "中文文獻在前（依筆畫）、英文文獻在後（依字母）。自動帶入的出處請務必核對原文。" }] },
     { id: "q-tb", no: "", title: "待補資料查證", desc: "集中列出第一章到第五章各節定稿中所有【待補資料】【待補文獻】【待補引用】【待補量表】，查證後直接填入；論文.md 會以填入的內容取代標記。", steps: [
@@ -1585,9 +1585,10 @@ const OUTLINE = [
 ];
 
 const FINISH_NOTE = {
-  dr: "完稿：核實本節段落中的引用並改寫。內容還不完整用「補強」；內容齊全但太冗長，或想查證術語，用「精簡」。",
+  dr: "先在上方「改寫方向」選擇做法。補強、精簡一次一段；整節統整會自動帶入本節全文；融合可選多段。",
   polish: "完稿：潤色語句，或去除 AI 味。"
 };
+THESIS_SECS().forEach(s => { s.finish = FIN_FULL; });   // 第一～五章每一節都有「修訂論文」與「潤色與去 AI 味」兩個完稿步驟
 const ALL_SECS = OUTLINE.flatMap(c => c.secs);
 const stepsOf = sec => [...sec.steps, ...(sec.finish || []).map(m => ({ mod: m, note: FINISH_NOTE[m], finish: true }))];
 
