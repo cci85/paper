@@ -1299,11 +1299,12 @@ function drResultView(t) {
   const r = drLatest(t); if (!r) return blank(t) ? "" : `<p class="hint">（回覆中沒有找到「## 改寫後段落」或「## 融合後的段落」；新版 Prompt 會固定用這兩個標題）</p>`;
   const ps = drParas(), merge = store.values.dr_stage === "merge", sel = (store.values.dr_sel || []).filter(k => ps.some(x => x.key === k));
   const cur = ps.findIndex(x => x.text.trim() === (store.values.dr_text || "").trim());
+  const have = new Set(finBlocks(finText(store.sec))), used = finBlocks(r).every(b => have.has(b));   // 結果已在定稿中：不再顯示加入按鈕，避免重複加入
   const btn = merge ? (sel.length ? `<button type="button" class="copy" data-drrep="merge">以此取代所選的 ${sel.length} 段（合併為一段）</button>` : "")
     : (cur >= 0 ? `<button type="button" class="copy" data-drrep="one">以此取代第 ${cur + 1} 段</button>` : "");
   return `<div class="drres"><h3>最新的${merge ? "融合" : "改寫"}結果</h3><div class="fin-view">${finHtml(r)}</div>
-    <p class="fin-btns">${btn}<button type="button" data-drrep="append">加到本節定稿最後</button>
-    <span class="hint">取代後會更新「本節論文內容」與論文.md；原本的段落可在「本節論文內容」修改文字找回</span></p></div>`;
+    ${used ? `<p class="note">✓ 這個結果已經在「本節論文內容」中，不需要再加入。</p>` : `<p class="fin-btns">${btn}<button type="button" data-drrep="append">不取代，另外加在本節最後</button>
+    <span class="hint">一般請按「以此取代」；取代後會更新「本節論文內容」與論文.md</span></p>`}</div>`;
 }
 function drReplace(mode) {
   const sid = store.sec, r = drLatest((store.replies || {})[replyKey()] || ""); if (!r) return;
