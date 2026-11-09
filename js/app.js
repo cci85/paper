@@ -40,6 +40,12 @@ if ((store.layout || 0) < 4) {   // 0.2 路線改為 A、B、C；0.3 只保留 0
   }
   store.layout = 4;
 }
+if ((store.layout || 0) < 6) {   // 「深入了解單一變數」與「區辨相近變數」合併為「了解變數」兩個步驟
+  const r = store.replies || {};
+  if (r["q-vcomp|vcomp"] && !r["q-var|vcomp"]) { r["q-var|vcomp"] = r["q-vcomp|vcomp"]; delete r["q-vcomp|vcomp"]; }
+  if (store.sec === "q-vcomp") { store.sec = "q-var"; store.step["q-var"] = 1; }
+  delete store.step["q-vcomp"];
+}
 if ((store.layout || 0) < 5) {   // 0.2 併成兩步：補充變數清單併入步驟 1，篩選中介與調節併入組合；自行設計移到 0.3
   delete store.step["s0-4"]; delete store.step["s0-5"];
   const v = store.values, r = store.replies || {};
@@ -47,6 +53,7 @@ if ((store.layout || 0) < 5) {   // 0.2 併成兩步：補充變數清單併入�
   if (!blank(r["s0-4|amech"]) && blank(v.am_reply)) { v.am_reply = r["s0-4|amech"]; v.am_on = ["on"]; }
   store.layout = 5;
 }
+if ((store.layout || 0) < 6) store.layout = 6;
 if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} if (window.onStoreSave) window.onStoreSave(); };
 
