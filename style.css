@@ -377,3 +377,17 @@ details.guide > summary { cursor: pointer; font-weight: 700; color: var(--accent
 .guide-body ul, .guide-body ol { padding-left: 1.4em; }
 details.guide button { padding: 5px 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--panel); color: var(--accent); cursor: pointer; }
 #cands-g1_view { display: block; }
+details.fin { margin: 18px 0 4px; border: 1.5px solid var(--accent); border-radius: 10px; padding: 10px 16px; background: var(--panel); }
+details.fin > summary { cursor: pointer; font-weight: 700; color: var(--accent); font-size: 16px; }
+.fin-view, .fulltext { font-size: 16px; line-height: 1.9; }
+.fin-view p, .fulltext p { margin: 8px 0; text-indent: 2em; }
+.fin-view h4, .fulltext h4 { margin: 14px 0 4px; font-size: 16px; }
+.fin-view mark, .fulltext mark { background: var(--warn-soft); color: var(--warn); }
+textarea.fin-edit { width: 100%; min-height: 360px; font-size: 15px; line-height: 1.8; }
+.fin-btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fin-btns button { padding: 6px 12px; border: 1px solid var(--accent); border-radius: 8px; background: var(--panel); color: var(--accent); cursor: pointer; }
+.drres { margin-top: 14px; border: 1.5px dashed var(--accent); border-radius: 10px; padding: 10px 16px; }
+.fulltext h2 { font-size: 20px; margin: 26px 0 8px; } .fulltext .ft-title { text-align: center; font-size: 22px; } .fulltext .ft-en { text-align: center; text-indent: 0; color: var(--muted); }
+.fulltext h3 { font-size: 17px; margin: 18px 0 6px; color: var(--accent); }
+.ft-fig { text-align: center; } .ft-fig svg { max-width: 100%; height: auto; } .ft-fig p { text-indent: 0; font-size: 14px; }
+#cands-ft_view { display: block; }

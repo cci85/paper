@@ -486,6 +486,7 @@ const DEFS = {
       { id: "dr_text", type: "textarea", label: "論文段落", hint: "按上方「用這一段」自動帶入；融合時按「加入融合」可選多段；也可以自己貼上", rows: 8 }
     ],
     variant: p => p.dr_stage,
+    replyView: t => drResultView(t),
     rules: p => inCh1() ? ["citation", "style", "ch1"] : p.dr_stage === "final" ? ["citation", "style"] : ["citation", "evidence", "style"],
     build: (p, R) => { DR_R = R || ""; if (blank(p.dr_text)) return ""; const ref = DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "";
       if (p.dr_stage === "merge") return T.dr_merge({ arch: bgSeed().bg_topic, text: p.dr_text }) + ref;
@@ -544,6 +545,15 @@ const DEFS = {
     build: (p, R) => blank(p.m7a_text) ? "" : T.m7a({ content: p.m7a_text }) + R,
     empty: "（請貼上要畫圖的文字）",
     next: "下一步：貼到 NotebookLM（建議在產生這段文字的同一個對話）；回覆整段複製後，到{#m7b}補好圍籬。"
+  },
+  fulltext: {
+    label: "論文全文", target: "tool",
+    hint: "依章節顯示各節定稿，也就是「研究名稱_論文.md」的內容；要修改某一節，到該節最下方的「本節論文內容」。",
+    fields: [{ id: "ft_view", type: "cands", label: "", render: () => fullView() }],
+    build: () => thesisBody(),
+    empty: "（目前還沒有任何一節有內容）",
+    copyLabel: "複製論文全文（Markdown）",
+    next: "【待補】標記可到「待補資料查證」填入查證內容。"
   },
   ch1guide: {
     label: "第一章寫作規範", target: "tool",
@@ -974,24 +984,96 @@ function bpView(t) {
     os.map((o, i) => `<label class="bp-opt${pick.includes(o.title) ? " on" : ""}"><span class="bp-head"><input type="checkbox" data-bppick="${i}" ${pick.includes(o.title) ? "checked" : ""}><b>${esc(o.title)}</b></span><div class="bp-body">${esc(o.text).replace(/\*\*/g, "")}</div></label>`).join("") + `</div>`;
 }
 
-// ── 段落核實改寫：把本節前面步驟的 AI 回覆拆成一段一段 ──
+// ── 本節定稿：論文.md 與網頁「本節論文內容」「論文全文」只放定稿 ──
+const NOT_TEXT = new Set(["bgplan", "asp", "m7a", "m7b"]);   // 分析、查資料、畫圖的步驟，不是論文正文
+const writeStep = s => { const st = stepsOf(s).filter(x => !x.finish && DEFS[x.mod].target !== "tool" && !NOT_TEXT.has(x.mod)); return st[st.length - 1]; };
+function cleanBody(text) {   // 撰寫步驟的回覆 → 論文正文：去掉開場說明、查證與待補清單類小節、角標
+  let t = deLatex(String(text || "")).replace(/\r\n?/g, "\n");
+  const cut = t.search(VERIFY_HEAD); if (cut >= 0) t = t.slice(0, cut);
+  const first = t.search(/^#{1,6}\s/m); if (first > 0) t = t.slice(first);
+  return t.split("\n").filter(l => !/^\s*-{3,}\s*$/.test(l))
+    .map(l => /^#{1,6}\s/.test(l) ? "#### " + l.replace(/^#+\s*|\*\*/g, "").trim() : l.replace(/\*\*/g, "").replace(/\s?\[\d+(?:\s*[,，–-]\s*\d+)*\]/g, ""))
+    .join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function finText(sid) {
+  const v = (store.values.fin || {})[sid]; if (typeof v === "string") return v;
+  const s = ALL_SECS.find(x => x.id === sid), st = s && writeStep(s);
+  return st ? cleanBody((store.replies || {})[sid + "|" + st.mod]) : "";
+}
+const setFin = (sid, t) => { (store.values.fin ||= {})[sid] = t; };
+function finHtml(t) {   // 定稿的簡易排版：#### 小標題、段落、【待補】標記
+  return String(t || "").split(/\n\s*\n/).map(b => b.trim()).filter(Boolean).map(b => /^#{1,6}\s/.test(b) && !b.includes("\n")
+    ? `<h4>${esc(b.replace(/^#+\s*/, ""))}</h4>`
+    : `<p>${esc(b).replace(/\n/g, "<br>").replace(/【待補[^】]*】/g, m => `<mark>${m}</mark>`)}</p>`).join("");
+}
+function finBox() {   // 第一～五章各節：所有步驟下方的「本節論文內容」
+  const s = sec(); if (!THESIS_SECS().some(x => x.id === s.id)) return "";
+  const t = finText(s.id), own = typeof (store.values.fin || {})[s.id] === "string";
+  return `<details class="fin" id="finbox"><summary>本節論文內容（定稿）${t ? "" : "：尚未撰寫"}</summary>
+    <div class="fin-view" id="finview">${finHtml(t) || `<p class="hint">完成本節的撰寫步驟並貼上 AI 回覆後，正文會自動出現在這裡。</p>`}</div>
+    <textarea class="fin-edit" data-fin="${s.id}" hidden>${esc(t)}</textarea>
+    <p class="fin-btns"><button type="button" data-finedit="1">修改文字</button>${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}
+    <span class="hint">論文.md 與「論文全文」只放這裡的內容</span></p></details>`;
+}
+function thesisBody() {   // 論文全文（Markdown）：題目＋各章節定稿
+  const zh = (store.values.tt_zh || "").trim(), en = (store.values.tt_en || "").trim();
+  const out = [`# ${zh || store.name || "論文"}`, ...(en ? ["", en] : []), ""];
+  OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).forEach(c => {
+    out.push(`## ${c.ch}`, "");
+    c.secs.forEach(s => { out.push(`### ${s.no} ${s.title}`, ""); const t = tbApply(s.id, "fin", finText(s.id)); if (t) out.push(t, ""); });
+  });
+  return THESIS_SECS().some(s => finText(s.id)) ? out.join("\n") : "";
+}
+function fullView() {
+  const zh = (store.values.tt_zh || "").trim(), en = (store.values.tt_en || "").trim();
+  return `<div class="fulltext"><h2 class="ft-title">${esc(zh || store.name || "論文")}</h2>${en ? `<p class="ft-en">${esc(en)}</p>` : ""}` +
+    OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).map(c => `<h2>${esc(c.ch)}</h2>` + c.secs.map(s => {
+      let fig = "";
+      if (s.id === "s3-1") { try { const f = DEFS.fa31.fields[0], d = dgSeed(f, {}), v = f.source(); if (d.edges.length) { dgAutoPos(v, d.pos, false); fig = `<div class="ft-fig">${dgSvg(v, d, null, false)}<p>圖 3-1　研究架構圖</p></div>`; } } catch {} }
+      const t = tbApply(s.id, "fin", finText(s.id));
+      return `<h3>${esc(s.no + " " + s.title)}</h3>${fig}${t ? finHtml(t) : `<p class="hint">（尚未撰寫）</p>`}`;
+    }).join("")).join("") + `</div>`;
+}
+// 段落核實改寫：回覆中最新一次的「## 改寫後段落」或「## 融合後的段落」
+function drLatest(text) {
+  const L = deLatex(String(text || "")).replace(/\r\n?/g, "\n").replace(/\*\*/g, "").split("\n");
+  let start = -1, lv = 0;
+  L.forEach((l, i) => { const m = l.match(/^(#{1,4})\s*(改寫後段落|融合後的段落)/); if (m) { start = i; lv = m[1].length; } });
+  if (start < 0) return "";
+  let end = L.length;
+  for (let i = start + 1; i < L.length; i++) { const m = L[i].match(/^(#{1,4})\s/); if (m && m[1].length <= lv) { end = i; break; } }
+  return L.slice(start + 1, end).join("\n").replace(/\s?\[\d+(?:\s*[,，–-]\s*\d+)*\]/g, "").replace(/^\s*-{3,}\s*$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+function drResultView(t) {
+  const r = drLatest(t); if (!r) return blank(t) ? "" : `<p class="hint">（回覆中沒有找到「## 改寫後段落」或「## 融合後的段落」；新版 Prompt 會固定用這兩個標題）</p>`;
+  const ps = drParas(), merge = store.values.dr_stage === "merge", sel = (store.values.dr_sel || []).filter(k => ps.some(x => x.key === k));
+  const cur = ps.findIndex(x => x.text.trim() === (store.values.dr_text || "").trim());
+  const btn = merge ? (sel.length ? `<button type="button" class="copy" data-drrep="merge">以此取代所選的 ${sel.length} 段（合併為一段）</button>` : "")
+    : (cur >= 0 ? `<button type="button" class="copy" data-drrep="one">以此取代第 ${cur + 1} 段</button>` : "");
+  return `<div class="drres"><h3>最新的${merge ? "融合" : "改寫"}結果</h3><div class="fin-view">${finHtml(r)}</div>
+    <p class="fin-btns">${btn}<button type="button" data-drrep="append">加到本節定稿最後</button>
+    <span class="hint">取代後會更新「本節論文內容」與論文.md；原本的段落可在「本節論文內容」修改文字找回</span></p></div>`;
+}
+function drReplace(mode) {
+  const sid = store.sec, r = drLatest((store.replies || {})[replyKey()] || ""); if (!r) return;
+  let t = finText(sid); const ps = drParas();
+  if (mode === "append") t = (t ? t + "\n\n" : "") + r;
+  else if (mode === "one") { const p = ps.find(x => x.text.trim() === (store.values.dr_text || "").trim()); if (!p) return; t = t.replace(p.text, r); store.values.dr_text = r; }
+  else { const sel = ps.filter(x => (store.values.dr_sel || []).includes(x.key)); if (!sel.length) return; t = t.replace(sel[0].text, r); sel.slice(1).forEach(x => { t = t.replace(x.text, ""); }); t = t.replace(/\n{3,}/g, "\n\n").trim(); store.values.dr_sel = []; }
+  setFin(sid, t);
+  const k = sid + "|" + r.replace(/\s/g, "").slice(0, 40); (store.values.dr_done ||= {})[k] = true;
+}
+
+// ── 段落核實改寫：把本節定稿拆成一段一段 ──
 let DR_R = "";   // 段落核實改寫的共用規則（另成一則，每個對話送一次）
 const VERIFY_HEAD = /^#{1,4}\s*(?:\d+[.、]\s*)?(待補清單|待補資料|需要研究者查證|學生原稿檢核|學生內容查證|來源核對)/m;
 function drParas() {
   const s = ALL_SECS.find(x => x.id === store.sec); if (!s || !s.no) return [];
-  const out = [];
-  stepsOf(s).filter(st => !st.finish).slice(-1).forEach(st => {   // 只取本節撰寫正文的那一步（完稿步驟之前的最後一步）
-    let t = deLatex((store.replies || {})[s.id + "|" + st.mod] || ""); if (blank(t)) return;
-    const cut = t.search(VERIFY_HEAD); if (cut >= 0) t = t.slice(0, cut);
-    let head = ""; const hasHead = /^#{1,6}\s/m.test(t);
-    t.replace(/\r\n?/g, "\n").split(/\n\s*\n|\n(?=#)/).forEach(b => {
-      b = b.trim(); if (!b) return;
-      const lines = b.split("\n"), hs = lines.filter(l => /^#{1,6}\s/.test(l));
-      if (hs.length) head = hs[hs.length - 1].replace(/^#+\s*|\*\*/g, "").trim();
-      const body = lines.filter(l => !/^#{1,6}\s/.test(l) && !/^-{3,}$/.test(l.trim())).join("\n").trim();
-      if (hasHead && !head) return;   // 第一個標題之前是 AI 的開場說明，不是論文段落
-      if (body.replace(/\s/g, "").length >= 40) out.push({ head, text: body, key: s.id + "|" + body.replace(/\s/g, "").slice(0, 40) });
-    });
+  const out = []; let head = "";
+  finText(s.id).split(/\n\s*\n/).forEach(b => {
+    b = b.trim(); if (!b) return;
+    if (/^#{1,6}\s/.test(b) && !b.includes("\n")) { head = b.replace(/^#+\s*/, ""); return; }
+    if (b.replace(/\s/g, "").length >= 20) out.push({ head, text: b, key: s.id + "|" + b.replace(/\s/g, "").slice(0, 40) });
   });
   return out;
 }
@@ -1023,11 +1105,8 @@ function tbMarks(sid, mod, text) {
   }
   return out;
 }
-function tbItems() {
-  return THESIS_SECS().flatMap(s => stepsOf(s).flatMap(st => {
-    const r = (store.replies || {})[s.id + "|" + st.mod]; if (blank(r)) return [];
-    return tbMarks(s.id, st.mod, deLatex(r)).map(x => ({ ...x, sec: `${s.no} ${s.title}`, step: DEFS[st.mod].label }));
-  }));
+function tbItems() {   // 只看各節定稿（論文正文）中的待補標記
+  return THESIS_SECS().flatMap(s => tbMarks(s.id, "fin", finText(s.id)).map(x => ({ ...x, sec: `${s.no} ${s.title}`, step: "本節定稿" })));
 }
 // 以查證內容取代標記（論文草稿檔用）
 function tbApply(sid, mod, text) {
@@ -1132,11 +1211,7 @@ const OUTLINE = [
     { id: "q-vcomp", no: "", title: "區辨相近變數", desc: "兩個以上的變數看起來很像，想分辨它們在研究架構上的異同時使用。", steps: [
       { mod: "vcomp", note: "每行填一個變數；可直接從組合研究架構的勾選區複製名稱。" }] },
     { id: "r-method", no: "", title: "方法導向檢索", desc: "找特定領域中、實際使用某種統計方法的實證論文作為模仿範例：產生精準的 Google Scholar 檢索式與 Scholar Labs 問句。", steps: [
-      { mod: "smethod", note: "貼到有網路搜尋的 AI 對話，不需要上傳文獻。" }] },
-    { id: "q-ch1g", no: "", title: "第一章寫作規範", desc: "整理自「如何寫論文」筆記本（畢恆達、Evans et al.、Swales CARS 模型等）：第一章的組成、各節寫作邏輯、該寫與不該寫、常見錯誤與精簡版規範。精簡版會自動附在第一章各步驟的 Prompt 中。", steps: [
-      { mod: "ch1guide", note: "第一章各節上方也有「本節寫作規範」可展開查看。" }] },
-    { id: "q-tb", no: "", title: "待補資料查證", desc: "集中列出第一章到第五章 AI 回覆中所有【待補資料】【待補文獻】【待補引用】【待補量表】，查證後直接填入；論文草稿檔會以填入的內容取代標記。", steps: [
-      { mod: "tbfill", note: "可隨時回來填寫；AI 回覆更新後，清單會自動重新整理。" }] }
+      { mod: "smethod", note: "貼到有網路搜尋的 AI 對話，不需要上傳文獻。" }] }
   ] },
   { ch: "第零章 研究準備", secs: [
     { id: "s0-1", no: "0.1", title: "文獻蒐集與整理", desc: "還沒讀文獻、只有一個想研究的現象時，從這裡開始：聚焦研究問題與關鍵字 → 建立文獻比較表。步驟 3–5 為選用的「整批文獻全貌」：要先看整個研究領域的主題、理論、變數與缺口時再做。整理好之後，到 0.2 形成研究架構。", steps: [
@@ -1209,6 +1284,14 @@ const OUTLINE = [
       { mod: "discuss", note: "可接在 5.1 同一個對話。", fixed: { ds_secs: ["practice"] } }], finish: FIN_FULL },
     { id: "s5-4", no: "5.4", title: "研究限制與未來研究方向", desc: "本研究的限制與對應的後續研究。", steps: [
       { mod: "discuss", note: "可接在 5.1 同一個對話。", fixed: { ds_secs: ["limit"] } }], finish: FIN_FULL }
+  ] },
+  { ch: "論文整理", secs: [
+    { id: "q-full", no: "", title: "論文全文", desc: "依章節顯示各節的定稿（就是「研究名稱_論文.md」的內容）；各節的定稿可在該節最下方的「本節論文內容」查看與修改。", steps: [
+      { mod: "fulltext", note: "定稿來自各節撰寫步驟的正文，段落核實改寫或融合後可取代為改寫版。" }] },
+    { id: "q-tb", no: "", title: "待補資料查證", desc: "集中列出第一章到第五章各節定稿中所有【待補資料】【待補文獻】【待補引用】【待補量表】，查證後直接填入；論文.md 會以填入的內容取代標記。", steps: [
+      { mod: "tbfill", note: "可隨時回來填寫；AI 回覆更新後，清單會自動重新整理。" }] },
+    { id: "q-ch1g", no: "", title: "第一章寫作規範", desc: "整理自「如何寫論文」筆記本（畢恆達、Evans et al.、Swales CARS 模型等）：第一章的組成、各節寫作邏輯、該寫與不該寫、常見錯誤與精簡版規範。精簡版會自動附在第一章各步驟的 Prompt 中。", steps: [
+      { mod: "ch1guide", note: "第一章各節上方也有「本節寫作規範」可展開查看。" }] }
   ] }
 ];
 

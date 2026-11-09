@@ -146,7 +146,7 @@ function renderPane() {
     ${m.replyView ? `<div id="replyview"></div>` : ""}
     ${below ? `<div class="below">${below}</div>` : ""}
     ${step().after ? `<p class="stepnote after">${esc(ref(step().after))}</p>` : ""}
-    ${goNext()}`;
+    ${goNext()}${finBox()}`;
   const rf = $("afterout") || $("pane").querySelector("fieldset.reply");
   rf ? $("pane").insertBefore(OUTBOX, rf) : $("pane").appendChild(OUTBOX);
   renderRules();
@@ -266,6 +266,11 @@ $("pane").addEventListener("input", e => {
     save(); t.closest(".bp-opt").classList.toggle("on", t.checked);
     return;
   }
+  if (t.dataset.fin) {   // 本節定稿：直接修改文字
+    setFin(t.dataset.fin, t.value); save();
+    const v = $("finview"); if (v) v.innerHTML = finHtml(t.value);
+    return;
+  }
   if (t.dataset.tbfill) {   // 待補資料查證：只存值，不重畫（保留游標）
     (store.values.tb_fill ||= {})[t.dataset.tbfill] = t.value; save();
     t.classList.toggle("filled", !blank(t.value));
@@ -296,6 +301,14 @@ $("pane").addEventListener("click", async e => {
   if (e.target.closest("button[data-adopt]")) {   // 0.3：採用 AI 修正後的架構
     adoptRevised(); save(); renderPane(); update();
     $("pane").scrollIntoView({ behavior: "smooth" }); return;
+  }
+  const fb2 = e.target.closest("button[data-finedit], button[data-finreset], button[data-drrep]");
+  if (fb2) {   // 本節定稿：修改文字／重新帶入；段落核實改寫：以改寫結果取代
+    if (fb2.dataset.finedit) { const ta = document.querySelector("textarea[data-fin]"); ta.hidden = !ta.hidden; fb2.textContent = ta.hidden ? "修改文字" : "完成修改"; if (!ta.hidden) ta.focus(); return; }
+    if (fb2.dataset.finreset) { if (!confirm("以撰寫步驟目前的 AI 回覆重新產生本節定稿？在這裡修改過或取代過的內容會被覆蓋。")) return; delete (store.values.fin || {})[store.sec]; }
+    if (fb2.dataset.drrep) drReplace(fb2.dataset.drrep);
+    save(); renderPane(); update(); if (fb2.dataset.drrep) { const fbx = $("finbox"); if (fbx) { fbx.open = true; fbx.scrollIntoView({ behavior: "smooth", block: "start" }); } }
+    return;
   }
   const dp = e.target.closest("button[data-drpick], button[data-drdone], button[data-drsel]");
   if (dp) {   // 段落核實改寫：選段落、標記完成、選取要融合的段落

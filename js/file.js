@@ -116,20 +116,15 @@ function fenceMermaid(text) {
 }
 
 // 論文草稿（第一章～第五章）：每節列出各步驟的 AI 回覆，尚未撰寫的節留白；另存為「研究名稱_論文.md」
-function thesisText(pngs) {
+function thesisText(pngs) {   // 論文.md：只有題目與各章節定稿，不放任何說明或 AI 分析
   const zh = (store.values.tt_zh || "").trim(), en = (store.values.tt_en || "").trim();
-  const out = ["---", `title: ${zh || (store.name || "") + "　論文草稿"}`, "source: 論文工作台", "---", "",
-    `# ${zh || (store.name || "") + "　論文草稿"}`, "", ...(en ? [`**${en}**`, ""] : []),
-    "> 本檔由論文工作台依各章節的 AI 回覆自動產生，每次存檔都會重新產生；要修改內容，請在網站上修改，或另存一份再編輯。", ""];
+  const out = [`# ${zh || store.name || "論文"}`, "", ...(en ? [en, ""] : [])];
   OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).forEach(c => {
     out.push(`## ${c.ch}`, "");
     c.secs.forEach(s => {
-      out.push(`### ${s.no ? s.no + " " : ""}${s.title}`, "");
-      if (s.id === "s3-1") { const g = pngs.find(x => x.f.id === "f31_diag"); if (g && g.d.edges.length) out.push(`![圖 3-1 研究架構圖](<${g.file}>)`, ""); }
-      stepsOf(s).forEach(st => {
-        const r = (store.replies || {})[s.id + "|" + st.mod];
-        if (!blank(r)) out.push(mdText(fenceMermaid(tbApply(s.id, st.mod, deLatex(r)))), "");
-      });
+      out.push(`### ${s.no} ${s.title}`, "");
+      if (s.id === "s3-1") { const g = pngs.find(x => x.f.id === "f31_diag"); if (g && g.d.edges.length) out.push(`![圖 3-1 研究架構圖](<${g.file}>)`, "", "圖 3-1　研究架構圖", ""); }
+      const t = tbApply(s.id, "fin", finText(s.id)); if (t) out.push(t, "");
     });
   });
   return out.join("\n");
