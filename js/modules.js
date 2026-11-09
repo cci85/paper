@@ -1233,7 +1233,7 @@ function finBox() {   // 第一～五章各節：所有步驟下方的「本節�
   return `<details class="fin" id="finbox"><summary>本節論文內容（定稿）${t ? "" : "：尚未撰寫"}${miss ? `<span class="fin-refhint">　📚 尚缺 ${miss} 筆參考文獻，點開到最下方「查找參考文獻」</span>` : ""}${dup ? `<span class="fin-refhint">　⚠ 有 ${dup} 組重複段落</span>` : ""}</summary>
     ${finDupBox(t)}${t ? `<p class="hint">直接點文字即可修改，自動存檔；段落中按兩次 Enter 可拆成兩段，整段刪空即刪除該段。</p>` : ""}
     <div class="fin-view fin-ed" id="finview">${finHtml(t, true) || `<p class="hint">完成本節的撰寫步驟並貼上 AI 回覆後，正文會自動出現在這裡。</p>`}</div>
-    <p class="fin-btns">${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}${(store.values.fin_undo || {})[s.id] ? `<button type="button" data-finundo="1">復原清除重複前的內容</button>` : ""}
+    <p class="fin-btns">${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}${(store.values.fin_undo || {})[s.id] ? `<button type="button" data-finundo="1">復原上一次清除或取代前的內容</button>` : ""}
     <span class="hint">論文.md 與「論文全文」只放這裡的內容</span></p>${finRefBox(s)}</details>`;
 }
 function finDupBox(t) {
@@ -1303,13 +1303,14 @@ function drResultView(t) {
   const btn = merge ? (sel.length ? `<button type="button" class="copy" data-drrep="merge">以此取代所選的 ${sel.length} 段（合併為一段）</button>` : "")
     : (cur >= 0 ? `<button type="button" class="copy" data-drrep="one">以此取代第 ${cur + 1} 段</button>` : "");
   return `<div class="drres"><h3>最新的${merge ? "融合" : "改寫"}結果</h3><div class="fin-view">${finHtml(r)}</div>
-    ${used ? `<p class="note">✓ 這個結果已經在「本節論文內容」中，不需要再加入。</p>` : `${btn ? "" : `<p class="note warn">沒有出現「以此取代」按鈕：原本選的段落已不在本節定稿中（可能已修改或刪除）。請在上方「本節的段落」重新按「用這一段」${merge ? "或勾選「加入融合」" : ""}，選好要被取代的段落後，就會出現取代按鈕。</p>`}<p class="fin-btns">${btn}<button type="button" data-drrep="append">不取代，另外加在本節最後</button>
+    ${used ? `<p class="note">✓ 這個結果已經在「本節論文內容」中，不需要再加入。</p>` : `${btn ? "" : `<p class="note warn">沒有出現「以此取代」按鈕：原本選的段落已不在本節定稿中（可能已修改或刪除）。請在上方「本節的段落」重新按「用這一段」${merge ? "或勾選「加入融合」" : ""}，選好要被取代的段落後，就會出現取代按鈕。</p>`}<p class="fin-btns">${btn}<button type="button" data-drrep="all">以此取代本節全部內容</button><button type="button" data-drrep="append">不取代，另外加在本節最後</button>
     <span class="hint">一般請按「以此取代」；取代後會更新「本節論文內容」與論文.md</span></p>`}</div>`;
 }
 function drReplace(mode) {
   const sid = store.sec, r = drLatest((store.replies || {})[replyKey()] || ""); if (!r) return;
   let t = finText(sid); const ps = drParas();
-  if (mode === "append") { if (finBlocks(t).some(b => blockSim(b, r) >= 0.8) && !confirm("本節定稿中已有相同或幾乎相同的段落，仍要再加到最後嗎？")) return; t = (t ? t + "\n\n" : "") + r; }
+  if (mode === "all") { if (!confirm("以這個結果取代「本節論文內容」的全部文字？（之後可按「復原取代前的內容」）")) return; (store.values.fin_undo ||= {})[sid] = t; t = r; }
+  else if (mode === "append") { if (finBlocks(t).some(b => blockSim(b, r) >= 0.8) && !confirm("本節定稿中已有相同或幾乎相同的段落，仍要再加到最後嗎？")) return; t = (t ? t + "\n\n" : "") + r; }
   else if (mode === "one") { const p = ps.find(x => x.text.trim() === (store.values.dr_text || "").trim()); if (!p) return; t = t.replace(p.text, r); store.values.dr_text = r; }
   else { const sel = ps.filter(x => (store.values.dr_sel || []).includes(x.key)); if (!sel.length) return; t = t.replace(sel[0].text, r); sel.slice(1).forEach(x => { t = t.replace(x.text, ""); }); t = t.replace(/\n{3,}/g, "\n\n").trim(); store.values.dr_sel = []; }
   setFin(sid, t);
