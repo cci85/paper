@@ -555,6 +555,15 @@ const DEFS = {
     copyLabel: "複製論文全文（Markdown）",
     next: "【待補】標記可到「待補資料查證」填入查證內容。"
   },
+  refs: {
+    label: "參考文獻", target: "tool",
+    hint: "正文中每一筆引用列成一項：自動帶入的出處（黃框）請核對後修改；找不到出處的（紅框）請填入完整的 APA 參考文獻；填過的會變成綠框並保存。",
+    fields: [{ id: "rf_view", type: "cands", label: "", render: () => refView() }],
+    build: () => refList().join("\n"),
+    empty: "（正文中還沒有引用，或尚未填入任何出處）",
+    copyLabel: "複製參考文獻清單",
+    next: "論文.md 最後會自動附上「參考文獻」一節（只列已有出處者）。"
+  },
   ch1guide: {
     label: "第一章寫作規範", target: "tool",
     hint: "供撰寫與審查第一章時參考；下方「複製」可取得精簡版規範的純文字。",
@@ -984,6 +993,68 @@ function bpView(t) {
     os.map((o, i) => `<label class="bp-opt${pick.includes(o.title) ? " on" : ""}"><span class="bp-head"><input type="checkbox" data-bppick="${i}" ${pick.includes(o.title) ? "checked" : ""}><b>${esc(o.title)}</b></span><div class="bp-body">${esc(o.text).replace(/\*\*/g, "")}</div></label>`).join("") + `</div>`;
 }
 
+// ── 行內引用與參考文獻 ──
+const CJK = /[\u3400-\u9fff]/;
+const CITE_YEAR = "(\\d{4}[a-z]?|無日期|n\\.d\\.)";
+// 括號內「作者, 年份」：中文作者用全形逗號，英文作者用半形逗號；括號後多餘的空白去掉
+function normCite(text) {
+  return String(text || "").replace(/[（(]([^（）()]{2,300})[）)]/g, (all, inner) => {
+    const parts = inner.split(/\s*[；;]\s*/), re = new RegExp(`^(.+?)\\s*[,，]\\s*${CITE_YEAR}$`);
+    if (!parts.every(x => re.test(x.trim()))) return all;
+    const fixed = parts.map(x => { const m = x.trim().match(re); return CJK.test(m[1]) ? `${m[1].trim()}，${m[2]}` : `${m[1].trim()}, ${m[2]}`; });
+    return "（" + fixed.join(fixed.some(x => CJK.test(x)) ? "；" : "; ") + "）";
+  }).replace(/([）)])\s+([。，、；：])/g, "$1$2");
+}
+const citeKey = (author, year) => (CJK.test(author) ? author.replace(/\s/g, "") : author.split(/\s|,|&/)[0]).toLowerCase() + "|" + year;
+function citeScan() {   // 各節定稿中的引用：{ key, author, year, label, secs }
+  const map = new Map(), re = new RegExp(`^(.+?)\\s*[,，]\\s*${CITE_YEAR}$`);
+  const add = (author, year, sid) => {
+    author = author.replace(/^(轉引自|引自|見|e\.g\.,?)\s*/, "").trim(); if (!author || author.length > 60) return;
+    const k = citeKey(author, year), x = map.get(k) || { key: k, author, year, label: CJK.test(author) ? `${author}，${year}` : `${author}, ${year}`, secs: new Set() };
+    x.secs.add(sid); map.set(k, x);
+  };
+  THESIS_SECS().forEach(s => {
+    const t = finText(s.id);
+    for (const m of t.matchAll(/[（(]([^（）()]{2,300})[）)]/g)) m[1].split(/\s*[；;]\s*/).forEach(p => { const q = p.trim().match(re); if (q) add(q[1], q[2], s.no); });
+    for (const m of t.matchAll(/([A-Z][A-Za-z'’\-]+(?:\s+et al\.|\s+(?:&|and)\s+[A-Z][A-Za-z'’\-]+)?)\s*[（(](\d{4}[a-z]?)[）)]/g)) add(m[1], m[2], s.no);
+  });
+  return [...map.values()];
+}
+function refCandidates() {   // 各步驟回覆中看起來像參考文獻的行
+  const out = [];
+  Object.values(store.replies || {}).concat(Object.values(store.values || {}).filter(v => typeof v === "string" && v.length > 200)).forEach(r => {
+    deLatex(String(r || "")).split(/\r?\n/).forEach(l => {
+      l = l.replace(/^[\s>*•\-–]+|^\d+[.、)]\s*|\*\*/g, "").replace(/^\[引用來源\]\s*/, "").trim();
+      if (l.length >= 25 && l.length <= 500 && /(\d{4}|無日期|n\.d\.)/.test(l) && (/https?:\/\//.test(l) || /\(\d{4}[a-z]?\)\.|（\d{4}）[。，]|\d+\s*\(\d+\)|doi/i.test(l))) out.push(l);
+    });
+  });
+  return [...new Set(out)];
+}
+function refAuto(c, cands) {
+  const sur = CJK.test(c.author) ? c.author.replace(/\s/g, "") : c.author.split(/\s|,|&/)[0];
+  const hit = cands.filter(l => l.slice(0, 60).replace(/\s/g, CJK.test(sur) ? "" : " ").includes(sur) && l.includes(c.year.replace(/^n\.d\.$/, "n.d.")));
+  return hit.sort((a, b) => (/https?:|doi/i.test(b) - /https?:|doi/i.test(a)) || b.length - a.length)[0] || "";
+}
+const refCollator = new Intl.Collator("zh-TW-u-co-stroke"), enCollator = new Intl.Collator("en");
+function refRows() {
+  const cites = citeScan(), cands = refCandidates(), saved = store.values.refs || {};
+  return cites.map(c => ({ ...c, saved: c.key in saved, entry: c.key in saved ? saved[c.key] : refAuto(c, cands) }));
+}
+function refList() {   // APA 第七版：中文在前（筆畫），英文在後（字母）
+  const es = refRows().map(r => r.entry.trim()).filter(Boolean);
+  return [...new Set(es)].sort((a, b) => (CJK.test(a[0]) ? 0 : 1) - (CJK.test(b[0]) ? 0 : 1) || (CJK.test(a[0]) ? refCollator.compare(a, b) : enCollator.compare(a, b)));
+}
+function refView() {
+  const rows = refRows(); if (!rows.length) return `<p class="hint">各節定稿中還沒有行內引用。</p>`;
+  const saved = store.values.refs || {}, cited = new Set(rows.map(r => r.key)), orphan = Object.keys(saved).filter(k => !cited.has(k));
+  const n = { ok: rows.filter(r => r.saved && r.entry.trim()).length, auto: rows.filter(r => !r.saved && r.entry).length, miss: rows.filter(r => !r.entry.trim()).length };
+  return `<p class="tb-count">共 ${rows.length} 筆引用：已確認 ${n.ok}、自動帶入待核對 ${n.auto}、找不到出處 ${n.miss}</p>` +
+    rows.map(r => `<div class="ref-item ${r.saved && r.entry.trim() ? "ok" : r.entry ? "auto" : "miss"}">
+      <b>（${esc(r.label)}）</b><small>　出現於 ${esc([...r.secs].join("、"))}　${r.saved && r.entry.trim() ? "已確認" : r.entry ? "自動帶入，請核對" : "找不到出處，請填入"}</small>
+      <textarea data-ref="${esc(r.key)}" rows="2" placeholder="完整的 APA 第七版參考文獻，例如：經濟部統計處（2026）。報告名稱。https://……">${esc(r.entry)}</textarea></div>`).join("") +
+    (orphan.length ? `<h4>正文已不再引用的出處（${orphan.length}）</h4>` + orphan.map(k => `<div class="ref-item orphan"><span>${esc(saved[k])}</span> <button type="button" data-refdel="${esc(k)}">刪除</button></div>`).join("") : "");
+}
+
 // ── 本節定稿：論文.md 與網頁「本節論文內容」「論文全文」只放定稿 ──
 const NOT_TEXT = new Set(["bgplan", "asp", "m7a", "m7b"]);   // 分析、查資料、畫圖的步驟，不是論文正文
 const writeStep = s => { const st = stepsOf(s).filter(x => !x.finish && DEFS[x.mod].target !== "tool" && !NOT_TEXT.has(x.mod)); return st[st.length - 1]; };
@@ -1020,8 +1091,9 @@ function thesisBody() {   // 論文全文（Markdown）：題目＋各章節定�
   const out = [`# ${zh || store.name || "論文"}`, ...(en ? ["", en] : []), ""];
   OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).forEach(c => {
     out.push(`## ${c.ch}`, "");
-    c.secs.forEach(s => { out.push(`### ${s.no} ${s.title}`, ""); const t = tbApply(s.id, "fin", finText(s.id)); if (t) out.push(t, ""); });
+    c.secs.forEach(s => { out.push(`### ${s.no} ${s.title}`, ""); const t = normCite(tbApply(s.id, "fin", finText(s.id))); if (t) out.push(t, ""); });
   });
+  const refs = refList(); if (refs.length) out.push("## 參考文獻", "", ...refs.flatMap(r => [r, ""]));
   return THESIS_SECS().some(s => finText(s.id)) ? out.join("\n") : "";
 }
 function fullView() {
@@ -1030,9 +1102,9 @@ function fullView() {
     OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).map(c => `<h2>${esc(c.ch)}</h2>` + c.secs.map(s => {
       let fig = "";
       if (s.id === "s3-1") { try { const f = DEFS.fa31.fields[0], d = dgSeed(f, {}), v = f.source(); if (d.edges.length) { dgAutoPos(v, d.pos, false); fig = `<div class="ft-fig">${dgSvg(v, d, null, false)}<p>圖 3-1　研究架構圖</p></div>`; } } catch {} }
-      const t = tbApply(s.id, "fin", finText(s.id));
+      const t = normCite(tbApply(s.id, "fin", finText(s.id)));
       return `<h3>${esc(s.no + " " + s.title)}</h3>${fig}${t ? finHtml(t) : `<p class="hint">（尚未撰寫）</p>`}`;
-    }).join("")).join("") + `</div>`;
+    }).join("")).join("") + (refList().length ? `<h2>參考文獻</h2>` + refList().map(r => `<p class="ref-line">${esc(r)}</p>`).join("") : "") + `</div>`;
 }
 // 段落核實改寫：回覆中最新一次的「## 改寫後段落」或「## 融合後的段落」
 function drLatest(text) {
@@ -1287,6 +1359,8 @@ const OUTLINE = [
   { ch: "論文整理", secs: [
     { id: "q-full", no: "", title: "論文全文", desc: "依章節顯示各節的定稿（就是「研究名稱_論文.md」的內容）；各節的定稿可在該節最下方的「本節論文內容」查看與修改。", steps: [
       { mod: "fulltext", note: "定稿來自各節撰寫步驟的正文，段落核實改寫或融合後可取代為改寫版。" }] },
+    { id: "q-ref", no: "", title: "參考文獻", desc: "掃描各節定稿中的行內引用，從各步驟的 AI 回覆中找出完整出處；請逐筆核對或填入，論文.md 最後會附上依 APA 第七版排序的參考文獻。", steps: [
+      { mod: "refs", note: "中文文獻在前（依筆畫）、英文文獻在後（依字母）。自動帶入的出處請務必核對原文。" }] },
     { id: "q-tb", no: "", title: "待補資料查證", desc: "集中列出第一章到第五章各節定稿中所有【待補資料】【待補文獻】【待補引用】【待補量表】，查證後直接填入；論文.md 會以填入的內容取代標記。", steps: [
       { mod: "tbfill", note: "可隨時回來填寫；AI 回覆更新後，清單會自動重新整理。" }] },
     { id: "q-ch1g", no: "", title: "第一章寫作規範", desc: "整理自「如何寫論文」筆記本（畢恆達、Evans et al.、Swales CARS 模型等）：第一章的組成、各節寫作邏輯、該寫與不該寫、常見錯誤與精簡版規範。精簡版會自動附在第一章各步驟的 Prompt 中。", steps: [

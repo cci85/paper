@@ -273,6 +273,12 @@ $("pane").addEventListener("input", e => {
     save(); t.closest(".bp-opt").classList.toggle("on", t.checked);
     return;
   }
+  if (t.dataset.ref) {   // 參考文獻：逐筆核對或填入
+    (store.values.refs ||= {})[t.dataset.ref] = t.value; save();
+    const item = t.closest(".ref-item"); if (item) item.className = "ref-item " + (blank(t.value) ? "miss" : "ok");
+    $("out").textContent = refList().join("\n"); $("copy").disabled = !refList().length;
+    return;
+  }
   if (t.dataset.fin) {   // 本節定稿：直接修改文字
     setFin(t.dataset.fin, t.value); save();
     const v = $("finview"); if (v) v.innerHTML = finHtml(t.value);
@@ -309,6 +315,8 @@ $("pane").addEventListener("click", async e => {
     adoptRevised(); save(); renderPane(); update();
     $("pane").scrollIntoView({ behavior: "smooth" }); return;
   }
+  const rd = e.target.closest("button[data-refdel]");
+  if (rd) { delete (store.values.refs || {})[rd.dataset.refdel]; save(); renderPane(); update(); return; }
   const fb2 = e.target.closest("button[data-finedit], button[data-finreset], button[data-drrep]");
   if (fb2) {   // 本節定稿：修改文字／重新帶入；段落核實改寫：以改寫結果取代
     if (fb2.dataset.finedit) { const ta = document.querySelector("textarea[data-fin]"); ta.hidden = !ta.hidden; fb2.textContent = ta.hidden ? "修改文字" : "完成修改"; if (!ta.hidden) ta.focus(); return; }

@@ -391,3 +391,9 @@ textarea.fin-edit { width: 100%; min-height: 360px; font-size: 15px; line-height
 .fulltext h3 { font-size: 17px; margin: 18px 0 6px; color: var(--accent); }
 .ft-fig { text-align: center; } .ft-fig svg { max-width: 100%; height: auto; } .ft-fig p { text-indent: 0; font-size: 14px; }
 #cands-ft_view { display: block; }
+#cands-rf_view { display: block; }
+.ref-item { border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 8px 0; }
+.ref-item.ok { border-color: var(--accent); } .ref-item.auto { border-color: var(--warn); background: var(--warn-soft); } .ref-item.miss { border-color: var(--danger); }
+.ref-item textarea { width: 100%; margin-top: 6px; font-size: 14.5px; }
+.ref-item small { color: var(--muted); }
+.fulltext .ref-line { text-indent: -2em; padding-left: 2em; }

@@ -124,9 +124,10 @@ function thesisText(pngs) {   // 論文.md：只有題目與各章節定稿，�
     c.secs.forEach(s => {
       out.push(`### ${s.no} ${s.title}`, "");
       if (s.id === "s3-1") { const g = pngs.find(x => x.f.id === "f31_diag"); if (g && g.d.edges.length) out.push(`![圖 3-1 研究架構圖](<${g.file}>)`, "", "圖 3-1　研究架構圖", ""); }
-      const t = tbApply(s.id, "fin", finText(s.id)); if (t) out.push(t, "");
+      const t = normCite(tbApply(s.id, "fin", finText(s.id))); if (t) out.push(t, "");
     });
   });
+  const refs = refList(); if (refs.length) out.push("## 參考文獻", "", ...refs.flatMap(r => [r, ""]));
   return out.join("\n");
 }
 
