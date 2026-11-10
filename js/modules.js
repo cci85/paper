@@ -547,9 +547,9 @@ const DEFS = {
         return t ? `<p class="note">整節統整會自動帶入「${esc(secLabel(sid))}」定稿的全文（約 ${zhCount(t)} 字），請 NotebookLM 先診斷各段重點與重複之處，再輸出修訂後的全文；只能沿用原文已有的引用。</p>` : `<p class="note warn">本節還沒有定稿內容。</p>`; } },
       { id: "dr_len", type: "radio", label: "精簡目標", options: [["auto", "比原文少即可"], ["70", "約原文 70%"], ["50", "約原文 50%"], ["n", "指定字數"]], value: "auto", when: p => p.dr_stage === "final" || p.dr_stage === "whole" },
       { id: "dr_lenN", type: "text", label: "目標字數", placeholder: "例如 600", when: p => (p.dr_stage === "final" || p.dr_stage === "whole") && p.dr_len === "n" },
-      { id: "dr_stat", type: "checks", label: "統計數據", options: [["on", "每個論點最多保留 1–2 個關鍵數字，其餘改成文字概述"]], value: ["on"], when: p => p.dr_stage === "final" || p.dr_stage === "whole" },
-      { id: "dr_rules", type: "promptbox", get label() { return drCh1() ? "第一章共用規則（引用格式、文字風格、第一章寫作規範）" : "共用規則"; }, hint: "每個 NotebookLM 對話只要先送一次（NotebookLM 會回覆「已收到」），之後每一段都送下方的 Prompt 即可；避免每段都超過字數上限",
-        get copyLabel() { return `先送這則：複製${drCh1() ? "第一章" : ""}共用規則（每個對話一次）`; }, build: () => DR_R ? T.rules_once(DR_R) : "" },
+      { id: "dr_stat", type: "checks", label: "統計數據", options: [["on", "每個論點最多保留 1–2 個關鍵數字，其餘改成文字概述"]], value: ["on"], when: p => (p.dr_stage === "final" || p.dr_stage === "whole") && !drCh2() },
+      { id: "dr_rules", type: "promptbox", get label() { return drCh1() ? "第一章共用規則（引用格式、文字風格、第一章寫作規範）" : drCh2() ? "第二章共用規則（含第二章寫作規範）" : "共用規則"; }, hint: "每個 NotebookLM 對話只要先送一次（NotebookLM 會回覆「已收到」），之後每一段都送下方的 Prompt 即可；避免每段都超過字數上限",
+        get copyLabel() { return `先送這則：複製${drCh1() ? "第一章" : drCh2() ? "第二章" : ""}共用規則（每個對話一次）`; }, build: () => DR_R ? T.rules_once(DR_R) : "" },
       { id: "dr_text", type: "textarea", label: "論文段落", when: p => p.dr_stage !== "whole", get hint() { return inThesisSec() ? "按上方「用反白的文字」帶入；也可以自己貼上" : "按上方「用這一段」自動帶入；融合時按「加入融合」可選多段；也可以自己貼上"; }, rows: 8 },
       ...[2, 3, 4, 5, 6, 7, 8].map(k => ({ id: "dw_b" + k, type: "promptbox", afterOut: true, when: p => drParts(p).length >= k,
         get label() { const n = drParts(valuesOf(DEFS.dr)).length; return k === n ? `第 ${k} 則 Prompt（最後一則：開始改寫）` : `第 ${k} 則 Prompt`; },
@@ -558,7 +558,7 @@ const DEFS = {
     ],
     variant: p => p.dr_stage,
     replyView: t => drResultView(t),
-    rules: p => drCh1() ? ["citation", "style", "ch1"] : p.dr_stage === "final" ? ["citation", "style"] : ["citation", "evidence", "style"],
+    rules: p => drCh1() ? ["citation", "style", "ch1"] : [...(p.dr_stage === "final" ? ["citation", "style"] : ["citation", "evidence", "style"]), ...(drCh2() ? ["ch2"] : [])],
     build: (p, R) => { DR_R = R || ""; return drParts(p)[0] || ""; },
     status: p => [drParts(p).length > 1 ? `內容較長，Prompt 自動分成 ${drParts(p).length} 則：前幾則是本節全文（NotebookLM 只會回覆「已收到」），最後一則才開始${p.dr_stage === "whole" ? "統整" : "改寫"}；請在同一個對話依序送出。` : "",
       (p.dr_stage === "final" || p.dr_stage === "whole") && !blank(drBase(p)) ? drLenNote(p) : ""].filter(Boolean).join("\n"),
@@ -1416,7 +1416,7 @@ function drResultView(t) {
 const inThesisSec = () => THESIS_SECS().some(x => x.id === store.sec);
 // 段落核實改寫的對象章節：在章節內就是該節；在「常用 → 修訂論文」由使用者選（或從章節點過來時帶入）
 const drSid = () => inThesisSec() ? store.sec : (k => THESIS_SECS().some(x => x.id === k) ? k : "")(store.values.dr_sec || store.values.dw_sec);
-const drCh1 = () => /^s1-/.test(drSid());
+const drCh1 = () => /^s1-/.test(drSid()), drCh2 = () => /^s2-/.test(drSid());
 // 用反白的文字：「論文段落」是定稿中的一段連續文字，但不是完整的單一段落
 const drHl = () => { const x = (store.values.dr_text || "").trim(), sid = drSid(); return !!x && !!sid && finText(sid).includes(store.values.dr_text) && !drParas().some(p => p.text.trim() === x); };
 // 在定稿中找出反白的文字（略去空白、換行與小標題的 #），回傳定稿中的原文片段
