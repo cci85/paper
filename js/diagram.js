@@ -5,8 +5,8 @@ const DG_FONT = "'Noto Sans TC','Microsoft JhengHei','PingFang TC',sans-serif";
 
 function dgData(id) {
   const d = store.values[id];
-  if (d && typeof d === "object" && !Array.isArray(d)) { d.pos ||= {}; d.edges ||= []; d.mods ||= []; d.tray ||= []; return d; }
-  return (store.values[id] = { pos: {}, edges: [], mods: [], tray: [] });
+  if (d && typeof d === "object" && !Array.isArray(d)) { d.pos ||= {}; d.edges ||= []; d.mods ||= []; d.tray ||= []; d.lab ||= {}; return d; }
+  return (store.values[id] = { pos: {}, edges: [], mods: [], tray: [], lab: {} });
 }
 
 // 「中文（English）」拆成兩行
@@ -104,6 +104,21 @@ function diagramPathText(vars, d) {
   ];
 }
 
+// 假說編號標籤：依「研究假說」清單（hy_paths）比對直接效果的箭頭與調節虛線；中介假說橫跨兩條箭頭，不標
+function dgHypLabels(vars, edges, mods) {
+  const ls = String((typeof store !== "undefined" && store.values.hy_paths) || "").split("\n").map(l => l.trim()).filter(Boolean); if (!ls.length) return {};
+  const names = vars.map(v => [v.key, dgLabel(v.name)[0]]).filter(([, n]) => n).sort((a, b) => b[1].length - a[1].length), out = {};
+  ls.forEach(l => {
+    const m = l.match(/^(H\d+[a-z]?)\s*[：:]\s*(.*)$/); if (!m || /中介|透過|經由/.test(m[2])) return;
+    const hits = [];
+    names.forEach(([k, n]) => { for (let i = m[2].indexOf(n); i >= 0; i = m[2].indexOf(n, i + 1)) if (!hits.some(h => i < h.i + h.n.length && h.i < i + n.length)) { hits.push({ k, i, n }); break; } });
+    hits.sort((a, b) => a.i - b.i);
+    if (/調節/.test(m[2])) { if (hits.length >= 3 && mods.some(x => x.from === hits[0].k && x.edge === hits[1].k + ">" + hits[2].k)) (out["m:" + hits[0].k + "|" + hits[1].k + ">" + hits[2].k] ||= []).push(m[1]); return; }
+    if (hits.length === 2 && edges.some(e => e.from === hits[0].k && e.to === hits[1].k)) (out["e:" + hits[0].k + ">" + hits[1].k] ||= []).push(m[1]);
+  });
+  return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, v.join("、")]));
+}
+
 function dgSvg(vars, d, sel, forExport) {
   const { edges, mods } = dgPaths(vars, d);
   const S = Object.fromEntries(vars.map(v => [v.key, dgSize(v)]));
@@ -128,6 +143,15 @@ function dgSvg(vars, d, sel, forExport) {
 <rect x="${p.x - z.w / 2}" y="${p.y - z.h / 2}" width="${z.w}" height="${z.h}" rx="8" fill="${on ? DG.sel : "#fff"}" stroke="${v.role === "mod" ? DG.mod : v.role === "ctrl" ? DG.sub : DG.box}" stroke-width="${on ? 3 : 1.6}"${v.role === "ctrl" ? ` stroke-dasharray="5 4"` : ""}/>
 <text x="${p.x}" y="${p.y + (z.en ? -4 : 5)}" text-anchor="middle" font-size="15" fill="${DG.text}">${esc(z.cn)}</text>` +
       (z.en ? `<text x="${p.x}" y="${p.y + 15}" text-anchor="middle" font-size="11" fill="${DG.sub}">${esc(z.en)}</text>` : "") + `</g>`;
+  });
+  const HL = dgHypLabels(vars, edges, mods), lab = d.lab || {}, at = {};   // 假說編號：預設在箭頭中點、調節虛線接點旁；可拖曳微調
+  edges.forEach(e => { const a = dgClip(P[e.from], S[e.from], P[e.to]), b = dgClip(P[e.to], S[e.to], P[e.from]); at["e:" + e.from + ">" + e.to] = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; });
+  MG.forEach(({ m, end: t }) => { at["m:" + m.from + "|" + m.edge] = { x: t.x + 16, y: t.y - 16 }; });
+  Object.entries(HL).forEach(([k, txt]) => {
+    const b = at[k]; if (!b) return;
+    const o = lab[k] || { dx: 0, dy: 0 }, x = b.x + o.dx, y = b.y + o.dy, w = txt.length * 8.5 + 12;
+    s += `<g ${forExport ? "" : `data-lab="${esc(k)}" style="cursor:move"`}><rect x="${x - w / 2}" y="${y - 11}" width="${w}" height="22" rx="4" fill="#fff" fill-opacity="0.92"/>` +
+      `<text x="${x}" y="${y + 5}" text-anchor="middle" font-size="14" font-weight="600" fill="${k.startsWith("m:") ? DG.mod : DG.text}">${esc(txt)}</text>${forExport ? "" : "<title>拖曳以調整位置</title>"}</g>`;
   });
   if (!forExport) MG.forEach(({ end: t }, i) => {
     s += `<circle data-modh="${i}" cx="${t.x}" cy="${t.y}" r="8" fill="${DG.mod}" fill-opacity="0.18" stroke="${DG.mod}" stroke-width="1" style="cursor:ew-resize"><title>拖曳以調整接點位置</title></circle>`;
@@ -155,6 +179,12 @@ function wireDiagram(box, f) {
   const pt = e => { const svg = box.querySelector("svg"), m = svg.getScreenCTM().inverse(), q = svg.createSVGPoint(); q.x = e.clientX; q.y = e.clientY; return q.matrixTransform(m); };
   const redraw = () => { const m = mod(); renderDiagram(f, valuesOf(m)); };
   box.addEventListener("pointerdown", e => {
+    const lb = e.target.closest("[data-lab]");
+    if (lb) {   // 拖曳假說編號
+      const d = dgData(f.id), k = lb.dataset.lab, o = d.lab[k] || { dx: 0, dy: 0 }, q = pt(e);
+      drag = { lab: k, ox: o.dx, oy: o.dy, qx: q.x, qy: q.y, moved: 0, sx: e.clientX, sy: e.clientY };
+      box.setPointerCapture(e.pointerId); e.preventDefault(); return;
+    }
     const h = e.target.closest("[data-modh]");
     if (h) {   // 拖曳調節虛線的接點，沿著被調節的箭頭移動
       const vars = f.source(valuesOf(mod())), d = dgData(f.id), { mods } = dgPaths(vars, d);
@@ -171,6 +201,7 @@ function wireDiagram(box, f) {
     drag.moved = Math.max(drag.moved, Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy));
     if (drag.moved < 4) return;
     const q = pt(e), d = dgData(f.id);
+    if (drag.lab) { d.lab[drag.lab] = { dx: drag.ox + q.x - drag.qx, dy: drag.oy + q.y - drag.qy }; redraw(); return; }
     if (drag.mod) {
       const [a, b] = drag.mod.edge.split(">"), A = d.pos[a], B = d.pos[b];
       const vx = B.x - A.x, vy = B.y - A.y, L = vx * vx + vy * vy || 1;
@@ -184,7 +215,8 @@ function wireDiagram(box, f) {
   });
   box.addEventListener("pointerup", e => {
     if (!drag) return;
-    const { k, moved, mod: dm } = drag; drag = null;
+    const { k, moved, mod: dm, lab: dl } = drag; drag = null;
+    if (dl) { if (moved >= 4) save(); return; }
     if (dm) { if (moved >= 4) save(); return; }   // 點接點不刪除；要刪除請點虛線
     if (moved < 4) return clickBox(k);
     const t = document.elementFromPoint(e.clientX, e.clientY);   // 拖到待選區
@@ -259,7 +291,7 @@ function diagramAction(f, act, key) {
     renderPane(); return update();
   }
   const vars = f.source(valuesOf(mod()));
-  if (act === "layout") dgAutoPos(vars, d.pos, true);
+  if (act === "layout") { dgAutoPos(vars, d.pos, true); d.lab = {}; }
   if (act === "clear") { d.edges = []; d.mods = []; dgSel[f.id] = null; }
   if (act === "reset") { d.sig = null; dgSel[f.id] = null; dgAutoPos(vars, d.pos, true); }
   if (act === "png") return downloadDiagram(vars, d);
