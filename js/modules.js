@@ -479,6 +479,8 @@ const DEFS = {
   // ─── 論文撰寫：各章通用 ───
   dr: {
     label: "修訂論文", target: "nlm",
+    // 換到另一節時，清掉上一節帶入的「論文段落」與融合選取，避免把別節的內容送去改寫
+    init: () => { const v = store.values, sid = drSid() || store.sec; if (v.dr_text_sid !== sid) { v.dr_text = ""; v.dr_sel = []; v.dr_text_sid = sid; } },
     hint: "補強：段落還缺東西時使用，字數不減。精簡：內容齊全但太冗長，字數必須減少，可設定目標長度。整節統整：整節去除重複、調整段落順序與邏輯。融合：把幾段合併成一段。都會先核實引用。",
     fields: [
       { id: "dr_stage", type: "radio", top: true, label: "改寫方向", options: [["draft", "補強（字數不減）"], ["final", "精簡（術語查證＋字數必減）"], ["whole", "整節統整（整節去重複、調整段落順序與邏輯）"], ["merge", "融合（多段合併，討論先後邏輯）"]], value: "draft" },
