@@ -610,11 +610,11 @@ const DEFS = {
   },
   scope: {
     label: "研究範圍", target: "nlm",
-    hint: "依研究題目、研究架構、研究情境與研究對象，撰寫「研究範圍」：先說明選擇此研究情境（平台）的理由，再說明研究對象、變數的範圍與排除項目。",
+    hint: "依研究題目、研究架構、研究情境與研究對象，撰寫「研究範圍」：先說明選擇此研究情境（平台）的理由，再說明研究對象與本研究聚焦的變數；只寫聚焦在哪裡，不列排除項目。",
     fields: [
       { id: "sc_topic", type: "textarea", label: "研究題目與研究架構", hint: "自動帶入 0.5 定稿題目、研究情境與研究架構", rows: 4 },
       { id: "sc_target", type: "text", label: "研究對象", hint: "自動帶入 0.4 的研究對象", placeholder: "例如：年滿 18 歲、過去半年曾在蝦皮購物的消費者" },
-      { id: "sc_extra", type: "textarea", label: "範圍補充", hint: "選填；例如要排除的平台、商品類別或購物情境", rows: 2 },
+      { id: "sc_extra", type: "textarea", label: "範圍補充", hint: "選填；例如研究設計實際採取的篩選條件（如以篩選題排除未曾在平台購物者）", rows: 2 },
       { id: "sc_ctx", type: "textarea", label: "研究情境資料", hint: "自動帶入 1.1 定稿中提到平台的段落（用來說明選擇此平台的理由）；可自行增刪", rows: 4 },
       ...[2, 3, 4].map(k => ({ id: "sc_b" + k, type: "promptbox", afterOut: true, when: p => scParts(p).length >= k,
         get label() { const n = scParts(valuesOf(DEFS.scope)).length; return k === n ? `第 ${k} 則 Prompt（最後一則：開始撰寫）` : `第 ${k} 則 Prompt`; },
