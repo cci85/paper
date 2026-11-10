@@ -1288,7 +1288,8 @@ function cleanBody(text) {   // 撰寫步驟的回覆 → 論文正文：去掉�
   let t = deLatex(String(text || "")).replace(/\r\n?/g, "\n");
   t = t.replace(/^#{1,4}\s*(?:\d+[.、]\s*)?文獻中的寫法[^\n]*\n[\s\S]*?(?=^#{1,4}\s|(?![\s\S]))/m, "");   // 寫法分析不放進正文
   const cut = t.search(VERIFY_HEAD); if (cut >= 0) t = t.slice(0, cut);
-  const first = t.search(/^#{1,6}\s/m); if (first > 0) t = t.slice(first);
+  const first = t.search(/^#{1,6}\s/m), lead = first > 0 ? t.slice(0, first) : "";   // 第一個標題前的文字：沒有引用且很短，才視為開場說明去掉
+  if (lead && !/[（(][^（）()\n]*\d{4}[a-z]?[）)]/.test(lead) && lead.replace(/\s/g, "").length <= 200) t = t.slice(first);
   return t.split("\n").filter(l => !/^\s*-{3,}\s*$/.test(l))
     .map(l => /^#{1,6}\s/.test(l) ? "#### " + l.replace(/^#+\s*|\*\*/g, "").trim() : l.replace(/\*\*/g, "").replace(/\s?\[\d+(?:\s*[,，–-]\s*\d+)*\]/g, ""))
     .join("\n").replace(/^(#### .*)\n(?=\S)/gm, "$1\n\n").replace(/\n{3,}/g, "\n\n").trim();   // 小標題自成一段
@@ -1299,7 +1300,7 @@ function finText(sid) {
   const t = st ? cleanBody((store.replies || {})[sid + "|" + st.mod]) : "", hs = t.match(/^#### .*$/gm) || [];
   if (hs.length === 1 && t.startsWith("#### ")) return t.replace(/^#### .*\n*/, "");   // 只有一個小標題（例如「研究背景與動機」）時去掉
   const h0 = t.startsWith("#### ") ? hs[0].slice(5).trim() : "", title = (s && s.title) || "";   // 開頭的小標題就是本節名稱時去掉
-  return h0 && title && (title.includes(h0) || h0.includes(title)) ? t.replace(/^#### .*\n*/, "") : t;   // 只有一個小標題（例如「研究背景與動機」）時去掉，正文不設小標題
+  return h0 && title && title.includes(h0) ? t.replace(/^#### .*\n*/, "") : t;   // 只有一個小標題（例如「研究背景與動機」）時去掉，正文不設小標題
 }
 const setFin = (sid, t) => { (store.values.fin ||= {})[sid] = t; };
 // 重複段落：去掉空白與標點後，以兩字片段的重疊比例判斷（一段包含另一段也算）
