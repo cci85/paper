@@ -1430,6 +1430,9 @@ function finFind(t, sel) {
   return t.slice(a, b);
 }
 const secLabel = sid => (s => s ? `${s.no} ${s.title}` : "")(ALL_SECS.find(x => x.id === sid));
+// 修訂時以研究者目前的原文為準：保留其小標題寫法、編號與段落結構，不沿用對話中較早的版本
+const drFmtNote = whole => "\n\n[以目前原文為準]\n本對話中較早出現的內容（例如撰寫本節時的 Prompt、你先前的回覆）若與我這次提供的原文不同，一律以這次的原文為準；我已自行修改過的結構、用字與編號都要保留。" +
+  "小標題照原文的文字與編號格式輸出（例如原文寫「(一)兩種瀏覽動機」就照寫，不得改成「###」或其他格式）；" + (whole ? "若調整段落順序，小標題的編號須隨之重排。" : "段落順序與分段照原文，不得改回較早版本的結構。") + "原文中的假說敘述（例如「H1：……」）維持獨立一行，編號照原文或下方的現行假說清單。";
 // 第二章分到假說的節：修訂時附上現行假說清單，避免 NotebookLM 沿用對話中較早的編號
 function drHypNote() {
   const h = drCh2() ? ch2SecHyps(drSid()) : []; if (!h.length) return "";
@@ -1437,7 +1440,7 @@ function drHypNote() {
 }
 function dwParts(p) {
   const sid = drSid(), t = sid ? finText(sid) : ""; if (blank(t)) return [];
-  const s = ALL_SECS.find(x => x.id === sid) || {}, ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drHypNote();
+  const s = ALL_SECS.find(x => x.id === sid) || {}, ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drFmtNote(true) + drHypNote();
   const mat = `以下是論文「${s.no || ""} ${s.title || ""}」一節目前的全文：\n---\n${t}\n---`, task = T.dr_whole({ sec: `${s.no || ""} ${s.title || ""}`.trim(), intro: sid === "s1-1" }) + drLenReq(p) + ref;
   return (mat + "\n\n" + task).length <= 2800 ? [mat + "\n\n" + task] : splitForNLM(mat, task, "整節統整");
 }
@@ -1445,7 +1448,7 @@ function dwParts(p) {
 function drParts(p) {
   if (p.dr_stage === "whole") return dwParts(p);
   if (blank(p.dr_text)) return [];
-  const ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drHypNote();
+  const ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drFmtNote(false) + drHypNote();
   if (p.dr_stage === "merge") return [T.dr_merge({ arch: bgSeed().bg_topic, text: p.dr_text }) + ref];
   const sid = drSid(), full = sid ? finText(sid) : "", s = ALL_SECS.find(x => x.id === sid) || {};
   const same = zhCount(full.replace(/^#{1,6}\s.*$/gm, "")) <= zhCount(p.dr_text) + 5;   // 全選時，待改寫段落就是整節，不另附上下文
