@@ -363,12 +363,14 @@ const DEFS = {
     hint: "依研究架構與 1.1 的研究缺口，參考上傳文獻宣告研究目的的寫法撰寫研究目的，並檢核「缺口 → 目的 → 假說」是否一一對應。",
     fields: [
       { id: "hy_paths", type: "textarea", label: "研究架構", hint: "一行一條假說；與{#hypo}共用同一份內容", rows: 5, placeholder: "H1：品牌人格 → 自我一致性（正向）" },
-      { id: "pu_motive", type: "textarea", label: "1.1 的研究缺口", hint: "自動帶入 1.1 定稿的最後一段（研究缺口）；可自行修改", rows: 4 }
+      { id: "pu_motive", type: "textarea", label: "1.1 的研究缺口", hint: "自動帶入 1.1 定稿的最後一段（研究缺口）；可自行修改", rows: 4 },
+      ...partBoxes("pu_b", "purpose", p => puParts(p))
     ],
     seed: () => ({ hy_paths: archHyp(), pu_motive: (finBlocks(finText("s1-1")).filter(b => !/^#/.test(b)).slice(-1)[0] || "") }),
     seedQuiet: ["hy_paths"], seedFrom: "架構圖與 1.1 定稿", seedNote: "研究架構由 3.1／0.3 架構圖帶入，研究缺口由 1.1 定稿最後一段帶入",
     rules: () => ["style"],
-    build: (p, R) => blank(p.hy_paths) ? "" : T.purpose({ paths: p.hy_paths, motive: p.pu_motive }) + R,
+    build: p => puParts(p)[0] || "",
+    status: p => partsNote(puParts(p)),
     empty: "（請填入研究架構）",
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話（可接在寫研究動機的同一個對話）。"
   },
@@ -635,13 +637,14 @@ const DEFS = {
     hint: "說明本研究的主要階段、各階段的目的與依據，以及在哪一章呈現；著重推論邏輯，不寫成流水帳，不畫流程圖。",
     fields: [
       { id: "sc_topic", type: "textarea", label: "研究題目與研究架構", hint: "與 1.3 共用；自動帶入 0.5 定稿題目、研究情境與研究架構", rows: 4 },
-      { id: "fl_extra", type: "textarea", label: "流程補充", hint: "選填；例如前測、專家效度、資料蒐集期間等特別的步驟", rows: 2 }
+      { id: "fl_extra", type: "textarea", label: "流程補充", hint: "選填；例如前測、專家效度、資料蒐集期間等特別的步驟", rows: 2 },
+      ...partBoxes("fl_b", "flow", p => flParts(p))
     ],
     seed: () => ({ sc_topic: bgSeed().bg_topic }),
     seedFrom: "前面步驟", seedNote: "研究題目與研究架構由 0.5、3.1／0.3 帶入",
     rules: () => ["style", "ch1"],
-    build: (p, R) => blank(p.sc_topic) ? "" : T.flow({ topic: p.sc_topic.trim(), extra: (p.fl_extra || "").trim(),
-      chapters: OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).map(c => c.ch + "（" + c.secs.map(s => s.title).join("、") + "）").join("；") }) + R,
+    build: p => flParts(p)[0] || "",
+    status: p => partsNote(flParts(p)),
     empty: "（請先完成 0.5 論文題目或 0.3 研究架構）",
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。"
   },
@@ -1489,6 +1492,20 @@ function bgSeed() {
   const topic = [(v.tt_zh || "").trim() && "論文題目：" + v.tt_zh.trim(), (v.as_ctx || "").trim() && "研究情境：" + v.as_ctx.trim(), paths.length && "研究架構：" + paths.join("；")].filter(Boolean).join("\n");
   return { bg_topic: topic, bg_facts: mdSection(r["s1-1|asp"], ["台灣統計資料", "研究情境", "實務問題", "實務缺口"]), bg_gaps: mdSection(r["s0-5|archchk"], ["研究缺口"]) };
 }
+// 共用規則讓 Prompt 超過 NotebookLM 字數上限時：規則先分則送出（只回「已收到」），最後一則才是撰寫任務
+function ruleSplit(mod, p, prompt, what) {
+  if (!prompt) return [];
+  const R = RULES.filter(r => activeRules(DEFS[mod], p).includes(r.key)).map(r => typeof r.text === "function" ? r.text(p) : r.text).join("");
+  return (prompt + R).length <= 2800 ? [prompt + R] : splitForNLM("【撰寫時須遵守的規則】" + R, prompt + "\n\n撰寫時請遵守前面提供的「撰寫時須遵守的規則」。", what);
+}
+function partsNote(ps) { return ps.length > 1 ? `內容較長，Prompt 自動分成 ${ps.length} 則：前幾則是參考資料或規則（NotebookLM 只會回覆「已收到」），最後一則才開始撰寫；請在同一個對話依序送出。` : ""; }
+function partBoxes(pre, mod, fn) { return [2, 3, 4].map(k => ({ id: pre + k, type: "promptbox", afterOut: true, when: p => fn(p).length >= k,
+  get label() { const n = fn(valuesOf(DEFS[mod])).length; return k === n ? `第 ${k} 則 Prompt（最後一則：開始撰寫）` : `第 ${k} 則 Prompt`; },
+  hint: "上一則送出、NotebookLM 回覆「已收到」後，在同一個對話接著送出",
+  copyLabel: `${"②③"[k - 2]} 複製第 ${k} 則（同一個對話接著送出）`, build: p => fn(p)[k - 1] || "" })); }
+function puParts(p) { return blank(p.hy_paths) ? [] : ruleSplit("purpose", p, T.purpose({ paths: p.hy_paths, motive: p.pu_motive }), "研究目的"); }
+function flParts(p) { return blank(p.sc_topic) ? [] : ruleSplit("flow", p, T.flow({ topic: p.sc_topic.trim(), extra: (p.fl_extra || "").trim(),
+  chapters: OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).map(c => c.ch + "（" + c.secs.map(s => s.title).join("、") + "）").join("；") }), "研究流程"); }
 function scParts(p) {
   if (blank(p.sc_topic)) return [];
   const q = { topic: p.sc_topic.trim(), target: (p.sc_target || "").trim(), extra: (p.sc_extra || "").trim(), ctx: (p.sc_ctx || "").trim() };
@@ -1583,11 +1600,11 @@ const OUTLINE = [
       { mod: "asp", note: "依選定的寫法查台灣的統計與實務資料：把選定寫法的段落大綱與{#archchk}的回覆交給有網路搜尋的 AI，寫成研究情境、實務問題與實務缺口，並整理台灣統計資料。" },
       { mod: "bg", rules: ["citation", "style", "verify", "ch1"], note: "依選定的寫法撰寫；研究主題、選定的寫法、背景資料與研究缺口會自動帶入。" }], finish: FIN_FULL },
     { id: "s1-2", no: "1.2", title: "研究目的", desc: "承接 1.1 的研究缺口，參考文獻的寫法說明本研究的整體目的與檢驗重點；不另寫研究問題。", steps: [
-      { mod: "purpose", rules: ["style", "ch1"], note: "研究架構（假說清單）由架構圖自動帶入，請補上預期方向；研究缺口自動帶入 1.1 定稿的最後一段。貼到寫 1.1 的同一個 NotebookLM 對話。" }], finish: FIN_POLISH },
+      { mod: "purpose", rules: ["citation", "style", "ch1"], note: "研究架構（假說清單）由架構圖自動帶入，請補上預期方向；研究缺口自動帶入 1.1 定稿的最後一段。貼到寫 1.1 的同一個 NotebookLM 對話。" }], finish: FIN_POLISH },
     { id: "s1-3", no: "1.3", title: "研究範圍", desc: "界定研究的情境、對象與變數邊界。", steps: [
-      { mod: "scope", rules: ["style", "ch1"], note: "研究題目、研究架構、研究情境與研究對象會自動帶入；可補充要排除的範圍。" }], finish: FIN_FULL },
+      { mod: "scope", rules: ["citation", "style", "ch1"], note: "研究題目、研究架構、研究情境與研究對象會自動帶入；可補充要排除的範圍。" }], finish: FIN_FULL },
     { id: "s1-4", no: "1.4", title: "研究流程", desc: "說明研究的主要階段與各章安排（碩論特有小節，投稿期刊時可整段刪除）。", steps: [
-      { mod: "flow", rules: ["style", "ch1"], note: "研究題目與研究架構會自動帶入；有前測、專家效度等特別步驟可在「流程補充」說明。" }], finish: FIN_FULL }
+      { mod: "flow", rules: ["citation", "style", "ch1"], note: "研究題目與研究架構會自動帶入；有前測、專家效度等特別步驟可在「流程補充」說明。" }], finish: FIN_FULL }
   ] },
   { ch: "第二章 文獻探討", secs: [
     { id: "s2-1", no: "2.1", title: "各構念之定義與相關研究", desc: "每個構念各寫一節；這一節的步驟對每個構念重複一次。", steps: [
