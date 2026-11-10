@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="robots" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>論文工作台</title>
-<link rel="stylesheet" href="style.css?v=202611101147">
+<title>論到你了</title>
+<link rel="stylesheet" href="style.css?v=202611101150">
 <style>html.locked body > :not(#gate) { display: none !important; }
 #gate { display: none; } html.locked #gate { display: flex; position: fixed; inset: 0; align-items: center; justify-content: center; background: #f6f5f1; z-index: 999; }
 #gate form { display: flex; flex-direction: column; gap: 12px; padding: 28px 32px; border: 1px solid #dcdad3; border-radius: 12px; background: #fff; min-width: 280px; font-family: system-ui, sans-serif; }
@@ -18,7 +18,7 @@
 </script>
 </head>
 <body>
-<div id="gate"><form id="gateform"><b>論文工作台</b><label>請輸入密碼<br><input type="password" id="gatepw" autocomplete="current-password" autofocus></label><button type="submit">進入</button><p class="err" id="gateerr"></p></form></div>
+<div id="gate"><form id="gateform"><b>論到你了</b><label>請輸入密碼<br><input type="password" id="gatepw" autocomplete="current-password" autofocus></label><button type="submit">進入</button><p class="err" id="gateerr"></p></form></div>
 <script>
   document.getElementById("gateform").addEventListener("submit", async e => {
     e.preventDefault();
@@ -28,9 +28,9 @@
     else { document.getElementById("gateerr").textContent = "密碼不正確"; document.getElementById("gatepw").select(); }
   });
 </script>
-<div class="newver" id="newver" hidden>論文工作台已更新。<button type="button" id="newverbtn">重新整理，使用新版</button><small>（目前內容都已保存，不會遺失）</small></div>
+<div class="newver" id="newver" hidden>論到你了已更新。<button type="button" id="newverbtn">重新整理，使用新版</button><small>（目前內容都已保存，不會遺失）</small></div>
 <header class="top">
-  <h1>論文工作台</h1>
+  <h1>論到你了</h1>
   <p>從左側目錄選擇正在寫的章節 → 依步驟產生 Prompt → 按「複製」貼到指定的 AI。每份研究自動存成一個研究存檔（.md），可在其他電腦開啟。換研究一律按「開啟研究」（選資料夾 → 點研究）；開始新的研究按「新研究」。</p>
   <div class="legend">
     <span><span class="tag t-nlm">NotebookLM</span>需先上傳文獻，AI 只依文獻回答</span>
@@ -70,13 +70,13 @@
 </div>
 
 <!-- 一般 script（非 ES module），雙擊本機檔案開啟也能用 -->
-<script src="js/prompts.js?v=202611101147"></script>
-<script src="js/prompts-new.js?v=202611101147"></script>
-<script src="js/fence.js?v=202611101147"></script>
-<script src="js/guide.js?v=202611101147"></script>
-<script src="js/modules.js?v=202611101147"></script>
-<script src="js/diagram.js?v=202611101147"></script>
-<script src="js/app.js?v=202611101147"></script>
-<script src="js/file.js?v=202611101147"></script>
+<script src="js/prompts.js?v=202611101150"></script>
+<script src="js/prompts-new.js?v=202611101150"></script>
+<script src="js/fence.js?v=202611101150"></script>
+<script src="js/guide.js?v=202611101150"></script>
+<script src="js/modules.js?v=202611101150"></script>
+<script src="js/diagram.js?v=202611101150"></script>
+<script src="js/app.js?v=202611101150"></script>
+<script src="js/file.js?v=202611101150"></script>
 </body>
 </html>

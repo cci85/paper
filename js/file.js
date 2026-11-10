@@ -169,12 +169,12 @@ function readable(pngs) {
 function fileText(notes, pngs) {
   const now = new Date(), ts = now.toLocaleString("zh-TW", { hour12: false });
   return [
-    "---", `title: ${store.name || ""}`, `updated: ${ts}`, "source: 論文工作台", "---", "",
+    "---", `title: ${store.name || ""}`, `updated: ${ts}`, "source: 論到你了", "---", "",
     `# ${store.name || ""}`, "",
     "## 我的筆記", NOTE_START, notes || NOTE_EMPTY, NOTE_END, "",
     readable(pngs) || "（尚未填寫任何欄位）", "",
     // 資料區塊放在 HTML 註解中，Obsidian 等 Markdown 軟體閱讀時不會顯示；「>」改寫為 \u003e，避免提早結束註解
-    "<!-- " + DATA_TAG + "（論文工作台讀回原始設定用，閱讀時不顯示，請勿修改）", payloadOf().replace(/>/g, "\\u003e"), "-->", ""
+    "<!-- " + DATA_TAG + "（「論到你了」讀回原始設定用，閱讀時不顯示，請勿修改）", payloadOf().replace(/>/g, "\\u003e"), "-->", ""
   ].join("\n");
 }
 
@@ -220,7 +220,7 @@ async function writeNow() {
     if (old.trim()) {
       const d = parseFile(old);
       // 保護一：檔案不是本網頁的存檔，或屬於另一個研究 → 停止存檔
-      if (!d) { unbind(`「${name}」不是論文工作台的存檔，已停止自動存檔。請按「開啟研究」。`); return; }
+      if (!d) { unbind(`「${name}」不是「論到你了」的存檔，已停止自動存檔。請按「開啟研究」。`); return; }
       if ((d.name || "") !== (store.name || "")) { unbind(`「${name}」是研究「${d.name}」的存檔，與畫面上的研究「${store.name}」不同，已停止自動存檔，檔案沒有被修改。請按「開啟研究」。`); return; }
       // 保護二：檔案在其他電腦更新過 → 自動載入檔案中的版本（畫面內容先備份，可按「復原」取回）
       const theirs = payOf(d);
