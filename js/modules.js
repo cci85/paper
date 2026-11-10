@@ -491,24 +491,23 @@ const DEFS = {
       { id: "dw_info", type: "cands", label: "", when: p => p.dr_stage === "whole", render: () => { const sid = drSid(), t = sid ? finText(sid) : "";
         if (!sid) return `<p class="note warn">請先在上方選擇要修訂的章節。</p>`;
         return t ? `<p class="note">整節統整會自動帶入「${esc(secLabel(sid))}」定稿的全文（約 ${zhCount(t)} 字），請 NotebookLM 先診斷各段重點與重複之處，再輸出修訂後的全文；只能沿用原文已有的引用。</p>` : `<p class="note warn">本節還沒有定稿內容。</p>`; } },
-      { id: "dr_len", type: "radio", label: "精簡目標", options: [["auto", "比原文少即可"], ["70", "約原文 70%"], ["50", "約原文 50%"], ["n", "指定字數"]], value: "auto", when: p => p.dr_stage === "final" },
-      { id: "dr_lenN", type: "text", label: "目標字數", placeholder: "例如 600", when: p => p.dr_stage === "final" && p.dr_len === "n" },
-      { id: "dr_stat", type: "checks", label: "統計數據", options: [["on", "每個論點最多保留 1–2 個關鍵數字，其餘改成文字概述"]], value: ["on"], when: p => p.dr_stage === "final" },
+      { id: "dr_len", type: "radio", label: "精簡目標", options: [["auto", "比原文少即可"], ["70", "約原文 70%"], ["50", "約原文 50%"], ["n", "指定字數"]], value: "auto", when: p => p.dr_stage === "final" || p.dr_stage === "whole" },
+      { id: "dr_lenN", type: "text", label: "目標字數", placeholder: "例如 600", when: p => (p.dr_stage === "final" || p.dr_stage === "whole") && p.dr_len === "n" },
+      { id: "dr_stat", type: "checks", label: "統計數據", options: [["on", "每個論點最多保留 1–2 個關鍵數字，其餘改成文字概述"]], value: ["on"], when: p => p.dr_stage === "final" || p.dr_stage === "whole" },
       { id: "dr_rules", type: "promptbox", get label() { return drCh1() ? "第一章共用規則（引用格式、文字風格、第一章寫作規範）" : "共用規則"; }, hint: "每個 NotebookLM 對話只要先送一次（NotebookLM 會回覆「已收到」），之後每一段都送下方的 Prompt 即可；避免每段都超過字數上限",
         get copyLabel() { return `先送這則：複製${drCh1() ? "第一章" : ""}共用規則（每個對話一次）`; }, build: () => DR_R ? T.rules_once(DR_R) : "" },
       { id: "dr_text", type: "textarea", label: "論文段落", when: p => p.dr_stage !== "whole", hint: "按上方「用這一段」自動帶入；融合時按「加入融合」可選多段；也可以自己貼上", rows: 8 },
-      ...[2, 3, 4, 5, 6, 7, 8].map(k => ({ id: "dw_b" + k, type: "promptbox", afterOut: true, when: p => p.dr_stage === "whole" && dwParts(p).length >= k,
-        get label() { const n = dwParts(valuesOf(DEFS.dr)).length; return k === n ? `第 ${k} 則 Prompt（最後一則：開始統整）` : `第 ${k} 則 Prompt`; },
-        hint: "上一則送出、NotebookLM 回覆「已收到」後，在同一個對話接著送出；最後一則送出後才會開始統整",
-        copyLabel: `${"②③④⑤⑥⑦"[k - 2]} 複製第 ${k} 則（同一個對話接著送出）`, build: p => dwParts(p)[k - 1] || "" }))
+      ...[2, 3, 4, 5, 6, 7, 8].map(k => ({ id: "dw_b" + k, type: "promptbox", afterOut: true, when: p => drParts(p).length >= k,
+        get label() { const n = drParts(valuesOf(DEFS.dr)).length; return k === n ? `第 ${k} 則 Prompt（最後一則：開始改寫）` : `第 ${k} 則 Prompt`; },
+        hint: "上一則送出、NotebookLM 回覆「已收到」後，在同一個對話接著送出；最後一則送出後才會開始改寫",
+        copyLabel: `${"②③④⑤⑥⑦"[k - 2]} 複製第 ${k} 則（同一個對話接著送出）`, build: p => drParts(p)[k - 1] || "" }))
     ],
     variant: p => p.dr_stage,
     replyView: t => drResultView(t),
     rules: p => drCh1() ? ["citation", "style", "ch1"] : p.dr_stage === "final" ? ["citation", "style"] : ["citation", "evidence", "style"],
-    build: (p, R) => { DR_R = R || ""; if (p.dr_stage === "whole") return dwParts(p)[0] || ""; if (blank(p.dr_text)) return ""; const ref = DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "";
-      if (p.dr_stage === "merge") return T.dr_merge({ arch: bgSeed().bg_topic, text: p.dr_text }) + ref;
-      return p.dr_stage === "final" ? T.dr_final({ draft: p.dr_text }) + drLenReq(p) + ref + "\n\n" + T.dr_final_tail({}) : T.dr_draft({ draft: p.dr_text }) + ref; },
-    status: p => p.dr_stage === "whole" ? (dwParts(p).length > 1 ? `全文較長，Prompt 自動分成 ${dwParts(p).length} 則：前幾則是本節全文（NotebookLM 只會回覆「已收到」），最後一則才開始統整；請在同一個對話依序送出。` : "") : p.dr_stage === "final" && !blank(p.dr_text) ? drLenNote(p) : "",
+    build: (p, R) => { DR_R = R || ""; return drParts(p)[0] || ""; },
+    status: p => [drParts(p).length > 1 ? `內容較長，Prompt 自動分成 ${drParts(p).length} 則：前幾則是本節全文（NotebookLM 只會回覆「已收到」），最後一則才開始${p.dr_stage === "whole" ? "統整" : "改寫"}；請在同一個對話依序送出。` : "",
+      (p.dr_stage === "final" || p.dr_stage === "whole") && !blank(drBase(p)) ? drLenNote(p) : ""].filter(Boolean).join("\n"),
     empty: "（請貼上論文段落）",
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。"
   },
@@ -1034,14 +1033,15 @@ function finalArch() {
 }
 // 精簡：目標字數與統計數據規則
 const zhCount = t => String(t || "").replace(/\s/g, "").length;
+const drBase = p => p.dr_stage === "whole" ? finText(drSid()) : p.dr_text;   // 計算字數的原文：整節統整用本節全文
 function drTarget(p) {
-  const n = zhCount(p.dr_text);
+  const n = zhCount(drBase(p));
   return p.dr_len === "70" ? Math.round(n * 0.7) : p.dr_len === "50" ? Math.round(n * 0.5) : p.dr_len === "n" ? +(String(p.dr_lenN || "").match(/\d+/) || [0])[0] : 0;
 }
-function drLenNote(p) { const n = zhCount(p.dr_text), m = drTarget(p); return `原文約 ${n} 字` + (m ? `，精簡目標約 ${m} 字。` : "。"); }
+function drLenNote(p) { const n = zhCount(drBase(p)), m = drTarget(p); return `原文約 ${n} 字` + (m ? `，精簡目標約 ${m} 字。` : "。"); }
 function drLenReq(p) {
   const m = drTarget(p), out = [];
-  if (m) out.push(`字數目標：原文約 ${zhCount(p.dr_text)} 字（不含空白），改寫後請控制在約 ${m} 字（上下 10% 以內），以此取代上方第 5 點的「盡量壓縮」。為達到字數目標，優先刪除次要的例證、重複的論點與過多的數據，保留核心論點與其引用。`);
+  if (m) out.push(`字數目標：原文約 ${zhCount(drBase(p))} 字（不含空白），改寫後請控制在約 ${m} 字（上下 10% 以內），以此取代上方${p.dr_stage === "whole" ? "「字數不得多於原文」的規定" : "第 5 點的「盡量壓縮」"}。為達到字數目標，優先刪除次要的例證、重複的論點與過多的數據，保留核心論點與其引用。`);
   if (isOn(p.dr_stat)) out.push("統計數據：每個論點最多保留 1–2 個最關鍵的數字，其餘數字改以文字概述（例如「涵蓋清潔、衣著、居家與美妝等日常商品」）；保留的數字須維持原有的引用。");
   return out.length ? "\n\n[精簡要求]\n" + out.map((x, i) => `${i + 1}. ${x}`).join("\n") : "";
 }
@@ -1359,8 +1359,26 @@ const secLabel = sid => (s => s ? `${s.no} ${s.title}` : "")(ALL_SECS.find(x => 
 function dwParts(p) {
   const sid = drSid(), t = sid ? finText(sid) : ""; if (blank(t)) return [];
   const s = ALL_SECS.find(x => x.id === sid) || {}, ref = DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "";
-  const mat = `以下是論文「${s.no || ""} ${s.title || ""}」一節目前的全文：\n---\n${t}\n---`, task = T.dr_whole({ sec: `${s.no || ""} ${s.title || ""}`.trim(), intro: sid === "s1-1" }) + ref;
+  const mat = `以下是論文「${s.no || ""} ${s.title || ""}」一節目前的全文：\n---\n${t}\n---`, task = T.dr_whole({ sec: `${s.no || ""} ${s.title || ""}`.trim(), intro: sid === "s1-1" }) + drLenReq(p) + ref;
   return (mat + "\n\n" + task).length <= 2800 ? [mat + "\n\n" + task] : splitForNLM(mat, task, "整節統整");
+}
+// 修訂論文的 Prompt：補強、精簡附上本節全文作為上下文（太長自動分則）；整節統整見 dwParts；融合為單則
+function drParts(p) {
+  if (p.dr_stage === "whole") return dwParts(p);
+  if (blank(p.dr_text)) return [];
+  const ref = DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "";
+  if (p.dr_stage === "merge") return [T.dr_merge({ arch: bgSeed().bg_topic, text: p.dr_text }) + ref];
+  const sid = drSid(), full = sid ? finText(sid) : "", s = ALL_SECS.find(x => x.id === sid) || {};
+  const same = zhCount(full.replace(/^#{1,6}\s.*$/gm, "")) <= zhCount(p.dr_text) + 5;   // 全選時，待改寫段落就是整節，不另附上下文
+  const ctx = full && !same ? "\n\n[上下文要求]\n上方已提供本節全文作為上下文，待改寫的段落是其中的一部分。請先在「## 段落角色」標題下，以一兩句說明待改寫段落在整節中的角色，以及與前一段、後一段的承接關係；再依此改寫：保留與前後段的銜接；不重複本節其他段落已寫過的論點、定義與數據；不刪除後文會用到的論點或術語。「## 改寫後段落」之下只放待改寫段落的改寫結果，不要改寫或輸出其他段落。" : "";
+  const task = p.dr_stage === "final" ? T.dr_final({ draft: p.dr_text }) + drLenReq(p) + ctx + ref + "\n\n" + T.dr_final_tail({}) : T.dr_draft({ draft: p.dr_text }) + ctx + ref;
+  if (!ctx) {   // 全選或沒有上下文：太長時，先分則送出待改寫的全文，最後一則只放改寫任務
+    if (task.length <= 2800) return [task];
+    const ph = "（待改寫的內容即為前面分則送出的本節全文）", t2 = p.dr_stage === "final" ? T.dr_final({ draft: ph }) + drLenReq(p) + ref + "\n\n" + T.dr_final_tail({}) : T.dr_draft({ draft: ph }) + ref;
+    return splitForNLM(`以下是待改寫的論文段落（「${s.no || ""} ${s.title || ""}」一節）：\n---\n${p.dr_text}\n---`, t2, "修訂論文");
+  }
+  const mat = `以下是論文「${s.no || ""} ${s.title || ""}」一節目前的全文（作為上下文，只供參考）：\n---\n${full}\n---`;
+  return (mat + "\n\n" + task).length <= 2800 ? [mat + "\n\n" + task] : splitForNLM(mat, task, "修訂論文");
 }
 function drReplace(mode) {
   const sid = drSid(), r = drLatest((store.replies || {})[replyKey()] || ""); if (!r || !sid) return;
