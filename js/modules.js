@@ -1401,13 +1401,15 @@ function drResultView(t) {
   const r = drLatest(t); if (!r) return blank(t) ? "" : `<p class="hint">（回覆中沒有找到「## 改寫後段落」或「## 融合後的段落」；新版 Prompt 會固定用這兩個標題）</p>`;
   const ps = drParas(), merge = store.values.dr_stage === "merge", whole = store.values.dr_stage === "whole", sel = (store.values.dr_sel || []).filter(k => ps.some(x => x.key === k));
   const cur = ps.findIndex(x => x.text.trim() === (store.values.dr_text || "").trim());
-  const have = new Set(finBlocks(finText(drSid()))), used = finBlocks(r).every(b => have.has(b));   // 結果已在定稿中：不再顯示加入按鈕，避免重複加入
+  const have = new Set(finBlocks(finText(drSid()))), used = finBlocks(r).every(b => have.has(b)) || finText(drSid()).includes(r.trim());   // 結果已在定稿中：不再顯示加入按鈕，避免重複加入
   const allPicked = !merge && !whole && ps.length > 1 && (store.values.dr_text || "").trim() === ps.map(x => x.text).join("\n\n").trim();   // 按過「全選」
   const btn = whole || allPicked ? `<button type="button" class="copy" data-drrep="all">以此取代本節全部內容</button>` : merge ? (sel.length ? `<button type="button" class="copy" data-drrep="merge">以此取代所選的 ${sel.length} 段（合併為一段）</button>` : "")
     : cur >= 0 ? `<button type="button" class="copy" data-drrep="one">以此取代第 ${cur + 1} 段</button>`
     : drHl() ? `<button type="button" class="copy" data-drrep="sel">以此取代反白的部分</button>` : "";
-  return `<div class="drres"><h3>最新的${whole ? "整節統整" : merge ? "融合" : "改寫"}結果</h3><div class="fin-view">${finHtml(r)}</div>
-    ${used ? `<p class="note">✓ 這個結果已經在「本節論文內容」中，不需要再加入。</p>` : `${btn ? "" : `<p class="note warn">沒有出現「以此取代」按鈕：原本選的段落已不在本節定稿中（可能已修改或刪除）。${inThesisSec() ? "請在「本節論文內容」重新反白要被取代的文字，按上方「用反白的文字」" : `請在上方「本節的段落」重新按「用這一段」${merge ? "或勾選「加入融合」" : ""}，選好要被取代的段落`}後，就會出現取代按鈕。</p>`}<p class="fin-btns">${btn}${whole || allPicked ? "" : `<button type="button" data-drrep="all">以此取代本節全部內容</button>`}<button type="button" data-drrep="append">不取代，另外加在本節最後</button>
+  const kind = whole ? "整節統整" : merge ? "融合" : "改寫";
+  if (used) return `<div class="drres"><details><summary>✓ 最新的${kind}結果已套用到「本節論文內容」（點開檢視）</summary><div class="fin-view">${finHtml(r)}</div></details></div>`;   // 已套用：收合，避免與定稿重複顯示
+  return `<div class="drres"><h3>${kind}結果（尚未套用）</h3><p class="hint">這是 AI 回覆的預覽，還不是論文內容；按下方「以此取代」後才會寫入「本節論文內容」。</p><div class="fin-view">${finHtml(r)}</div>
+    ${`${btn ? "" : `<p class="note warn">沒有出現「以此取代」按鈕：原本選的段落已不在本節定稿中（可能已修改或刪除）。${inThesisSec() ? "請在「本節論文內容」重新反白要被取代的文字，按上方「用反白的文字」" : `請在上方「本節的段落」重新按「用這一段」${merge ? "或勾選「加入融合」" : ""}，選好要被取代的段落`}後，就會出現取代按鈕。</p>`}<p class="fin-btns">${btn}${whole || allPicked ? "" : `<button type="button" data-drrep="all">以此取代本節全部內容</button>`}<button type="button" data-drrep="append">不取代，另外加在本節最後</button>
     <span class="hint">一般請按「以此取代」；取代後會更新「本節論文內容」與論文.md</span></p>`}</div>`;
 }
 // 整節統整：本節全文先分則送出，最後一則才是統整任務；在「常用 → 修訂論文」使用時，由使用者選章節
