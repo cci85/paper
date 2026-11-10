@@ -623,6 +623,21 @@ const DEFS = {
     empty: "（請先完成 0.5 論文題目或 0.3 研究架構）",
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。"
   },
+  flow: {
+    label: "研究流程", target: "nlm",
+    hint: "說明本研究的主要階段、各階段的目的與依據，以及在哪一章呈現；著重推論邏輯，不寫成流水帳，不畫流程圖。",
+    fields: [
+      { id: "sc_topic", type: "textarea", label: "研究題目與研究架構", hint: "與 1.3 共用；自動帶入 0.5 定稿題目、研究情境與研究架構", rows: 4 },
+      { id: "fl_extra", type: "textarea", label: "流程補充", hint: "選填；例如前測、專家效度、資料蒐集期間等特別的步驟", rows: 2 }
+    ],
+    seed: () => ({ sc_topic: bgSeed().bg_topic }),
+    seedFrom: "前面步驟", seedNote: "研究題目與研究架構由 0.5、3.1／0.3 帶入",
+    rules: () => ["style", "ch1"],
+    build: (p, R) => blank(p.sc_topic) ? "" : T.flow({ topic: p.sc_topic.trim(), extra: (p.fl_extra || "").trim(),
+      chapters: OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).map(c => c.ch + "（" + c.secs.map(s => s.title).join("、") + "）").join("；") }) + R,
+    empty: "（請先完成 0.5 論文題目或 0.3 研究架構）",
+    next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。"
+  },
   tbfill: {
     label: "待補資料查證", target: "tool",
     hint: "每一項列出所在章節與前後文。查證後，把正確內容（含出處）填在下方欄位；「研究名稱_論文.md」會以填入的文字直接取代【待補】標記，請寫成可以接在原句中的文字。各章回覆最後的「需要研究者查證的背景資料」有建議的查證來源與關鍵字。",
@@ -1529,7 +1544,9 @@ const OUTLINE = [
     { id: "s1-2", no: "1.2", title: "研究目的", desc: "承接 1.1 的研究缺口，參考文獻的寫法說明本研究的整體目的與檢驗重點；不另寫研究問題。", steps: [
       { mod: "purpose", rules: ["style", "ch1"], note: "研究架構（假說清單）由架構圖自動帶入，請補上預期方向；研究缺口自動帶入 1.1 定稿的最後一段。貼到寫 1.1 的同一個 NotebookLM 對話。" }], finish: FIN_POLISH },
     { id: "s1-3", no: "1.3", title: "研究範圍", desc: "界定研究的情境、對象與變數邊界。", steps: [
-      { mod: "scope", rules: ["style", "ch1"], note: "研究題目、研究架構、研究情境與研究對象會自動帶入；可補充要排除的範圍。" }], finish: FIN_FULL }
+      { mod: "scope", rules: ["style", "ch1"], note: "研究題目、研究架構、研究情境與研究對象會自動帶入；可補充要排除的範圍。" }], finish: FIN_FULL },
+    { id: "s1-4", no: "1.4", title: "研究流程", desc: "說明研究的主要階段與各章安排（碩論特有小節，投稿期刊時可整段刪除）。", steps: [
+      { mod: "flow", rules: ["style", "ch1"], note: "研究題目與研究架構會自動帶入；有前測、專家效度等特別步驟可在「流程補充」說明。" }], finish: FIN_FULL }
   ] },
   { ch: "第二章 文獻探討", secs: [
     { id: "s2-1", no: "2.1", title: "各構念之定義與相關研究", desc: "每個構念各寫一節；這一節的步驟對每個構念重複一次。", steps: [
