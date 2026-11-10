@@ -143,7 +143,7 @@ const DEFS = {
     fields: [
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" },
       { id: "as_con", type: "text", label: "研究問題", hint: "選填；以一句話描述要探討的現象或問題，可幫助 AI 聚焦", placeholder: "例如：使用者滑 TikTok 或 Instagram Reels 時看到平台推薦的產品開箱影片，是否會因此產生衝動購買？" },
-      { id: "as_iv", type: "textarea", label: "已確定的自變數", hint: "選填；每行一個，只寫名稱即可（貼上含定義的整段也可以，網頁只取變數名稱）；填了之後，所有候選架構都包含這些自變數", rows: 2, placeholder: "例如：特惠偏好度（Deal Proneness）" },
+      { id: "as_iv", type: "textarea", label: "已確定的自變數", hint: "選填；每行一個，只寫名稱即可（貼上含定義的整段也可以，網頁只取變數名稱）；填了之後，所有候選架構都包含這些自變數", rows: 2, placeholder: "例如：促銷傾向（Deal Proneness）" },
       { id: "as_dv", type: "textarea", label: "已確定的依變數", hint: "選填；每行一個，可填兩個以上；填了之後，所有候選架構都以這些變數為依變數", rows: 2, placeholder: "例如：認知型衝動購買（Cognitive Impulse Buying）\n情感型衝動購買（Affective Impulse Buying）" },
       { id: "as_method", type: "radio", label: "研究方法", options: [["any", "不限"], ["survey", "問卷調查法"], ["exp", "實驗設計法"], ["sec", "panel data"]], value: "survey" },
       { id: "as_n", type: "radio", label: "架構數量", options: [["2", "2 個"], ["3", "3 個"], ["4", "4 個"], ["5", "5 個"], ["6", "6 個"]], value: "4" },
@@ -422,8 +422,8 @@ const DEFS = {
     label: "第二章架構", target: "tool", noReply: true,
     hint: "第二章依研究架構分節：理論基礎，再來是各變數一節（依變數在前，同一構念的不同面向合在同一節）。假說在各變數一節推導：每條假說歸到影響方變數的那一節，中介假說歸中介變數、調節假說歸調節變數。下方每一行是一節，格式為「節名：本節涵蓋的變數」；可以改名、合併、調整順序，左側目錄會立即更新。",
     fields: [
-      { id: "ch2_plan", type: "textarea", label: "各變數的節（一行一節）", hint: "自動依架構圖產生（依變數在前）；改了之後若想回到預設，清空欄位後按「重新帶入」", rows: 6, placeholder: "衝動購買：認知型衝動購買、情感型衝動購買\n線上瀏覽：功利型瀏覽、享樂型瀏覽\n特惠偏好度：特惠偏好度\n社會影響從眾：社會影響從眾" },
-      { id: "hy_paths", type: "textarea", label: "研究假說（一行一條，含預期方向）", hint: "與 1.2、3.5、4.3 共用同一份內容；自動依架構圖產生，請補上預期方向。每條假說會歸到其影響方變數的一節推導", rows: 6, placeholder: "H1：享樂型瀏覽 → 情感型衝動購買（正向）\nH2：功利型瀏覽中介特惠偏好度與認知型衝動購買之關係\nH3：社會影響從眾 調節（享樂型瀏覽 → 情感型衝動購買）" },
+      { id: "ch2_plan", type: "textarea", label: "各變數的節（一行一節）", hint: "自動依架構圖產生（依變數在前）；改了之後若想回到預設，清空欄位後按「重新帶入」", rows: 6, placeholder: "衝動購買：認知型衝動購買、情感型衝動購買\n線上瀏覽：功利型瀏覽、享樂型瀏覽\n促銷傾向：促銷傾向\n社會影響從眾：社會影響從眾" },
+      { id: "hy_paths", type: "textarea", label: "研究假說（一行一條，含預期方向）", hint: "與 1.2、3.5、4.3 共用同一份內容；自動依架構圖產生，請補上預期方向。每條假說會歸到其影響方變數的一節推導", rows: 6, placeholder: "H1：享樂型瀏覽 → 情感型衝動購買（正向）\nH2：功利型瀏覽中介促銷傾向與認知型衝動購買之關係\nH3：社會影響從眾 調節（享樂型瀏覽 → 情感型衝動購買）" },
       { id: "hy_renum", type: "button", label: "依章節順序重新編號", hint: "讓 H1、H2…的順序與第二章各節的出現順序一致，並把各章節論文內容中的假說編號一起改成現行編號；已經編號過也可以再按一次，用來同步論文內容", run: () => hypRenumber() },
       { id: "ch2_prev", type: "cands", label: "第二章目錄預覽", render: () => ch2PrevHtml() }
     ],
@@ -591,7 +591,7 @@ const DEFS = {
     fields: [
       { id: "tt_n", type: "radio", label: "候選題目數", options: [["3", "3 個"], ["5", "5 個"]], value: "5" },
       { id: "tt_pref", type: "textarea", label: "題目偏好", hint: "選填；例如要不要包含研究情境、以哪個機制為主軸、字數限制", rows: 2, placeholder: "例如：要包含「蝦皮」；以雙路徑瀏覽為主軸；中文 30 字以內" },
-      { id: "tt_zh", type: "text", below: true, label: "定稿題目（中文）", hint: "會成為論文草稿檔的標題", placeholder: "例如：特惠偏好與社會從眾對線上衝動購買之影響：以瀏覽動機為中介" },
+      { id: "tt_zh", type: "text", below: true, label: "定稿題目（中文）", hint: "會成為論文草稿檔的標題", placeholder: "例如：促銷傾向與社會從眾對線上衝動購買之影響：以瀏覽動機為中介" },
       { id: "tt_en", type: "text", below: true, label: "定稿題目（英文）", hint: "選填", placeholder: "例如：The Effects of Deal Proneness and Social Influence on Online Impulse Buying" }
     ],
     rules: () => ["citation"],
