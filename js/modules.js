@@ -1296,7 +1296,7 @@ function cleanBody(text) {   // 撰寫步驟的回覆 → 論文正文：去掉�
   if (lead && !/[（(][^（）()\n]*\d{4}[a-z]?[）)]/.test(lead) && lead.replace(/\s/g, "").length <= 200) t = t.slice(first);
   return t.split("\n").filter(l => !/^\s*-{3,}\s*$/.test(l))
     .map(l => /^#{1,6}\s/.test(l) ? "#### " + l.replace(/^#+\s*|\*\*/g, "").trim() : l.replace(/\*\*/g, "").replace(/\s?\[\d+(?:\s*[,，–-]\s*\d+)*\]/g, ""))
-    .join("\n").replace(/^(#### .*)\n(?=\S)/gm, "$1\n\n").replace(/\n{3,}/g, "\n\n").trim();   // 小標題自成一段
+    .join("\n").replace(/^(#### .*)\n(?=\S)/gm, "$1\n\n").replace(/^([(（][一二三四五六七八九十]+[)）][^\n。，；]{1,30})$/gm, "\n$1\n").replace(/\n{3,}/g, "\n\n").trim();   // 小標題（含「(一)標題」）自成一段
 }
 function finText(sid) {
   const v = (store.values.fin || {})[sid]; if (typeof v === "string" && v.trim()) return v;   // 定稿被清空時，改回由撰寫步驟的回覆產生
@@ -1320,9 +1320,10 @@ function finDups(t) {   // [{ i, j, sim }]：第 j 段與前面的第 i 段重�
   return out;
 }
 const finBlocks = t => String(t || "").split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+const FIN_SUBHEAD = /^[(（][一二三四五六七八九十]+[)）]\s*[^。，；]{1,30}$/;   // 「(一)標題」形式的小標題
 function finHtml(t, ed) {   // 定稿的簡易排版：#### 小標題、段落、【待補】標記；ed：每段可直接點擊修改
   return finBlocks(t).map((b, i) => { const a = ed ? ` contenteditable="true" spellcheck="false" data-fp="${i}"` : "";
-    return /^#{1,6}\s/.test(b) && !b.includes("\n")
+    return (/^#{1,6}\s/.test(b) || FIN_SUBHEAD.test(b)) && !b.includes("\n")
     ? `<h4${a}>${esc(b.replace(/^#+\s*/, ""))}</h4>`
     : `<p${a}>${esc(b).replace(/\n/g, "<br>").replace(/【待補[^】]*】/g, m => `<mark>${m}</mark>`)}</p>`; }).join("");
 }
@@ -1433,6 +1434,11 @@ const secLabel = sid => (s => s ? `${s.no} ${s.title}` : "")(ALL_SECS.find(x => 
 // 修訂時以研究者目前的原文為準：保留其小標題寫法、編號與段落結構，不沿用對話中較早的版本
 const drFmtNote = whole => "\n\n[以目前原文為準]\n本對話中較早出現的內容（例如撰寫本節時的 Prompt、你先前的回覆）若與我這次提供的原文不同，一律以這次的原文為準；我已自行修改過的結構、用字與編號都要保留。" +
   "小標題照原文的文字與編號格式輸出（例如原文寫「(一)兩種瀏覽動機」就照寫，不得改成「###」或其他格式）；" + (whole ? "若調整段落順序，小標題的編號須隨之重排。" : "段落順序與分段照原文，不得改回較早版本的結構。") + "原文中的假說敘述（例如「H1：……」）維持獨立一行，編號照原文或下方的現行假說清單。";
+// 第二章修訂時一併檢查：假說敘述寫法、與本節其他段落重複、理論放錯位置
+const drCh2Check = () => !drCh2() ? "" : "\n\n[第二章修訂時一併處理]\n1. 假說敘述須是完整句子並以句號結尾（例如「H1：功利型瀏覽對認知型衝動購買有正向影響。」），不得出現箭頭或「（正向）」等標記；發現不符時直接改正。" +
+  "\n2. 對照本節全文，若要改寫的內容與本節其他段落重複（例如本研究採用的量表說明寫了兩次、同一定義出現兩次），改寫時只保留一處，並在改寫說明中指出刪掉的是哪一處、另一處在哪一段。" +
+  "\n3. 解釋兩個變數之間關係的理論與實證，應放在該關係的推導段落；介紹構念本身的段落（定義、面向、衡量）不談路徑機制。發現放錯位置時，在改寫說明中指出應移到哪一段。" +
+  "\n4. 小標題一律寫成「(一)標題」的形式，獨立一行。";
 // 第二章分到假說的節：修訂時附上現行假說清單，避免 NotebookLM 沿用對話中較早的編號
 function drHypNote() {
   const h = drCh2() ? ch2SecHyps(drSid()) : []; if (!h.length) return "";
@@ -1440,7 +1446,7 @@ function drHypNote() {
 }
 function dwParts(p) {
   const sid = drSid(), t = sid ? finText(sid) : ""; if (blank(t)) return [];
-  const s = ALL_SECS.find(x => x.id === sid) || {}, ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drFmtNote(true) + drHypNote();
+  const s = ALL_SECS.find(x => x.id === sid) || {}, ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drFmtNote(true) + drCh2Check() + drHypNote();
   const mat = `以下是論文「${s.no || ""} ${s.title || ""}」一節目前的全文：\n---\n${t}\n---`, task = T.dr_whole({ sec: `${s.no || ""} ${s.title || ""}`.trim(), intro: sid === "s1-1" }) + drLenReq(p) + ref;
   return (mat + "\n\n" + task).length <= 2800 ? [mat + "\n\n" + task] : splitForNLM(mat, task, "整節統整");
 }
@@ -1448,7 +1454,7 @@ function dwParts(p) {
 function drParts(p) {
   if (p.dr_stage === "whole") return dwParts(p);
   if (blank(p.dr_text)) return [];
-  const ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drFmtNote(false) + drHypNote();
+  const ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drFmtNote(false) + drCh2Check() + drHypNote();
   if (p.dr_stage === "merge") return [T.dr_merge({ arch: bgSeed().bg_topic, text: p.dr_text }) + ref];
   const sid = drSid(), full = sid ? finText(sid) : "", s = ALL_SECS.find(x => x.id === sid) || {};
   const same = zhCount(full.replace(/^#{1,6}\s.*$/gm, "")) <= zhCount(p.dr_text) + 5;   // 全選時，待改寫段落就是整節，不另附上下文
