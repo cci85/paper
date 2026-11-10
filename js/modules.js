@@ -551,7 +551,9 @@ const DEFS = {
       { id: "dr_lenN", type: "text", label: "目標字數", placeholder: "例如 600", when: p => (p.dr_stage === "final" || p.dr_stage === "whole") && p.dr_len === "n" },
       { id: "dr_stat", type: "checks", label: "統計數據", options: [["on", "每個論點最多保留 1–2 個關鍵數字，其餘改成文字概述"]], value: ["on"], when: p => (p.dr_stage === "final" || p.dr_stage === "whole") && !drCh2() },
       { id: "dr_rules", type: "promptbox", get label() { return drCh1() ? "第一章共用規則（引用格式、文字風格、第一章寫作規範）" : drCh2() ? "第二章共用規則（含第二章寫作規範）" : "共用規則"; }, hint: "每個 NotebookLM 對話只要先送一次（NotebookLM 會回覆「已收到」），之後每一段都送下方的 Prompt 即可；避免每段都超過字數上限",
-        get copyLabel() { return `先送這則：複製${drCh1() ? "第一章" : drCh2() ? "第二章" : ""}共用規則（每個對話一次）`; }, build: () => DR_R ? T.rules_once(DR_R) : "" },
+        get copyLabel() { const n = drRuleParts(valuesOf(DEFS.dr)).length; return `先送這則：複製${drCh1() ? "第一章" : drCh2() ? "第二章" : ""}共用規則${n > 1 ? `第 1／${n} 則` : ""}（每個對話一次）`; }, build: p => drRuleParts(p)[0] || "" },
+      ...[2, 3].map(k => ({ id: "dr_rules" + k, type: "promptbox", label: `共用規則第 ${k} 則`, when: p => drRuleParts(p).length >= k,
+        hint: "共用規則較長，分成數則；上一則送出、NotebookLM 回覆「已收到」後，在同一個對話接著送出", copyLabel: `接著送：複製共用規則第 ${k} 則`, build: p => drRuleParts(p)[k - 1] || "" })),
       { id: "dr_text", type: "textarea", label: "論文段落", when: p => p.dr_stage !== "whole", get hint() { return inThesisSec() ? "按上方「用反白的文字」帶入；也可以自己貼上" : "按上方「用這一段」自動帶入；融合時按「加入融合」可選多段；也可以自己貼上"; }, rows: 8 },
       { id: "dr_ask", type: "textarea", label: "我的追問與修改意見（選填）", hint: "例如：兩個理論都必要嗎？為什麼 Yassin & Soares（2023）不算支持證據？NotebookLM 會先逐題回答，再依回答修改；反白新的文字時會自動清空", rows: 3, placeholder: "一行一個問題或意見" },
       ...[2, 3, 4, 5, 6, 7, 8].map(k => ({ id: "dw_b" + k, type: "promptbox", afterOut: true, when: p => drParts(p).length >= k,
@@ -1462,6 +1464,17 @@ const drCh2Check = (whole, full = true) => !drCh2() ? "" : "\n\n[第二章修訂
     "\n3. 要改寫的內容中，若解釋變數關係的理論或實證放在介紹構念的段落，而該關係的推導段落也在要改寫的範圍內，就直接移過去。")) +
   "\n4. 小標題一律寫成「(一)標題」的形式，獨立一行。" +
   "\n改寫說明中簡要列出做了哪些改正即可。";
+// 共用規則：超過 NotebookLM 單次上限時，依規則區塊分成數則
+function drRuleParts(p) {
+  const R = RULES.filter(r => activeRules(DEFS.dr, p).includes(r.key)).map(r => typeof r.text === "function" ? r.text(p) : r.text).join("");
+  if (!R) return [];
+  const one = T.rules_once(R); if (one.length <= 2800) return [one];
+  const blocks = R.split(/\n\n(?=\[)/).map(b => b.trim()).filter(Boolean), parts = []; let cur = "";
+  blocks.forEach(b => { if (cur && (cur + "\n\n" + b).length > 2500) { parts.push(cur); cur = b; } else cur = cur ? cur + "\n\n" + b : b; });
+  if (cur) parts.push(cur);
+  const n = parts.length;
+  return parts.map((c, i) => `以下是本對話後續所有段落改寫都要遵守的共用規則（第 ${i + 1}／${n} 則）。請先記住，只回覆「已收到共用規則第 ${i + 1} 則」${i + 1 < n ? "，我會接著送下一則" : "，等我送出段落後再處理"}。\n\n` + c);
+}
 // 研究者的追問：先逐題回答，再依回答修訂
 const drAskNote = (p, out) => blank(p.dr_ask) ? "" : `\n\n[研究者的追問與修改意見]\n${p.dr_ask.trim()}\n請依下列順序輸出（與前述步驟的順序衝突時，以此為準）：\n1.「## 追問回覆」：逐題回答，只依據上傳文獻並附引用，文獻無法回答的明確說明，不得臆測；認同我的意見時說明理由，不認同時也要說明文獻依據。\n2.「${out}」：緊接在追問回覆之後輸出修訂結果；每一項你認同或部分認同的意見，都必須實際反映在文字中，不得只回答而不修改。\n3.「## 追問對應的修改」：逐題一句話說明改了哪裡；不認同而未修改的，說明原因。\n4. 前述其他步驟（引用核實、術語查證、診斷等）放在最後，盡量精簡。\n追問與前述規則衝突時，以追問為準。`;
 const DR_FOLLOW = "請依你在「追問回覆」中的結論修訂這個段落：每一項你認同或部分認同的意見，都要實際反映在文字中。修訂後的完整段落請放在「## 改寫後段落」標題之下，其後在「## 追問對應的修改」逐題說明改了哪裡。不需要重做引用核實與術語查證。";
