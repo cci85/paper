@@ -121,7 +121,7 @@ function thesisText(pngs) {   // 論文.md：只有題目與各章節定稿，�
   const out = [`# ${zh || store.name || "論文"}`, "", ...(en ? [en, ""] : [])];
   OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).forEach(c => {
     out.push(`## ${c.ch}`, "");
-    c.secs.forEach(s => {
+    secsOf(c).forEach(s => {
       out.push(`### ${s.no} ${s.title}`, "");
       if (s.id === "s3-1") { const g = pngs.find(x => x.f.id === "f31_diag"); if (g && g.d.edges.length) out.push(`![圖 3-1 研究架構圖](<${g.file}>)`, "", "圖 3-1　研究架構圖", ""); }
       const t = normCite(tbApply(s.id, "fin", finText(s.id))); if (t) out.push(t, "");

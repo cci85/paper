@@ -19,7 +19,7 @@ try {
   store.migrated = true;
 } catch {}
 // 2026-11 第零章重整：步驟移到新的節，AI 回覆跟著搬（舊存檔讀入時也會套用）
-const REPLY_MOVE = { "s0-1|gapsel": "s0-4|gapsel", "s0-4|lr": "s2-2|lr", "s0-4|astat": "s0-6|astat", "s0-4|asq": "s0-6|asq", "q-final|dr": "q-draft|dr" };
+const REPLY_MOVE = { "s0-1|gapsel": "s0-4|gapsel", "s0-4|lr": "s2-2|lr", "s0-4|astat": "s0-6|astat", "s0-4|asq": "s0-6|asq", "q-final|dr": "q-draft|dr", "s2-3|m8": "q-newlit|m8" };
 function migrateReplies(r) {
   if (!r) return r;
   Object.entries(REPLY_MOVE).forEach(([a, b]) => {
@@ -59,6 +59,7 @@ if ((store.layout || 0) < 7) {   // 常用「核實改寫：補強」「核實�
   delete store.step["q-final"]; store.layout = 7;
 }
 if ((store.layout || 0) < 8) { if ((store.step || {})["s1-2"]) store.step["s1-2"] = 0; store.layout = 8; }   // 1.2 只保留撰寫步驟
+rebuildCh2();   // 第二章各節依「第二章架構」產生
 if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} if (window.onStoreSave) window.onStoreSave(); };
 
@@ -143,9 +144,9 @@ function renderPane() {
   const top = shown.filter(f => f.top).map(fieldHtml).join("");   // top：放在步驟說明之前，最醒目的位置
   const afterOut = shown.filter(f => f.afterOut).map(fieldHtml).join("");
   const below = shown.filter(f => f.below).map(fieldHtml).join("");
-  const gd = (GUIDE_CH1.secs || {})[store.sec];   // 第一章各節：可展開的本節寫作規範
-  $("pane").innerHTML = `${gd ? `<details class="guide"><summary>本節寫作規範（第一章）　點開查看</summary><div class="guide-body">${gd}</div>
-      <p><button type="button" data-go="q-ch1g" data-gostep="0">查看第一章完整寫作規範 →</button></p></details>` : ""}${steps().length === 1 && !sec().no ? "" : `<h3>${sec().no ? `步驟 ${stepIdx() + 1}　` : ""}${esc(m.label)}</h3>`}
+  const ch2g = /^s2-/.test(store.sec), gd = (GUIDE_CH1.secs || {})[store.sec] || (ch2g ? GUIDE_CH2.html : "");   // 第一、二章各節：可展開的寫作規範
+  $("pane").innerHTML = `${gd ? `<details class="guide"><summary>${ch2g ? "第二章寫作規範" : "本節寫作規範（第一章）"}　點開查看</summary><div class="guide-body">${gd}</div>
+      ${ch2g ? "" : `<p><button type="button" data-go="q-ch1g" data-gostep="0">查看第一章完整寫作規範 →</button></p>`}</details>` : ""}${steps().length === 1 && !sec().no ? "" : `<h3>${sec().no ? `步驟 ${stepIdx() + 1}　` : ""}${esc(m.label)}</h3>`}
     <p class="target t-${m.target}">${esc(TARGETS[m.target])}</p>${top ? `<div class="topfield">${top}</div>` : ""}
     <p class="stepnote">${esc(ref(step().note))}</p>
     <p class="hint">${esc(ref(m.hint))}</p>${fields}
@@ -232,7 +233,7 @@ function renderReplyView() {
   const m = mod(), el = $("replyview"); if (!m.replyView || !el) return;
   el.innerHTML = m.replyView(deLatex((store.replies || {})[replyKey()] || ""));
 }
-function showAll() { renderToc(); renderSection(); renderPane(); foldOut(); update(); }
+function showAll() { rebuildCh2(); if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s2-0"; renderToc(); renderSection(); renderPane(); foldOut(); update(); }
 
 // 每一步最下方的「建議下一步」：可直接跳到目標節與步驟
 function goNext() {
@@ -336,6 +337,7 @@ $("pane").addEventListener("input", e => {
   }
   if (t.dataset.f) {
     store.values[vkey(t.dataset.f)] = t.value;
+    if (t.dataset.f === "ch2_plan") { rebuildCh2(); renderToc(); }   // 第二章分節即時更新目錄
     if (t.type === "radio") {
       if (mod().fields.some(f => f.when)) { renderPane(); }   // 有條件顯示的欄位時，重畫欄位
       else renderRules();   // 不同選項有各自的規則預設
