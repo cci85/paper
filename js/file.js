@@ -248,7 +248,7 @@ async function writeNow() {
     const w = await fh.createWritable();
     await w.write(fileText(notes, pngs)); await w.close();
     proj.lastMod = (await fh.getFile()).lastModified; proj.lastPayload = pay;
-    store.bind = { dir: proj.dirName, file: name, mod: proj.lastMod };
+    store.bind = { dir: proj.dirName, file: name, mod: proj.lastMod, h: payHash(pay) };
     try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {}
     pstat(`已儲存 ${new Date().toLocaleTimeString("zh-TW", { hour12: false })}`);
   } catch (e) {
@@ -263,8 +263,10 @@ window.onStoreSave = () => {
   if (payloadOf() === proj.lastPayload) return;
   pstat("修改中…");
   clearTimeout(proj.timer);
-  proj.timer = setTimeout(() => writeNow(), 2000);
+  proj.timer = setTimeout(() => writeNow(), 1000);
 };
+// 關閉或重新整理頁面前，盡量把尚未寫入的修改存進檔案（localStorage 已即時保存）
+window.addEventListener("pagehide", () => { if (proj.timer) writeNow(); });
 
 // ── 讀入 ──
 // 載入另一份研究前，畫面內容備份在瀏覽器裡（不寫入任何資料夾），可按「復原」取回
@@ -406,6 +408,8 @@ $("pbar").addEventListener("click", async e => {
 });
 
 // 啟動或允許權限後：資料夾、檔名、檔案內的研究名稱都對得上，才接回自動存檔
+// 上次寫入檔案的內容指紋：雲端硬碟同步可能改動檔案時間，內容沒變就不算「在其他電腦更新」
+const payHash = t => { let h = 5381; const s = String(t || ""); for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return s.length + ":" + (h >>> 0); };
 async function resumeBind(ask) {
   const h = await kvGet("dir"), file = await kvGet("file"), bd = store.bind;
   if (!h || !file || !bd || bd.dir !== h.name || bd.file !== file) { unbind(); return true; }
@@ -413,7 +417,7 @@ async function resumeBind(ask) {
   try {
     const f = await (await h.getFileHandle(file)).getFile(), d = parseFile(await f.text());
     if (!d || (d.name || "") !== (store.name || "")) { unbind(`上次的存檔「${file}」與畫面上的研究對不上，未接回自動存檔。請按「開啟研究」。`); return true; }
-    if (f.lastModified !== bd.mod) {   // 檔案在其他電腦更新過：以檔案為準
+    if (f.lastModified !== bd.mod && !(bd.h && payHash(payOf(d)) === bd.h)) {   // 檔案內容在其他電腦更新過：以檔案為準（只是檔案時間變動則不算）
       applyData(d, h, file, f.lastModified);
       pstat(`「${file}」已在其他電腦更新，已載入最新版本；這台電腦畫面上原本的內容可按「復原載入前的內容」取回。`, "warn");
       return true;
@@ -450,6 +454,10 @@ $("pupload").addEventListener("change", async e => {
 // 啟動
 (async () => {
   renderProj();
+  try {   // 24 小時內有「載入前的備份」：顯示復原按鈕，避免重新整理後找不到
+    const bk = JSON.parse(localStorage.getItem(BACKUP_KEY) || "null"), m = bk && /^(\d{4})(\d\d)(\d\d)-(\d\d)(\d\d)/.exec(bk.stamp || "");
+    if (m && Date.now() - new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]).getTime() < 864e5) { const b = $("pundo"); b.hidden = false; b.textContent = `復原載入前的內容（${m[2]}/${m[3]} ${m[4]}:${m[5]}）`; }
+  } catch {}
   if (!FS_OK) { pstat(whyNoFs(), "warn"); return; }
   if (!store.bind) { pstat(""); return; }
   if (!(await resumeBind(false))) {
