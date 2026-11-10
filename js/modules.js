@@ -423,7 +423,7 @@ const DEFS = {
     fields: [
       { id: "ch2_plan", type: "textarea", label: "各變數的節（一行一節）", hint: "自動依架構圖產生（依變數在前）；改了之後若想回到預設，清空欄位後按「重新帶入」", rows: 6, placeholder: "衝動購買：認知型衝動購買、情感型衝動購買\n線上瀏覽：功利型瀏覽、享樂型瀏覽\n特惠偏好度：特惠偏好度\n社會影響從眾：社會影響從眾" },
       { id: "hy_paths", type: "textarea", label: "研究假說（一行一條，含預期方向）", hint: "與 1.2、3.5、4.3 共用同一份內容；自動依架構圖產生，請補上預期方向。每條假說會歸到其影響方變數的一節推導", rows: 6, placeholder: "H1：享樂型瀏覽 → 情感型衝動購買（正向）\nH2：功利型瀏覽中介特惠偏好度與認知型衝動購買之關係\nH3：社會影響從眾 調節（享樂型瀏覽 → 情感型衝動購買）" },
-      { id: "hy_renum", type: "button", label: "依章節順序重新編號", hint: "讓 H1、H2…的順序與第二章各節的出現順序一致", run: () => hypRenumber() },
+      { id: "hy_renum", type: "button", label: "依章節順序重新編號", hint: "讓 H1、H2…的順序與第二章各節的出現順序一致，並把各章節論文內容中的假說編號一起改成現行編號；已經編號過也可以再按一次，用來同步論文內容", run: () => hypRenumber() },
       { id: "ch2_prev", type: "cands", label: "第二章目錄預覽", render: () => ch2PrevHtml() }
     ],
     seed: () => ({ ch2_plan: ch2Default(), hy_paths: archHyp() }), seedQuiet: ["hy_paths"], seedFrom: "架構圖", seedNote: "各變數的節與研究假說由 3.1／0.3 的架構圖自動產生",
@@ -1430,9 +1430,14 @@ function finFind(t, sel) {
   return t.slice(a, b);
 }
 const secLabel = sid => (s => s ? `${s.no} ${s.title}` : "")(ALL_SECS.find(x => x.id === sid));
+// 第二章分到假說的節：修訂時附上現行假說清單，避免 NotebookLM 沿用對話中較早的編號
+function drHypNote() {
+  const h = drCh2() ? ch2SecHyps(drSid()) : []; if (!h.length) return "";
+  return "\n\n[本節現行假說清單]\n" + h.join("\n") + "\n假說的編號與內容一律以此清單為準，本對話中先前出現的假說編號全部作廢；改寫後若出現假說敘述或假說編號，必須與此清單一致。清單中的箭頭只是標記，正文的假說敘述以完整句子寫成（例如「H1：功利型瀏覽對認知型衝動購買有正向影響。」）。";
+}
 function dwParts(p) {
   const sid = drSid(), t = sid ? finText(sid) : ""; if (blank(t)) return [];
-  const s = ALL_SECS.find(x => x.id === sid) || {}, ref = DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "";
+  const s = ALL_SECS.find(x => x.id === sid) || {}, ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drHypNote();
   const mat = `以下是論文「${s.no || ""} ${s.title || ""}」一節目前的全文：\n---\n${t}\n---`, task = T.dr_whole({ sec: `${s.no || ""} ${s.title || ""}`.trim(), intro: sid === "s1-1" }) + drLenReq(p) + ref;
   return (mat + "\n\n" + task).length <= 2800 ? [mat + "\n\n" + task] : splitForNLM(mat, task, "整節統整");
 }
@@ -1440,7 +1445,7 @@ function dwParts(p) {
 function drParts(p) {
   if (p.dr_stage === "whole") return dwParts(p);
   if (blank(p.dr_text)) return [];
-  const ref = DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "";
+  const ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drHypNote();
   if (p.dr_stage === "merge") return [T.dr_merge({ arch: bgSeed().bg_topic, text: p.dr_text }) + ref];
   const sid = drSid(), full = sid ? finText(sid) : "", s = ALL_SECS.find(x => x.id === sid) || {};
   const same = zhCount(full.replace(/^#{1,6}\s.*$/gm, "")) <= zhCount(p.dr_text) + 5;   // 全選時，待改寫段落就是整節，不另附上下文
@@ -1777,8 +1782,30 @@ function hypRenumber() {
   rows.sort((a, b) => (a.h < 0 ? 1e9 : a.h) - (b.h < 0 ? 1e9 : b.h) || a.i - b.i);
   const map = new Map(); let n = 0;
   store.values.hy_paths = rows.map(r => { if (!map.has(r.m[1])) map.set(r.m[1], ++n); return `H${map.get(r.m[1])}${r.m[2]}：${r.l.slice(r.m[0].length)}`; }).join("\n");
+  // 論文內容中的假說編號一併更新：先依假說敘述的變數對照現行清單（可修正先前重新編號後仍留在正文的舊編號），其餘依本次的新舊編號對照
+  const align = hypAlign(); map.forEach((w, o) => { if (!align.has(o)) align.set(o, w); });
+  const moved = [...align].filter(([o, w]) => +o !== w), done = [];
+  if (moved.length) THESIS_SECS().forEach(sc => {
+    const t = finText(sc.id); if (!t) return;
+    const u = t.replace(/(?<![A-Za-z])H(\d+)(?!\d)/g, (x, d) => align.has(d) ? "H" + align.get(d) : x);   // 單次替換，不會連鎖誤換
+    if (u !== t) { setFin(sc.id, u); done.push(sc.no || sc.title); }
+  });
   rebuildCh2(); if (typeof renderToc === "function") renderToc();
-  return "已依章節順序重新編號；1.2、3.5、4.3 也會使用新的編號。";
+  return "已依章節順序重新編號；1.2、3.5、4.3 也會使用新的編號。" + (done.length ? `論文內容中的假說編號已一併更新：${done.join("、")}。` : moved.length ? "論文內容中沒有需要更新的假說編號。" : "編號原本就已依章節順序排列。");
+}
+// 正文中的假說敘述（Hn：……）依其中的變數與順序，對照現行假說清單，得到 舊編號 → 現行編號
+function hypAlign() {
+  const names = [...new Set(ch2Plan().flatMap(x => x.vars.split(/[、，,／/]/).map(v => v.trim()).filter(Boolean)))];
+  const key = t => names.map(n => [t.indexOf(n), n]).filter(([k]) => k >= 0).sort((a, b) => a[0] - b[0]).map(([, n]) => n).join("|");
+  const cur = new Map(); hypLines().forEach(l => { const m = l.match(/^H(\d+)[a-z]?\s*[：:]\s*(.*)$/); if (m) { const k = key(m[2]); if (k) cur.set(k, cur.has(k) ? null : +m[1]); } });
+  const out = new Map(), bad = new Set(), ch = OUTLINE.find(c => /^第二章/.test(c.ch));
+  (ch ? ch.secs : []).filter(x => !x.setup).forEach(sc => finText(sc.id).split("\n").forEach(l => {
+    const m = l.match(/(?:^|[\s，。；：「（])H(\d+)[a-z]?\s*[：:]\s*(.+)$/); if (!m) return;
+    const w = cur.get(key(m[2])); if (!w) return;
+    if (out.has(m[1]) && out.get(m[1]) !== w) bad.add(m[1]); else out.set(m[1], w);
+  }));
+  bad.forEach(o => out.delete(o));
+  return out;
 }
 function ch2PrevHtml() {
   const { un } = ch2HypMap(), secs = secsOf(OUTLINE.find(c => /^第二章/.test(c.ch)));
