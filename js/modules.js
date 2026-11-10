@@ -545,6 +545,7 @@ const DEFS = {
       { id: "dw_info", type: "cands", label: "", when: p => p.dr_stage === "whole", render: () => { const sid = drSid(), t = sid ? finText(sid) : "";
         if (!sid) return `<p class="note warn">請先在上方選擇要修訂的章節。</p>`;
         return t ? `<p class="note">整節統整會自動帶入「${esc(secLabel(sid))}」定稿的全文（約 ${zhCount(t)} 字），請 NotebookLM 先診斷各段重點與重複之處，再輸出修訂後的全文；只能沿用原文已有的引用。</p>` : `<p class="note warn">本節還沒有定稿內容。</p>`; } },
+      { id: "dr_full", type: "checks", label: "上下文", options: [["on", "附上本節全文（要檢查與本節其他段落是否重複時勾選；全文較長時 Prompt 會分成多則）"]], value: [], when: p => inThesisSec() && (p.dr_stage === "draft" || p.dr_stage === "final") },
       { id: "dr_len", type: "radio", label: "精簡目標", options: [["auto", "比原文少即可"], ["70", "約原文 70%"], ["50", "約原文 50%"], ["n", "指定字數"]], value: "auto", when: p => p.dr_stage === "final" || p.dr_stage === "whole" },
       { id: "dr_lenN", type: "text", label: "目標字數", placeholder: "例如 600", when: p => (p.dr_stage === "final" || p.dr_stage === "whole") && p.dr_len === "n" },
       { id: "dr_stat", type: "checks", label: "統計數據", options: [["on", "每個論點最多保留 1–2 個關鍵數字，其餘改成文字概述"]], value: ["on"], when: p => (p.dr_stage === "final" || p.dr_stage === "whole") && !drCh2() },
@@ -1435,11 +1436,13 @@ const secLabel = sid => (s => s ? `${s.no} ${s.title}` : "")(ALL_SECS.find(x => 
 const drFmtNote = whole => "\n\n[以目前原文為準]\n本對話中較早出現的內容（例如撰寫本節時的 Prompt、你先前的回覆）若與我這次提供的原文不同，一律以這次的原文為準；我已自行修改過的結構、用字與編號都要保留。" +
   "小標題照原文的文字與編號格式輸出（例如原文寫「(一)兩種瀏覽動機」就照寫，不得改成「###」或其他格式）；" + (whole ? "若調整段落順序，小標題的編號須隨之重排。" : "段落順序與分段照原文，不得改回較早版本的結構。") + "原文中的假說敘述（例如「H1：……」）維持獨立一行，編號照原文或下方的現行假說清單。";
 // 第二章修訂時一併檢查：假說敘述寫法、與本節其他段落重複、理論放錯位置
-const drCh2Check = whole => !drCh2() ? "" : "\n\n[第二章修訂：以下問題一律直接改正在輸出的文字中，不要只提出建議]\n1. 假說敘述改成完整句子並以句號結尾（例如「H1：功利型瀏覽對認知型衝動購買有正向影響。」），刪除箭頭與「（正向）」等標記。" +
+const drCh2Check = (whole, full = true) => !drCh2() ? "" : "\n\n[第二章修訂：以下問題一律直接改正在輸出的文字中，不要只提出建議]\n1. 假說敘述改成完整句子並以句號結尾（例如「H1：功利型瀏覽對認知型衝動購買有正向影響。」），刪除箭頭與「（正向）」等標記。" +
   (whole ? "\n2. 重複的內容（例如本研究採用的量表說明寫了兩次、同一定義出現兩次）只保留一處，保留引用較完整、位置較合適的版本，其餘刪除。" +
     "\n3. 解釋兩個變數之間關係的理論與實證，移到該關係的推導段落；介紹構念本身的段落（定義、面向、衡量）只談構念，不談路徑機制。移動時一併調整前後的承接句。"
-  : "\n2. 對照上方本節全文：要改寫的內容若與本節其他段落重複（例如本研究採用的量表說明在別段已經寫過），就從改寫結果中刪除重複的部分；要改寫的內容本身前後重複時，合併為一處。" +
-    "\n3. 要改寫的內容中，若解釋變數關係的理論或實證放在介紹構念的段落，而該關係的推導段落也在要改寫的範圍內，就直接移過去；若推導段落不在範圍內，且該處已寫過相同內容，就直接刪除。") +
+  : (full ? "\n2. 對照上方本節全文：要改寫的內容若與本節其他段落重複（例如本研究採用的量表說明在別段已經寫過），就從改寫結果中刪除重複的部分；要改寫的內容本身前後重複時，合併為一處。" +
+    "\n3. 要改寫的內容中，若解釋變數關係的理論或實證放在介紹構念的段落，而該關係的推導段落也在要改寫的範圍內，就直接移過去；若推導段落不在範圍內，且該處已寫過相同內容，就直接刪除。"
+    : "\n2. 要改寫的內容本身前後重複時（例如同一份量表的說明寫了兩次），合併為一處。" +
+    "\n3. 要改寫的內容中，若解釋變數關係的理論或實證放在介紹構念的段落，而該關係的推導段落也在要改寫的範圍內，就直接移過去。")) +
   "\n4. 小標題一律寫成「(一)標題」的形式，獨立一行。" +
   "\n改寫說明中簡要列出做了哪些改正即可。";
 // 第二章分到假說的節：修訂時附上現行假說清單，避免 NotebookLM 沿用對話中較早的編號
@@ -1457,18 +1460,31 @@ function dwParts(p) {
 function drParts(p) {
   if (p.dr_stage === "whole") return dwParts(p);
   if (blank(p.dr_text)) return [];
-  const ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drFmtNote(false) + drCh2Check(false) + drHypNote();
-  if (p.dr_stage === "merge") return [T.dr_merge({ arch: bgSeed().bg_topic, text: p.dr_text }) + ref];
-  const sid = drSid(), full = sid ? finText(sid) : "", s = ALL_SECS.find(x => x.id === sid) || {};
+  const sid = drSid(), full = sid ? finText(sid) : "", s = ALL_SECS.find(x => x.id === sid) || {}, sn = `${s.no || ""} ${s.title || ""}`.trim();
   const same = zhCount(full.replace(/^#{1,6}\s.*$/gm, "")) <= zhCount(p.dr_text) + 5;   // 全選時，待改寫段落就是整節，不另附上下文
-  const ctx = full && !same ? "\n\n[上下文要求]\n上方已提供本節全文作為上下文，待改寫的段落是其中的一部分。請先在「## 段落角色」標題下，以一兩句說明待改寫段落在整節中的角色，以及與前一段、後一段的承接關係；再依此改寫：保留與前後段的銜接；不重複本節其他段落已寫過的論點、定義與數據；不刪除後文會用到的論點或術語。「## 改寫後段落」之下只放待改寫段落的改寫結果，不要改寫或輸出其他段落。" : "";
+  const useFull = isOn(p.dr_full) && full && !same, at = full.indexOf(p.dr_text), local = !useFull && !same && at >= 0;
+  const ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drFmtNote(false) + drCh2Check(false, useFull) + drHypNote();
+  if (p.dr_stage === "merge") return [T.dr_merge({ arch: bgSeed().bg_topic, text: p.dr_text }) + ref];
+  const ctx = useFull ? "\n\n[上下文要求]\n上方已提供本節全文作為上下文，待改寫的段落是其中的一部分。請先在「## 段落角色」標題下，以一兩句說明待改寫段落在整節中的角色，以及與前一段、後一段的承接關係；再依此改寫：保留與前後段的銜接；不重複本節其他段落已寫過的論點、定義與數據；不刪除後文會用到的論點或術語。「## 改寫後段落」之下只放待改寫段落的改寫結果，不要改寫或輸出其他段落。"
+    : local ? "\n\n[上下文要求]\n上方已提供待改寫段落的前一段與後一段（節錄）及本節小標題，只供參考：改寫時保留與前後段的銜接，「## 改寫後段落」之下只放待改寫段落的改寫結果，不要改寫或輸出前後段。" : "";
   const task = p.dr_stage === "final" ? T.dr_final({ draft: p.dr_text }) + drLenReq(p) + ctx + ref + "\n\n" + T.dr_final_tail({}) : T.dr_draft({ draft: p.dr_text }) + ctx + ref;
+  if (local) {   // 只附前後文：前一段、後一段（節錄）與本節小標題
+    const blk = t => finBlocks(t).filter(b => !(/^#{1,6}\s/.test(b) || FIN_SUBHEAD.test(b)) || b.includes("\n"));
+    const prev = blk(full.slice(0, at)).pop() || "", next = blk(full.slice(at + p.dr_text.length))[0] || "";
+    const heads = finBlocks(full).filter(b => !b.includes("\n") && (/^#{1,6}\s/.test(b) || FIN_SUBHEAD.test(b))).map(b => b.replace(/^#+\s*/, ""));
+    const room = Math.min(300, Math.floor((2800 - task.length - heads.join("、").length - 160) / 2));   // 依剩餘字數調整節錄長度，盡量維持單則
+    const cut = (t, tail) => t.length <= room ? t : tail ? "……" + t.slice(-room) : t.slice(0, room) + "……";
+    if (room < 60) return task.length <= 2800 ? [task] : splitForNLM(`以下是待改寫的論文段落（「${sn}」一節）：\n---\n${p.dr_text}\n---`, (p.dr_stage === "final" ? T.dr_final({ draft: "（待改寫的內容即為前面分則送出的段落）" }) + drLenReq(p) + ref + "\n\n" + T.dr_final_tail({}) : T.dr_draft({ draft: "（待改寫的內容即為前面分則送出的段落）" }) + ref), "修訂論文");
+    const mat = `以下是待改寫段落在論文「${sn}」一節中的位置（只供參考，不要改寫）：` + (heads.length ? `\n本節小標題：${heads.join("、")}` : "") +
+      `\n前一段（節錄）：${prev ? cut(prev, true) : "（無，待改寫段落位於本節開頭）"}\n後一段（節錄）：${next ? cut(next, false) : "（無，待改寫段落位於本節結尾）"}`;
+    return (mat + "\n\n" + task).length <= 2800 ? [mat + "\n\n" + task] : (task.length <= 2800 ? [task] : splitForNLM(`以下是待改寫的論文段落（「${sn}」一節）：\n---\n${p.dr_text}\n---`, (p.dr_stage === "final" ? T.dr_final({ draft: "（待改寫的內容即為前面分則送出的段落）" }) + drLenReq(p) + ref + "\n\n" + T.dr_final_tail({}) : T.dr_draft({ draft: "（待改寫的內容即為前面分則送出的段落）" }) + ref), "修訂論文"));
+  }
   if (!ctx) {   // 全選或沒有上下文：太長時，先分則送出待改寫的全文，最後一則只放改寫任務
     if (task.length <= 2800) return [task];
     const ph = "（待改寫的內容即為前面分則送出的本節全文）", t2 = p.dr_stage === "final" ? T.dr_final({ draft: ph }) + drLenReq(p) + ref + "\n\n" + T.dr_final_tail({}) : T.dr_draft({ draft: ph }) + ref;
-    return splitForNLM(`以下是待改寫的論文段落（「${s.no || ""} ${s.title || ""}」一節）：\n---\n${p.dr_text}\n---`, t2, "修訂論文");
+    return splitForNLM(`以下是待改寫的論文段落（「${sn}」一節）：\n---\n${p.dr_text}\n---`, t2, "修訂論文");
   }
-  const mat = `以下是論文「${s.no || ""} ${s.title || ""}」一節目前的全文（作為上下文，只供參考）：\n---\n${full}\n---`;
+  const mat = `以下是論文「${sn}」一節目前的全文（作為上下文，只供參考）：\n---\n${full}\n---`;
   return (mat + "\n\n" + task).length <= 2800 ? [mat + "\n\n" + task] : splitForNLM(mat, task, "修訂論文");
 }
 function drReplace(mode) {
