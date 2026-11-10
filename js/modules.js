@@ -533,7 +533,7 @@ const DEFS = {
   dr: {
     label: "修訂論文", target: "nlm",
     // 換到另一節時，清掉上一節帶入的「論文段落」與融合選取，避免把別節的內容送去改寫
-    init: () => { const v = store.values, sid = drSid() || store.sec; if (v.dr_text_sid !== sid) { v.dr_text = ""; v.dr_sel = []; v.dr_text_sid = sid; } },
+    init: () => { const v = store.values, sid = drSid() || store.sec; if (v.dr_text_sid !== sid) { v.dr_text = ""; v.dr_ask = ""; v.dr_sel = []; v.dr_text_sid = sid; } },
     hint: "補強：段落還缺東西時使用，字數不減。精簡：內容齊全但太冗長，字數必須減少，可設定目標長度。整節統整：整節去除重複、調整段落順序與邏輯。融合：把幾段合併成一段。都會先核實引用。",
     fields: [
       { id: "dr_stage", type: "radio", top: true, label: "改寫方向", options: [["draft", "補強（字數不減）"], ["final", "精簡（術語查證＋字數必減）"], ["whole", "整節統整（整節去重複、調整段落順序與邏輯）"], ["merge", "融合（多段合併，討論先後邏輯）"]], value: "draft" },
@@ -552,6 +552,7 @@ const DEFS = {
       { id: "dr_rules", type: "promptbox", get label() { return drCh1() ? "第一章共用規則（引用格式、文字風格、第一章寫作規範）" : drCh2() ? "第二章共用規則（含第二章寫作規範）" : "共用規則"; }, hint: "每個 NotebookLM 對話只要先送一次（NotebookLM 會回覆「已收到」），之後每一段都送下方的 Prompt 即可；避免每段都超過字數上限",
         get copyLabel() { return `先送這則：複製${drCh1() ? "第一章" : drCh2() ? "第二章" : ""}共用規則（每個對話一次）`; }, build: () => DR_R ? T.rules_once(DR_R) : "" },
       { id: "dr_text", type: "textarea", label: "論文段落", when: p => p.dr_stage !== "whole", get hint() { return inThesisSec() ? "按上方「用反白的文字」帶入；也可以自己貼上" : "按上方「用這一段」自動帶入；融合時按「加入融合」可選多段；也可以自己貼上"; }, rows: 8 },
+      { id: "dr_ask", type: "textarea", label: "我的追問與修改意見（選填）", hint: "例如：兩個理論都必要嗎？為什麼 Yassin & Soares（2023）不算支持證據？NotebookLM 會先逐題回答，再依回答修改；反白新的文字時會自動清空", rows: 3, placeholder: "一行一個問題或意見" },
       ...[2, 3, 4, 5, 6, 7, 8].map(k => ({ id: "dw_b" + k, type: "promptbox", afterOut: true, when: p => drParts(p).length >= k,
         get label() { const n = drParts(valuesOf(DEFS.dr)).length; return k === n ? `第 ${k} 則 Prompt（最後一則：開始改寫）` : `第 ${k} 則 Prompt`; },
         hint: "上一則送出、NotebookLM 回覆「已收到」後，在同一個對話接著送出；最後一則送出後才會開始改寫",
@@ -1400,7 +1401,9 @@ function drLatest(text) {
   return L.slice(start + 1, end).join("\n").replace(/\s?\[\d+(?:\s*[,，–-]\s*\d+)*\]/g, "").replace(/^\s*-{3,}\s*$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 function drResultView(t) {
-  const r = drLatest(t); if (!r) return blank(t) ? "" : `<p class="hint">（回覆中沒有找到「## 改寫後段落」或「## 融合後的段落」；新版 Prompt 會固定用這兩個標題）</p>`;
+  const ans = (mdSection(deLatex(String(t || "")), ["追問回覆"]) || "").split("\n").slice(1).join("\n").trim();
+  const ansBox = ans ? `<details class="drres" open><summary><b>追問回覆</b></summary><div class="fin-view">${finHtml(ans)}</div></details>` : "";
+  const r = drLatest(t); if (!r) return ansBox + (blank(t) ? "" : `<p class="hint">（回覆中沒有找到「## 改寫後段落」或「## 融合後的段落」；新版 Prompt 會固定用這兩個標題）</p>`);
   const ps = drParas(), merge = store.values.dr_stage === "merge", whole = store.values.dr_stage === "whole", sel = (store.values.dr_sel || []).filter(k => ps.some(x => x.key === k));
   const cur = ps.findIndex(x => x.text.trim() === (store.values.dr_text || "").trim());
   const have = new Set(finBlocks(finText(drSid()))), used = finBlocks(r).every(b => have.has(b)) || finText(drSid()).includes(r.trim());   // 結果已在定稿中：不再顯示加入按鈕，避免重複加入
@@ -1409,8 +1412,8 @@ function drResultView(t) {
     : cur >= 0 ? `<button type="button" class="copy" data-drrep="one">以此取代第 ${cur + 1} 段</button>`
     : drHl() ? `<button type="button" class="copy" data-drrep="sel">以此取代反白的部分</button>` : "";
   const kind = whole ? "整節統整" : merge ? "融合" : "改寫";
-  if (used) return `<div class="drres"><details><summary>✓ 最新的${kind}結果已套用到「本節論文內容」（點開檢視）</summary><div class="fin-view">${finHtml(r)}</div></details></div>`;   // 已套用：收合，避免與定稿重複顯示
-  return `<div class="drres"><h3>${kind}結果（尚未套用）</h3><p class="hint">這是 AI 回覆的預覽，還不是論文內容；按下方「以此取代」後才會寫入「本節論文內容」。</p><div class="fin-view">${finHtml(r)}</div>
+  if (used) return ansBox + `<div class="drres"><details><summary>✓ 最新的${kind}結果已套用到「本節論文內容」（點開檢視）</summary><div class="fin-view">${finHtml(r)}</div></details></div>`;   // 已套用：收合，避免與定稿重複顯示
+  return ansBox + `<div class="drres"><h3>${kind}結果（尚未套用）</h3><p class="hint">這是 AI 回覆的預覽，還不是論文內容；按下方「以此取代」後才會寫入「本節論文內容」。</p><div class="fin-view">${finHtml(r)}</div>
     ${`${btn ? "" : `<p class="note warn">沒有出現「以此取代」按鈕：原本選的段落已不在本節定稿中（可能已修改或刪除）。${inThesisSec() ? "請在「本節論文內容」重新反白要被取代的文字，按上方「用反白的文字」" : `請在上方「本節的段落」重新按「用這一段」${merge ? "或勾選「加入融合」" : ""}，選好要被取代的段落`}後，就會出現取代按鈕。</p>`}<p class="fin-btns">${btn}${whole || allPicked ? "" : `<button type="button" data-drrep="all">以此取代本節全部內容</button>`}<button type="button" data-drrep="append">不取代，另外加在本節最後</button>
     <span class="hint">一般請按「以此取代」；取代後會更新「本節論文內容」與論文.md</span></p>`}</div>`;
 }
@@ -1445,6 +1448,8 @@ const drCh2Check = (whole, full = true) => !drCh2() ? "" : "\n\n[第二章修訂
     "\n3. 要改寫的內容中，若解釋變數關係的理論或實證放在介紹構念的段落，而該關係的推導段落也在要改寫的範圍內，就直接移過去。")) +
   "\n4. 小標題一律寫成「(一)標題」的形式，獨立一行。" +
   "\n改寫說明中簡要列出做了哪些改正即可。";
+// 研究者的追問：先逐題回答，再依回答修訂
+const drAskNote = (p, out) => blank(p.dr_ask) ? "" : `\n\n[研究者的追問與修改意見]\n${p.dr_ask.trim()}\n請先在「## 追問回覆」標題下逐題回答：只依據上傳文獻並附引用，文獻無法回答的明確說明，不得臆測；認同我的意見時說明理由，不認同時也要說明文獻依據。接著依回答修訂，結果照常放在「${out}」標題之下。追問與前述規則衝突時，以追問為準。`;
 // 第二章分到假說的節：修訂時附上現行假說清單，避免 NotebookLM 沿用對話中較早的編號
 function drHypNote() {
   const h = drCh2() ? ch2SecHyps(drSid()) : []; if (!h.length) return "";
@@ -1453,7 +1458,7 @@ function drHypNote() {
 function dwParts(p) {
   const sid = drSid(), t = sid ? finText(sid) : ""; if (blank(t)) return [];
   const s = ALL_SECS.find(x => x.id === sid) || {}, ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drFmtNote(true) + drCh2Check(true) + drHypNote();
-  const mat = `以下是論文「${s.no || ""} ${s.title || ""}」一節目前的全文：\n---\n${t}\n---`, task = T.dr_whole({ sec: `${s.no || ""} ${s.title || ""}`.trim(), intro: sid === "s1-1" }) + drLenReq(p) + ref;
+  const mat = `以下是論文「${s.no || ""} ${s.title || ""}」一節目前的全文：\n---\n${t}\n---`, task = T.dr_whole({ sec: `${s.no || ""} ${s.title || ""}`.trim(), intro: sid === "s1-1" }) + drLenReq(p) + drAskNote(p, "## 統整後全文") + ref;
   return (mat + "\n\n" + task).length <= 2800 ? [mat + "\n\n" + task] : splitForNLM(mat, task, "整節統整");
 }
 // 修訂論文的 Prompt：補強、精簡附上本節全文作為上下文（太長自動分則）；整節統整見 dwParts；融合為單則
@@ -1463,7 +1468,7 @@ function drParts(p) {
   const sid = drSid(), full = sid ? finText(sid) : "", s = ALL_SECS.find(x => x.id === sid) || {}, sn = `${s.no || ""} ${s.title || ""}`.trim();
   const same = zhCount(full.replace(/^#{1,6}\s.*$/gm, "")) <= zhCount(p.dr_text) + 5;   // 全選時，待改寫段落就是整節，不另附上下文
   const useFull = isOn(p.dr_full) && full && !same, at = full.indexOf(p.dr_text), local = !useFull && !same && at >= 0;
-  const ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drFmtNote(false) + drCh2Check(false, useFull) + drHypNote();
+  const ref = (DR_R ? "\n\n請同時遵守本對話先前送出的「共用規則」。" : "") + drFmtNote(false) + drCh2Check(false, useFull) + drHypNote() + drAskNote(p, p.dr_stage === "merge" ? "## 融合後的段落" : "## 改寫後段落");
   if (p.dr_stage === "merge") return [T.dr_merge({ arch: bgSeed().bg_topic, text: p.dr_text }) + ref];
   const ctx = useFull ? "\n\n[上下文要求]\n上方已提供本節全文作為上下文，待改寫的段落是其中的一部分。請先在「## 段落角色」標題下，以一兩句說明待改寫段落在整節中的角色，以及與前一段、後一段的承接關係；再依此改寫：保留與前後段的銜接；不重複本節其他段落已寫過的論點、定義與數據；不刪除後文會用到的論點或術語。「## 改寫後段落」之下只放待改寫段落的改寫結果，不要改寫或輸出其他段落。"
     : local ? "\n\n[上下文要求]\n上方已提供待改寫段落的前一段與後一段（節錄）及本節小標題，只供參考：改寫時保留與前後段的銜接，「## 改寫後段落」之下只放待改寫段落的改寫結果，不要改寫或輸出前後段。" : "";

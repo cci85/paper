@@ -534,7 +534,7 @@ function drUseSel(sel) {   // 反白的文字帶入本節「修訂論文」步�
   const x = finFind(finText(store.sec), sel);
   if (!x) { alert("在本節定稿中找不到反白的文字（可能選到了定稿以外的內容），請只在「本節論文內容」裡反白。"); return; }
   const k = drStepIdx(); if (k < 0) return;
-  store.step[store.sec] = k; Object.assign(store.values, { dr_text: x, dr_sel: [], dr_text_sid: store.sec }); FIN_SEL = ""; hlBtn.style.display = "none";
+  store.step[store.sec] = k; Object.assign(store.values, { dr_text: x, dr_ask: "", dr_sel: [], dr_text_sid: store.sec }); FIN_SEL = ""; hlBtn.style.display = "none";
   if (getSelection()) getSelection().removeAllRanges();
   save(); renderSection(); renderPane(); foldOut(); update();
   const ta = document.querySelector('textarea[data-f="dr_text"]'); if (ta) ta.scrollIntoView({ behavior: "smooth", block: "center" });
