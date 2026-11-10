@@ -364,7 +364,7 @@ const DEFS = {
     label: "研究目的", target: "nlm",
     hint: "依研究架構與 1.1 的研究缺口，參考上傳文獻宣告研究目的的寫法撰寫研究目的，並檢核「缺口 → 目的 → 假說」是否一一對應。",
     fields: [
-      { id: "hy_paths", type: "textarea", label: "研究架構", hint: "一行一條假說；與{#hypo}共用同一份內容", rows: 5, placeholder: "H1：品牌人格 → 自我一致性（正向）" },
+      { id: "hy_paths", type: "textarea", label: "研究架構", hint: "一行一條假說；與第二章「第二章架構」共用同一份內容", rows: 5, placeholder: "H1：品牌人格 → 自我一致性（正向）" },
       { id: "pu_motive", type: "textarea", label: "1.1 的研究缺口", hint: "自動帶入 1.1 定稿的最後一段（研究缺口）；可自行修改", rows: 4 },
       ...partBoxes("pu_b", "purpose", p => puParts(p))
     ],
@@ -408,7 +408,7 @@ const DEFS = {
     fields: [
       { id: "an_soft", type: "text", label: "統計軟體", placeholder: "例如：SPSS 27、SmartPLS 4" },
       { id: "an_methods", type: "checks", label: "採用的分析方法", options: ANALYSES, value: ["desc", "rel", "cfa", "cmv", "corr", "pls", "med"] },
-      { id: "hy_paths", type: "textarea", label: "研究假說", hint: "選填；與{#hypo}共用同一份內容", rows: 4 },
+      { id: "hy_paths", type: "textarea", label: "研究假說", hint: "選填；與第二章「第二章架構」共用同一份內容", rows: 4 },
       { id: "an_criteria", type: "textarea", label: "指定的判斷準則與出處", hint: "選填", rows: 3, placeholder: "例如：AVE > .50（Fornell & Larcker, 1981）" }
     ],
     build: p => !p.an_methods.length ? "" : T.analysis({ soft: p.an_soft, methods: p.an_methods, paths: p.hy_paths, criteria: p.an_criteria }),
@@ -419,12 +419,14 @@ const DEFS = {
   // ─── 論文撰寫：第三章 ───
   ch2plan: {
     label: "第二章架構", target: "tool", noReply: true,
-    hint: "第二章依研究架構分節：理論基礎 → 各變數一節（同一構念的不同面向合在同一節）→ 研究假說之推導。下方每一行是一節，格式為「節名：本節涵蓋的變數」；可以改名、合併、調整順序，左側目錄會立即更新。",
+    hint: "第二章依研究架構分節：理論基礎，再來是各變數一節（依變數在前，同一構念的不同面向合在同一節）。假說在各變數一節推導：每條假說歸到影響方變數的那一節，中介假說歸中介變數、調節假說歸調節變數。下方每一行是一節，格式為「節名：本節涵蓋的變數」；可以改名、合併、調整順序，左側目錄會立即更新。",
     fields: [
       { id: "ch2_plan", type: "textarea", label: "各變數的節（一行一節）", hint: "自動依架構圖產生（依變數在前）；改了之後若想回到預設，清空欄位後按「重新帶入」", rows: 6, placeholder: "衝動購買：認知型衝動購買、情感型衝動購買\n線上瀏覽：功利型瀏覽、享樂型瀏覽\n特惠偏好度：特惠偏好度\n社會影響從眾：社會影響從眾" },
-      { id: "ch2_prev", type: "cands", label: "第二章目錄預覽", render: () => `<ol class="ch2prev">${secsOf(OUTLINE.find(c => /^第二章/.test(c.ch))).map(s => `<li><b>${esc(s.no)}</b> ${esc(s.title)}</li>`).join("")}</ol><p class="hint">同一構念的不同面向會在該節以子標題分開。節名或變數改動後，原本那一節的內容會保留在研究存檔中，但不會出現在新的節名下。</p>` }
+      { id: "hy_paths", type: "textarea", label: "研究假說（一行一條，含預期方向）", hint: "與 1.2、3.5、4.3 共用同一份內容；自動依架構圖產生，請補上預期方向。每條假說會歸到其影響方變數的一節推導", rows: 6, placeholder: "H1：享樂型瀏覽 → 情感型衝動購買（正向）\nH2：功利型瀏覽中介特惠偏好度與認知型衝動購買之關係\nH3：社會影響從眾 調節（享樂型瀏覽 → 情感型衝動購買）" },
+      { id: "hy_renum", type: "button", label: "依章節順序重新編號", hint: "讓 H1、H2…的順序與第二章各節的出現順序一致", run: () => hypRenumber() },
+      { id: "ch2_prev", type: "cands", label: "第二章目錄預覽", render: () => ch2PrevHtml() }
     ],
-    seed: () => ({ ch2_plan: ch2Default() }), seedFrom: "架構圖", seedNote: "各變數的節由 3.1／0.3 的架構圖自動產生",
+    seed: () => ({ ch2_plan: ch2Default(), hy_paths: archHyp() }), seedQuiet: ["hy_paths"], seedFrom: "架構圖", seedNote: "各變數的節與研究假說由 3.1／0.3 的架構圖自動產生",
     build: () => "", empty: "（設定完成後，到左側目錄的第二章各節撰寫）"
   },
   ch2th: {
@@ -443,11 +445,12 @@ const DEFS = {
   },
   ch2var: {
     label: "撰寫本節", target: "nlm",
-    hint: "依序撰寫本節構念的定義、面向、相關理論、前因與後果、衡量方式（概念層次）；不推導假說。",
+    hint: "依序撰寫本節構念的定義、面向、相關理論、前因與後果、衡量方式（概念層次）；本節分配到假說時，接著推導這些假說。",
     fields: [
       { id: "cv_title", type: "text", label: "節名", hint: "由「第二章架構」帶入" },
       { id: "cv_vars", type: "text", label: "本節涵蓋的變數", hint: "由「第二章架構」帶入；兩個以上面向會以子標題分開" },
       { id: "cv_arch", type: "textarea", label: "研究題目與研究架構", hint: "第二章各節共用；自動帶入 0.5 定稿題目、研究情境與研究架構", rows: 4 },
+      { id: "cv_hyps", type: "cands", label: "本節要推導的假說", render: () => { const h = ch2SecHyps(store.sec); return h.length ? `<ol class="hlist">${h.map(x => `<li>${esc(x)}</li>`).join("")}</ol><p class="hint">假說的文字與歸屬在「第二章架構」修改。</p>` : `<p class="hint">本節沒有分配到假說，只介紹構念；前因與後果只做類別概述。假說的歸屬在「第二章架構」修改。</p>`; } },
       ...partBoxes("cv_b", "ch2var", p => cvParts(p))
     ],
     seed: () => ({ cv_arch: bgSeed().bg_topic }), seedQuiet: ["cv_arch"], seedFrom: "前面步驟", seedNote: "研究題目與研究架構由 0.5、3.1／0.3 帶入",
@@ -458,10 +461,10 @@ const DEFS = {
   },
   hylist: {
     label: "假說清單", target: "tool", noReply: true,
-    hint: "第三章只列出假說；假說的推導寫在第二章最後一節「研究假說之推導」。下方會從該節的 AI 回覆中取出每一條假說敘述。",
+    hint: "第三章只列出假說；假說的推導寫在第二章各變數一節。下方會從第二章各節的論文內容中取出每一條假說敘述。",
     fields: [{ id: "hl_view", type: "cands", label: "", render: () => hlView() },
-      { id: "hl_put", type: "button", label: "放入本節定稿", hint: "把上方的假說清單放入 3.2 的「本節論文內容」", run: () => { const t = hlText(); if (!t) return "沒有找到假說，請先完成第二章「研究假說之推導」。"; setFin("s3-2", t); return "已放入本節定稿。"; } }],
-    build: () => hlText(), copyLabel: "複製假說清單", empty: "（第二章「研究假說之推導」還沒有貼上 AI 回覆）"
+      { id: "hl_put", type: "button", label: "放入本節定稿", hint: "把上方的假說清單放入 3.2 的「本節論文內容」", run: () => { const t = hlText(); if (!t) return "沒有找到假說，請先完成第二章各變數一節的假說推導。"; setFin("s3-2", t); return "已放入本節定稿。"; } }],
+    build: () => hlText(), copyLabel: "複製假說清單", empty: "（第二章各變數一節還沒有出現「H1：……」形式的假說敘述）"
   },
   hypo: {
     label: "假說推導", target: "nlm",
@@ -504,7 +507,7 @@ const DEFS = {
       { id: "st_part", type: "radio", label: "撰寫哪一節", options: [["sample", "樣本描述"], ["rel", "信效度分析"], ["hypo", "假說檢定"]], value: "hypo" },
       { id: "st_soft", type: "radio", label: "統計軟體", options: [["spss", "SPSS"], ["pls", "SmartPLS"], ["amos", "AMOS"], ["other", "其他"]], value: "spss" },
       { id: "st_raw", type: "textarea", label: "原始統計輸出", hint: "從軟體複製的純文字", rows: 10, mono: true },
-      { id: "hy_paths", type: "textarea", label: "假說清單", hint: "選填；與{#hypo}共用同一份內容", rows: 4, placeholder: "H1：品牌人格 → 自我一致性（正向）" }
+      { id: "hy_paths", type: "textarea", label: "假說清單", hint: "選填；與第二章「第二章架構」共用同一份內容", rows: 4, placeholder: "H1：品牌人格 → 自我一致性（正向）" }
     ],
     build: p => blank(p.st_raw) ? "" : T.stats({ part: p.st_part, soft: p.st_soft, raw: p.st_raw.trim(), hyps: (p.hy_paths || "").trim() }),
     empty: "（請貼上統計軟體的原始輸出）",
@@ -605,7 +608,7 @@ const DEFS = {
     rules: () => ["citation"],
     build: (p, R) => { const t = f31Text(); return t ? T.frame31({ arch: t, theory: (p.f31_theory || "").trim(), ctx: (store.values.as_ctx || "").trim() }) + R : ""; },
     empty: "（0.3 還沒有研究架構）",
-    next: "下一步：3.2 用{#hypo}逐條推導假說；需要 Mermaid 格式的架構圖時，用本節的「文字轉關係圖」。"
+    next: "下一步：在第二章「第二章架構」確認研究假說，各假說在其影響方變數的一節推導；需要 Mermaid 格式的架構圖時，用本節的「文字轉關係圖」。"
   },
   m7a: {
     label: "文字轉關係圖", target: "nlm",
@@ -1398,7 +1401,8 @@ function drResultView(t) {
   const have = new Set(finBlocks(finText(drSid()))), used = finBlocks(r).every(b => have.has(b));   // 結果已在定稿中：不再顯示加入按鈕，避免重複加入
   const allPicked = !merge && !whole && ps.length > 1 && (store.values.dr_text || "").trim() === ps.map(x => x.text).join("\n\n").trim();   // 按過「全選」
   const btn = whole || allPicked ? `<button type="button" class="copy" data-drrep="all">以此取代本節全部內容</button>` : merge ? (sel.length ? `<button type="button" class="copy" data-drrep="merge">以此取代所選的 ${sel.length} 段（合併為一段）</button>` : "")
-    : (cur >= 0 ? `<button type="button" class="copy" data-drrep="one">以此取代第 ${cur + 1} 段</button>` : "");
+    : cur >= 0 ? `<button type="button" class="copy" data-drrep="one">以此取代第 ${cur + 1} 段</button>`
+    : drHl() ? `<button type="button" class="copy" data-drrep="sel">以此取代反白的部分</button>` : "";
   return `<div class="drres"><h3>最新的${whole ? "整節統整" : merge ? "融合" : "改寫"}結果</h3><div class="fin-view">${finHtml(r)}</div>
     ${used ? `<p class="note">✓ 這個結果已經在「本節論文內容」中，不需要再加入。</p>` : `${btn ? "" : `<p class="note warn">沒有出現「以此取代」按鈕：原本選的段落已不在本節定稿中（可能已修改或刪除）。請在上方「本節的段落」重新按「用這一段」${merge ? "或勾選「加入融合」" : ""}，選好要被取代的段落後，就會出現取代按鈕。</p>`}<p class="fin-btns">${btn}${whole || allPicked ? "" : `<button type="button" data-drrep="all">以此取代本節全部內容</button>`}<button type="button" data-drrep="append">不取代，另外加在本節最後</button>
     <span class="hint">一般請按「以此取代」；取代後會更新「本節論文內容」與論文.md</span></p>`}</div>`;
@@ -1408,6 +1412,18 @@ const inThesisSec = () => THESIS_SECS().some(x => x.id === store.sec);
 // 段落核實改寫的對象章節：在章節內就是該節；在「常用 → 修訂論文」由使用者選（或從章節點過來時帶入）
 const drSid = () => inThesisSec() ? store.sec : (k => THESIS_SECS().some(x => x.id === k) ? k : "")(store.values.dr_sec || store.values.dw_sec);
 const drCh1 = () => /^s1-/.test(drSid());
+// 用反白的文字：「論文段落」是定稿中的一段連續文字，但不是完整的單一段落
+const drHl = () => { const x = (store.values.dr_text || "").trim(), sid = drSid(); return !!x && !!sid && finText(sid).includes(store.values.dr_text) && !drParas().some(p => p.text.trim() === x); };
+// 在定稿中找出反白的文字（略去空白、換行與小標題的 #），回傳定稿中的原文片段
+function finFind(t, sel) {
+  const skip = c => /[\s#]/.test(c), key = [...String(sel || "")].filter(c => !skip(c)).join(""); if (key.length < 2) return "";
+  let s = ""; const idx = [];
+  for (let i = 0; i < t.length; i++) if (!skip(t[i])) { s += t[i]; idx.push(i); }
+  const k = s.indexOf(key); if (k < 0) return "";
+  let a = idx[k]; const b = idx[k + key.length - 1] + 1, ls = t.lastIndexOf("\n", a - 1) + 1;
+  if (/^[#\s]*$/.test(t.slice(ls, a))) a = ls;   // 從小標題開始反白時，連同 #### 一起取
+  return t.slice(a, b);
+}
 const secLabel = sid => (s => s ? `${s.no} ${s.title}` : "")(ALL_SECS.find(x => x.id === sid));
 function dwParts(p) {
   const sid = drSid(), t = sid ? finText(sid) : ""; if (blank(t)) return [];
@@ -1438,6 +1454,7 @@ function drReplace(mode) {
   let t = finText(sid); const ps = drParas();
   if (mode === "all") { if (!confirm(`以這個結果取代「${secLabel(sid) || "本節"}」定稿的全部文字？（之後可在該節定稿下方按「復原上一次清除或取代前的內容」）`)) return; (store.values.fin_undo ||= {})[sid] = t; t = r; }
   else if (mode === "append") { if (finBlocks(t).some(b => blockSim(b, r) >= 0.8) && !confirm("本節定稿中已有相同或幾乎相同的段落，仍要再加到最後嗎？")) return; t = (t ? t + "\n\n" : "") + r; }
+  else if (mode === "sel") { const x = store.values.dr_text || ""; if (!x.trim() || !t.includes(x)) { alert("本節定稿中找不到原本反白的文字（可能已修改過），請重新反白後再試。"); return; } t = t.replace(x, r); store.values.dr_text = r; }
   else if (mode === "one") { const p = ps.find(x => x.text.trim() === (store.values.dr_text || "").trim()); if (!p) return; t = t.replace(p.text, r); store.values.dr_text = r; }
   else { const sel = ps.filter(x => (store.values.dr_sel || []).includes(x.key)); if (!sel.length) return; t = t.replace(sel[0].text, r); sel.slice(1).forEach(x => { t = t.replace(x.text, ""); }); t = t.replace(/\n{3,}/g, "\n\n").trim(); store.values.dr_sel = []; }
   setFin(sid, t);
@@ -1460,7 +1477,7 @@ function drParas() {
 function drView() {
   const ps = drParas(), done = store.values.dr_done || {}, cur = (store.values.dr_text || "").trim();
   const merge = store.values.dr_stage === "merge", sel = store.values.dr_sel || [];
-  return `<p class="hint">本節共 ${ps.length} 段，已完成 ${ps.filter(x => done[x.key]).length} 段。${merge ? "融合：按「加入融合」選兩段以上（依清單順序帶入），複製 Prompt 送出，AI 會先提出排序方案再寫出融合後的段落。" : "按「用這一段」帶入下方，複製 Prompt 送出；回覆貼到「AI 回覆」後，按「完成」標記，再換下一段。"}　<button type="button" data-drall="1">${merge ? "全選（全部加入融合）" : "全選（帶入本節全部段落）"}</button></p>` +
+  return `<p class="hint"><button type="button" class="copy" data-drhl="1">用反白的文字</button> 先在下方「本節論文內容」反白要修改的文字（可跨段落），再按這個按鈕帶入「論文段落」；改寫後按「以此取代反白的部分」，只替換那一塊。</p><p class="hint">本節共 ${ps.length} 段，已完成 ${ps.filter(x => done[x.key]).length} 段。${merge ? "融合：按「加入融合」選兩段以上（依清單順序帶入），複製 Prompt 送出，AI 會先提出排序方案再寫出融合後的段落。" : "按「用這一段」帶入下方，複製 Prompt 送出；回覆貼到「AI 回覆」後，按「完成」標記，再換下一段。"}　<button type="button" data-drall="1">${merge ? "全選（全部加入融合）" : "全選（帶入本節全部段落）"}</button></p>` +
     ps.map((x, i) => `<div class="dr-para${done[x.key] ? " done" : ""}${(merge ? sel.includes(x.key) : cur === x.text.trim()) ? " cur" : ""}"><b>${i + 1}</b>
       <div class="dr-txt">${x.head ? `<small>${esc(x.head)}</small>` : ""}${x.text.length > 90
         ? `<details><summary>${esc(x.text.slice(0, 90))}……<span class="dr-more">展開全文</span></summary><div class="dr-full">${esc(x.text)}</div></details>`
@@ -1671,8 +1688,8 @@ const OUTLINE = [
       { mod: "fa31", note: "由 0.3 的研究架構帶入架構圖，微調後下載 PNG；再產生撰寫 3.1 段落的 Prompt。" },
       { mod: "m7a", note: "選用：需要 Mermaid 格式的架構圖時，貼上描述研究架構的文字，請 NotebookLM 畫成 Mermaid 圖。" },
       { mod: "m7b", note: "把回覆補好圍籬，貼進 Obsidian 或轉成圖片。" }] },
-    { id: "s3-2", no: "3.2", title: "研究假說", desc: "列出本研究的假說；推導寫在第二章最後一節。", steps: [
-      { mod: "hylist", note: "從第二章「研究假說之推導」的回覆取出每一條假說敘述，按「放入本節定稿」即可。" }], finish: FIN_FULL },
+    { id: "s3-2", no: "3.2", title: "研究假說", desc: "列出本研究的假說；推導寫在第二章各變數一節。", steps: [
+      { mod: "hylist", note: "從第二章各變數一節取出每一條假說敘述，按「放入本節定稿」即可。" }], finish: FIN_FULL },
     { id: "s3-3", no: "3.3", title: "操作型定義與衡量", desc: "構念定義與量表來源。", steps: [
       { mod: "m5d", note: "選用：需要名詞釋義時使用（原第一章 1.3）。列出要釋義的構念；產出的四面向解釋取「定義」部分改寫成名詞釋義。" },
       { mod: "opdef", note: "準備構念清單；量表原始文獻要先上傳到 NotebookLM。" }], finish: FIN_FULL },
@@ -1719,7 +1736,7 @@ const FINISH_NOTE = {
 };
 THESIS_SECS().forEach(s => { s.finish = FIN_FULL; });   // 第一～五章每一節都有「修訂論文」與「潤色與去 AI 味」兩個完稿步驟
 let ALL_SECS = OUTLINE.flatMap(c => c.secs);
-// ── 第二章：依「第二章架構」產生各節（理論基礎 → 各變數一節 → 研究假說之推導）──
+// ── 第二章：依「第二章架構」產生各節（理論基礎 → 各變數一節；假說在影響方變數的一節推導）──
 function ch2Default() {
   const { vars, d } = finalArch(); if (!vars.length || !d.edges.length) return "";
   const nm = v => (v.name || v.key).replace(/\s*[（(][^（）()]*[）)]\s*$/, "").trim();
@@ -1731,20 +1748,50 @@ function ch2Default() {
   return groups.sort((a, b) => a.role - b.role).map(g => `${g.vars.length > 1 ? g.base : g.vars[0]}：${g.vars.join("、")}`).join("\n");
 }
 function idOf(t) { let h = 5381; for (const ch of t) h = ((h << 5) + h + ch.charCodeAt(0)) | 0; return (h >>> 0).toString(36); }
+function ch2Plan() {   // [{ title, vars, names }]：第二章架構的每一行
+  const ready = typeof store !== "undefined";
+  return String((ready && (store.values.ch2_plan || "").trim()) || (ready ? ch2Default() : "")).split("\n")
+    .map(l => l.trim()).filter(Boolean).map(l => { const [t, v] = l.split(/[：:]/); const title = t.trim(), vars = (v || t).trim();
+      return { title, vars, names: [...new Set([title, ...vars.split(/[、，,／/]/)].map(x => x.trim()).filter(Boolean))] }; });
+}
+const hypLines = () => String((typeof store !== "undefined" && (store.values.hy_paths || "").trim()) || (typeof store !== "undefined" ? archHyp() : "")).split("\n").map(l => l.trim()).filter(Boolean);
+// 假說歸屬：影響方變數所在的節。句中最早出現的變數即影響方（直接效果 X → Y、「M 中介…」、「Z 調節…」）；「X 透過 M 影響 Y」取 M
+function hypHost(line, plan) {
+  let body = line.replace(/^H\d+[a-z]?\s*[：:]\s*/, "");
+  const via = body.match(/(?:透過|經由)(.*)$/); if (via) body = via[1];
+  let best = -1, pos = Infinity, len = 0;
+  plan.forEach((x, i) => x.names.forEach(n => { const k = body.indexOf(n); if (k >= 0 && (k < pos || (k === pos && n.length > len))) { best = i; pos = k; len = n.length; } }));
+  return best;
+}
+function ch2HypMap() { const plan = ch2Plan(), by = plan.map(() => []), un = []; hypLines().forEach(l => { const h = hypHost(l, plan); (h >= 0 ? by[h] : un).push(l); }); return { plan, by, un }; }
+const ch2SecHyps = sid => ((ALL_SECS.find(s => s.id === sid) || {}).hyps || []);
+function hypRenumber() {
+  const plan = ch2Plan(), ls = hypLines(); if (!ls.length) return "沒有研究假說可以重新編號。";
+  const rows = ls.map((l, i) => ({ l, i, h: hypHost(l, plan), m: l.match(/^H(\d+)([a-z]?)\s*[：:]\s*/) }));
+  if (rows.some(r => !r.m)) return "有假說不是以「H1：」的形式開頭，無法自動重新編號。";
+  rows.sort((a, b) => (a.h < 0 ? 1e9 : a.h) - (b.h < 0 ? 1e9 : b.h) || a.i - b.i);
+  const map = new Map(); let n = 0;
+  store.values.hy_paths = rows.map(r => { if (!map.has(r.m[1])) map.set(r.m[1], ++n); return `H${map.get(r.m[1])}${r.m[2]}：${r.l.slice(r.m[0].length)}`; }).join("\n");
+  rebuildCh2(); if (typeof renderToc === "function") renderToc();
+  return "已依章節順序重新編號；1.2、3.5、4.3 也會使用新的編號。";
+}
+function ch2PrevHtml() {
+  const { un } = ch2HypMap(), secs = secsOf(OUTLINE.find(c => /^第二章/.test(c.ch)));
+  return `<ol class="ch2prev">${secs.map(s => `<li><b>${esc(s.no)}</b> ${esc(s.title)}${(s.hyps || []).length ? `<br><small>推導：${esc(s.hyps.map(h => (h.match(/^H\d+[a-z]?/) || [h.slice(0, 12)])[0]).join("、"))}</small>` : ""}</li>`).join("")}</ol>` +
+    (un.length ? `<p class="note warn">下列假說找不到對應的節（假說中的變數名稱要與上方各節的變數一致）：<br>${un.map(esc).join("<br>")}</p>` : "") +
+    `<p class="hint">同一構念的不同面向會在該節以子標題分開。節名或變數改動後，原本那一節的內容會保留在研究存檔中，但不會出現在新的節名下。</p>`;
+}
 function rebuildCh2() {
   const ch = OUTLINE.find(c => /^第二章/.test(c.ch)); if (!ch) return;
-  const ready = typeof store !== "undefined";
-  const plan = String((ready && (store.values.ch2_plan || "").trim()) || (ready ? ch2Default() : "")).split("\n")
-    .map(l => l.trim()).filter(Boolean).map(l => { const [t, v] = l.split(/[：:]/); return { title: t.trim(), vars: (v || t).trim() }; });
+  const { plan, by } = ch2HypMap();
   const R2 = ["citation", "style", "ch2"], seen = new Set();
   ch.secs = [
-    { id: "s2-0", no: "", title: "第二章架構", setup: true, desc: "設定第二章的分節：理論基礎、各變數一節、研究假說之推導。", steps: [{ mod: "ch2plan" }] },
+    { id: "s2-0", no: "", title: "第二章架構", setup: true, desc: "設定第二章的分節與研究假說：理論基礎、各變數一節；每條假說在其影響方變數的一節推導。", steps: [{ mod: "ch2plan" }] },
     { id: "s2-th", no: "2.1", title: "理論基礎", desc: "以統攝的理論說明各變數之間的機制。", steps: [{ mod: "ch2th", rules: R2, note: "理論可自行指定，或留白請 NotebookLM 依相近文獻建議。" }] },
     ...plan.map((x, i) => { let id = "s2-" + idOf(x.vars.replace(/\s/g, "")); while (seen.has(id)) id += "x"; seen.add(id);
-      return { id, no: `2.${i + 2}`, title: x.title, desc: `本節涵蓋：${x.vars}。依序撰寫定義、面向、相關理論、前因與後果、衡量方式。`,
-        steps: [{ mod: "ch2var", rules: R2, preset: { cv_title: x.title, cv_vars: x.vars }, note: "節名與變數由「第二章架構」帶入；研究題目與架構各節共用。" }] }; }),
-    { id: "s2-hy", no: `2.${plan.length + 2}`, title: "研究假說之推導", desc: "依研究架構的路徑推導假說（即期刊論文的 Hypotheses Development）。", steps: [
-      { mod: "hypo", rules: ["citation", "evidence", "style", "ch2"], note: "準備假說清單（含預期方向）；這份清單也會帶到 1.2、3.2、3.5 與 4.3。文獻證據不足的路徑，要寫成由理論推論。" }] }
+      const hy = by[i], hn = hy.map(h => (h.match(/^H\d+[a-z]?/) || [""])[0]).filter(Boolean);
+      return { id, no: `2.${i + 2}`, title: x.title, hyps: hy, desc: `本節涵蓋：${x.vars}。依序撰寫定義、面向、相關理論、前因與後果、衡量方式${hy.length ? `，接著推導${hn.length ? " " + hn.join("、") + " " : "本節的假說"}` : ""}。`,
+        steps: [{ mod: "ch2var", rules: hy.length ? [...R2, "evidence"] : R2, preset: { cv_title: x.title, cv_vars: x.vars }, note: hy.length ? "節名、變數與本節要推導的假說由「第二章架構」帶入；研究題目與架構各節共用。" : "節名與變數由「第二章架構」帶入；本節沒有分配到假說，只介紹構念。" }] }; })
   ];
   ch.secs.forEach(s => { if (!s.setup) s.finish = FIN_FULL; });
   ALL_SECS = OUTLINE.flatMap(c => c.secs);
@@ -1752,18 +1799,19 @@ function rebuildCh2() {
 rebuildCh2();
 // 第二章：理論基礎與各變數一節的 Prompt（規則過長時分則）
 function thParts(p) { return blank(p.cv_arch) ? [] : ruleSplit("ch2th", p, T.ch2th({ arch: p.cv_arch.trim(), theory: (p.th_theory || "").trim(), title: (s => s ? `${s.no} ${s.title}` : "理論基礎")(sec && sec()) }), "理論基礎"); }
-function cvParts(p) { return blank(p.cv_arch) || blank(p.cv_vars) ? [] : ruleSplit("ch2var", p, T.ch2var({ arch: p.cv_arch.trim(), vars: p.cv_vars.trim(), title: `${(sec && sec() || {}).no || ""} ${p.cv_title || ""}`.trim() }), p.cv_title || "本節"); }
-// 3.2 研究假說：從第二章「研究假說之推導」的回覆取出假說敘述
+function cvParts(p) { return blank(p.cv_arch) || blank(p.cv_vars) ? [] : ruleSplit("ch2var", p, T.ch2var({ arch: p.cv_arch.trim(), vars: p.cv_vars.trim(), hyps: ch2SecHyps((sec && sec() || {}).id).join("\n"), title: `${(sec && sec() || {}).no || ""} ${p.cv_title || ""}`.trim() }), p.cv_title || "本節"); }
+// 3.2 研究假說：從第二章各變數一節的論文內容取出假說敘述（舊版「研究假說之推導」的回覆也一併讀取）
 function hlItems() {
-  let r = deLatex(String((store.replies || {})["s2-hy|hypo"] || "")).replace(/\*\*/g, "");
-  const cut = r.search(VERIFY_HEAD); if (cut >= 0) r = r.slice(0, cut);   // 不取「假說支持度檢核」等檢核段落
-  const got = r.split(/\r?\n/).map(l => l.trim().replace(/^[-*•]\s*/, "")).filter(l => /^H\d+[a-z]?\s*[：:]/.test(l));
-  const m = new Map(); got.forEach(l => { const k = l.match(/^H\d+[a-z]?/)[0]; if (!m.has(k)) m.set(k, l.replace(/\s*[：:]\s*/, "：")); });
-  const uniq = [...m.values()];
-  return uniq;
+  const ch = OUTLINE.find(c => /^第二章/.test(c.ch)), src = (ch ? ch.secs : []).filter(s => !s.setup).map(s => finText(s.id));
+  let old = deLatex(String((store.replies || {})["s2-hy|hypo"] || "")); const cut = old.search(VERIFY_HEAD); if (cut >= 0) old = old.slice(0, cut);
+  const m = new Map();
+  [...src, old].join("\n").replace(/\*\*/g, "").split(/\r?\n/).forEach(l => { const x = l.match(/(?:^|[\s，。；：「（])(H\d+[a-z]?)\s*[：:]\s*(.+)$/) || l.trim().replace(/^[-*•]\s*/, "").match(/^(H\d+[a-z]?)\s*[：:]\s*(.+)$/);
+    if (x && !m.has(x[1])) m.set(x[1], `${x[1]}：${x[2].trim()}`); });
+  const num = k => { const r = k.match(/^H(\d+)([a-z]?)/); return +r[1] * 100 + (r[2] ? r[2].charCodeAt(0) - 96 : 0); };
+  return [...m.keys()].sort((a, b) => num(a) - num(b)).map(k => m.get(k));
 }
 function hlText() { const it = hlItems(); return it.length ? "依據第二章的推導，本研究提出以下假說：\n\n" + it.join("\n") : ""; }
-function hlView() { const it = hlItems(); return it.length ? `<ol class="hlist">${it.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : `<p class="hint">第二章「研究假說之推導」還沒有貼上 AI 回覆，或回覆中沒有「H1：……」形式的假說敘述。</p>`; }
+function hlView() { const it = hlItems(); return it.length ? `<ol class="hlist">${it.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : `<p class="hint">第二章各變數一節還沒有出現「H1：……」形式的假說敘述。</p>`; }
 const stepsOf = sec => [...sec.steps, ...(sec.finish || []).map(m => ({ mod: m, note: FINISH_NOTE[m], finish: true }))];
 
 // 說明文字中的{#id}：本節有此模組時寫成「步驟 n」，否則指出它在目錄中的位置

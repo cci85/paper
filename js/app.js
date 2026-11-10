@@ -337,7 +337,7 @@ $("pane").addEventListener("input", e => {
   }
   if (t.dataset.f) {
     store.values[vkey(t.dataset.f)] = t.value;
-    if (t.dataset.f === "ch2_plan") { rebuildCh2(); renderToc(); }   // 第二章分節即時更新目錄
+    if (t.dataset.f === "ch2_plan" || t.dataset.f === "hy_paths") { rebuildCh2(); renderToc(); }   // 第二章分節即時更新目錄
     if (t.type === "radio") {
       if (mod().fields.some(f => f.when)) { renderPane(); }   // 有條件顯示的欄位時，重畫欄位
       else renderRules();   // 不同選項有各自的規則預設
@@ -365,6 +365,13 @@ $("pane").addEventListener("click", async e => {
     if (a) { (store.values.refs ||= {})[r.key] = refNoLetter(a, r.year); save(); update(); } return; }
   const rd = e.target.closest("button[data-refdel]");
   if (rd) { delete (store.values.refs || {})[rd.dataset.refdel]; save(); renderPane(); update(); return; }
+  if (e.target.closest("button[data-drhl]")) {   // 修訂論文：用反白的文字
+    if (!FIN_SEL.trim()) { alert("請先在下方「本節論文內容」反白要修改的文字，再按「用反白的文字」。"); return; }
+    const x = finFind(finText(drSid()), FIN_SEL);
+    if (!x) { alert("在本節定稿中找不到反白的文字（可能選到了定稿以外的內容），請只在「本節論文內容」裡反白。"); return; }
+    store.values.dr_text = x; store.values.dr_sel = []; FIN_SEL = "";
+    save(); renderPane(); update(); const ta = document.querySelector('textarea[data-f="dr_text"]'); if (ta) ta.scrollIntoView({ behavior: "smooth", block: "center" }); return;
+  }
   const fb2 = e.target.closest("button[data-finedit], button[data-finreset], button[data-drrep]");
   if (fb2) {   // 本節定稿：修改文字／重新帶入；段落核實改寫：以改寫結果取代
     if (fb2.dataset.finedit) { const ta = document.querySelector("textarea[data-fin]"); ta.hidden = !ta.hidden; fb2.textContent = ta.hidden ? "修改文字" : "完成修改"; if (!ta.hidden) ta.focus(); return; }
@@ -522,3 +529,10 @@ $("outd").addEventListener("toggle", () => {
     location.href = location.pathname + "?r=" + Date.now();
   });
 })();
+
+// 記住「本節論文內容」中最後一次反白的文字（按按鈕時選取可能已消失）
+let FIN_SEL = "";
+document.addEventListener("selectionchange", () => {
+  const g = getSelection(), v = $("finview"); if (!g || !g.rangeCount || g.isCollapsed || !v) return;
+  if (v.contains(g.anchorNode) && v.contains(g.focusNode)) FIN_SEL = g.toString();
+});
