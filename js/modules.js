@@ -537,7 +537,8 @@ const DEFS = {
     hint: "補強：段落還缺東西時使用，字數不減。精簡：內容齊全但太冗長，字數必須減少，可設定目標長度。整節統整：整節去除重複、調整段落順序與邏輯。融合：把幾段合併成一段。都會先核實引用。",
     fields: [
       { id: "dr_stage", type: "radio", top: true, label: "改寫方向", options: [["draft", "補強（字數不減）"], ["final", "精簡（術語查證＋字數必減）"], ["whole", "整節統整（整節去重複、調整段落順序與邏輯）"], ["merge", "融合（多段合併，討論先後邏輯）"]], value: "draft" },
-      { id: "dr_paras", type: "cands", label: "本節的段落", when: p => drParas().length > 0 && p.dr_stage !== "whole", render: () => drView() },
+      { id: "dr_hlbox", type: "cands", label: "要修改的文字", when: p => inThesisSec() && p.dr_stage !== "whole", render: () => `<p class="hint"><button type="button" class="copy" data-drhl="1">用反白的文字</button> 在下方「本節論文內容」反白要修改的文字（可跨段落，融合時反白要合併的幾段），再按這個按鈕帶入「論文段落」；改寫後按「以此取代反白的部分」，只替換那一塊。</p>` },
+      { id: "dr_paras", type: "cands", label: "本節的段落", when: p => !inThesisSec() && drParas().length > 0 && p.dr_stage !== "whole", render: () => drView() },
       { id: "dr_sec", type: "radio", label: "要修訂哪一節", hint: "列出已有定稿內容的章節", when: () => !inThesisSec(),
         get options() { const ss = THESIS_SECS().filter(s => !blank(finText(s.id))); return ss.length ? ss.map(s => [s.id, `${s.no} ${s.title}`]) : [["", "（還沒有任何章節有定稿內容）"]]; } },
       { id: "dr_back", type: "cands", label: "", when: () => !inThesisSec() && !!drSid(), render: () => `<p class="hint"><button type="button" data-go="${drSid()}" data-gostep="0">← 回到 ${esc(secLabel(drSid()))}</button>　修訂結果按「以此取代」後，會直接更新該節的定稿。</p>` },
@@ -549,7 +550,7 @@ const DEFS = {
       { id: "dr_stat", type: "checks", label: "統計數據", options: [["on", "每個論點最多保留 1–2 個關鍵數字，其餘改成文字概述"]], value: ["on"], when: p => p.dr_stage === "final" || p.dr_stage === "whole" },
       { id: "dr_rules", type: "promptbox", get label() { return drCh1() ? "第一章共用規則（引用格式、文字風格、第一章寫作規範）" : "共用規則"; }, hint: "每個 NotebookLM 對話只要先送一次（NotebookLM 會回覆「已收到」），之後每一段都送下方的 Prompt 即可；避免每段都超過字數上限",
         get copyLabel() { return `先送這則：複製${drCh1() ? "第一章" : ""}共用規則（每個對話一次）`; }, build: () => DR_R ? T.rules_once(DR_R) : "" },
-      { id: "dr_text", type: "textarea", label: "論文段落", when: p => p.dr_stage !== "whole", hint: "按上方「用這一段」自動帶入；融合時按「加入融合」可選多段；也可以自己貼上", rows: 8 },
+      { id: "dr_text", type: "textarea", label: "論文段落", when: p => p.dr_stage !== "whole", get hint() { return inThesisSec() ? "按上方「用反白的文字」帶入；也可以自己貼上" : "按上方「用這一段」自動帶入；融合時按「加入融合」可選多段；也可以自己貼上"; }, rows: 8 },
       ...[2, 3, 4, 5, 6, 7, 8].map(k => ({ id: "dw_b" + k, type: "promptbox", afterOut: true, when: p => drParts(p).length >= k,
         get label() { const n = drParts(valuesOf(DEFS.dr)).length; return k === n ? `第 ${k} 則 Prompt（最後一則：開始改寫）` : `第 ${k} 則 Prompt`; },
         hint: "上一則送出、NotebookLM 回覆「已收到」後，在同一個對話接著送出；最後一則送出後才會開始改寫",
@@ -1406,7 +1407,7 @@ function drResultView(t) {
     : cur >= 0 ? `<button type="button" class="copy" data-drrep="one">以此取代第 ${cur + 1} 段</button>`
     : drHl() ? `<button type="button" class="copy" data-drrep="sel">以此取代反白的部分</button>` : "";
   return `<div class="drres"><h3>最新的${whole ? "整節統整" : merge ? "融合" : "改寫"}結果</h3><div class="fin-view">${finHtml(r)}</div>
-    ${used ? `<p class="note">✓ 這個結果已經在「本節論文內容」中，不需要再加入。</p>` : `${btn ? "" : `<p class="note warn">沒有出現「以此取代」按鈕：原本選的段落已不在本節定稿中（可能已修改或刪除）。請在上方「本節的段落」重新按「用這一段」${merge ? "或勾選「加入融合」" : ""}，選好要被取代的段落後，就會出現取代按鈕。</p>`}<p class="fin-btns">${btn}${whole || allPicked ? "" : `<button type="button" data-drrep="all">以此取代本節全部內容</button>`}<button type="button" data-drrep="append">不取代，另外加在本節最後</button>
+    ${used ? `<p class="note">✓ 這個結果已經在「本節論文內容」中，不需要再加入。</p>` : `${btn ? "" : `<p class="note warn">沒有出現「以此取代」按鈕：原本選的段落已不在本節定稿中（可能已修改或刪除）。${inThesisSec() ? "請在「本節論文內容」重新反白要被取代的文字，按上方「用反白的文字」" : `請在上方「本節的段落」重新按「用這一段」${merge ? "或勾選「加入融合」" : ""}，選好要被取代的段落`}後，就會出現取代按鈕。</p>`}<p class="fin-btns">${btn}${whole || allPicked ? "" : `<button type="button" data-drrep="all">以此取代本節全部內容</button>`}<button type="button" data-drrep="append">不取代，另外加在本節最後</button>
     <span class="hint">一般請按「以此取代」；取代後會更新「本節論文內容」與論文.md</span></p>`}</div>`;
 }
 // 整節統整：本節全文先分則送出，最後一則才是統整任務；在「常用 → 修訂論文」使用時，由使用者選章節
@@ -1479,7 +1480,7 @@ function drParas() {
 function drView() {
   const ps = drParas(), done = store.values.dr_done || {}, cur = (store.values.dr_text || "").trim();
   const merge = store.values.dr_stage === "merge", sel = store.values.dr_sel || [];
-  return `<p class="hint"><button type="button" class="copy" data-drhl="1">用反白的文字</button> 先在下方「本節論文內容」反白要修改的文字（可跨段落），再按這個按鈕帶入「論文段落」；改寫後按「以此取代反白的部分」，只替換那一塊。</p><p class="hint">本節共 ${ps.length} 段，已完成 ${ps.filter(x => done[x.key]).length} 段。${merge ? "融合：按「加入融合」選兩段以上（依清單順序帶入），複製 Prompt 送出，AI 會先提出排序方案再寫出融合後的段落。" : "按「用這一段」帶入下方，複製 Prompt 送出；回覆貼到「AI 回覆」後，按「完成」標記，再換下一段。"}　<button type="button" data-drall="1">${merge ? "全選（全部加入融合）" : "全選（帶入本節全部段落）"}</button></p>` +
+  return `<p class="hint">本節共 ${ps.length} 段，已完成 ${ps.filter(x => done[x.key]).length} 段。${merge ? "融合：按「加入融合」選兩段以上（依清單順序帶入），複製 Prompt 送出，AI 會先提出排序方案再寫出融合後的段落。" : "按「用這一段」帶入下方，複製 Prompt 送出；回覆貼到「AI 回覆」後，按「完成」標記，再換下一段。"}　<button type="button" data-drall="1">${merge ? "全選（全部加入融合）" : "全選（帶入本節全部段落）"}</button></p>` +
     ps.map((x, i) => `<div class="dr-para${done[x.key] ? " done" : ""}${(merge ? sel.includes(x.key) : cur === x.text.trim()) ? " cur" : ""}"><b>${i + 1}</b>
       <div class="dr-txt">${x.head ? `<small>${esc(x.head)}</small>` : ""}${x.text.length > 90
         ? `<details><summary>${esc(x.text.slice(0, 90))}……<span class="dr-more">展開全文</span></summary><div class="dr-full">${esc(x.text)}</div></details>`
