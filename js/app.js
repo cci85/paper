@@ -371,9 +371,16 @@ $("pane").addEventListener("click", async e => {
     save(); renderPane(); update(); if (fb2.dataset.drrep) { const fbx = $("finbox"); if (fbx) { fbx.open = true; fbx.scrollIntoView({ behavior: "smooth", block: "start" }); } }
     return;
   }
-  const dp = e.target.closest("button[data-drpick], button[data-drdone], button[data-drsel]");
+  const dp = e.target.closest("button[data-drpick], button[data-drdone], button[data-drsel], button[data-drall]");
   if (dp) {   // 段落核實改寫：選段落、標記完成、選取要融合的段落
     const ps = drParas();
+    if (dp.dataset.drall) {   // 全選：補強／精簡帶入全部段落；融合時全部加入
+      if (store.values.dr_stage === "merge") {
+        store.values.dr_sel = ps.map(x => x.key);
+        store.values.dr_text = ps.map((x, j) => `【段落${"一二三四五六七八九十"[j] || j + 1}】${x.head ? "（" + x.head + "）" : ""}\n${x.text}`).join("\n\n");
+      } else store.values.dr_text = ps.map(x => x.text).join("\n\n");
+      save(); renderPane(); update(); const ta = document.querySelector('textarea[data-f="dr_text"]'); if (ta) ta.scrollIntoView({ behavior: "smooth", block: "center" }); return;
+    }
     if (dp.dataset.drsel) {
       const k = ps[+dp.dataset.drsel].key, sel = (store.values.dr_sel ||= []);
       store.values.dr_sel = sel.includes(k) ? sel.filter(x => x !== k) : [...sel, k];

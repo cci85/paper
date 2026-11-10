@@ -1343,10 +1343,11 @@ function drResultView(t) {
   const ps = drParas(), merge = store.values.dr_stage === "merge", whole = store.values.dr_stage === "whole", sel = (store.values.dr_sel || []).filter(k => ps.some(x => x.key === k));
   const cur = ps.findIndex(x => x.text.trim() === (store.values.dr_text || "").trim());
   const have = new Set(finBlocks(finText(drSid()))), used = finBlocks(r).every(b => have.has(b));   // 結果已在定稿中：不再顯示加入按鈕，避免重複加入
-  const btn = whole ? `<button type="button" class="copy" data-drrep="all">以此取代本節全部內容</button>` : merge ? (sel.length ? `<button type="button" class="copy" data-drrep="merge">以此取代所選的 ${sel.length} 段（合併為一段）</button>` : "")
+  const allPicked = !merge && !whole && ps.length > 1 && (store.values.dr_text || "").trim() === ps.map(x => x.text).join("\n\n").trim();   // 按過「全選」
+  const btn = whole || allPicked ? `<button type="button" class="copy" data-drrep="all">以此取代本節全部內容</button>` : merge ? (sel.length ? `<button type="button" class="copy" data-drrep="merge">以此取代所選的 ${sel.length} 段（合併為一段）</button>` : "")
     : (cur >= 0 ? `<button type="button" class="copy" data-drrep="one">以此取代第 ${cur + 1} 段</button>` : "");
   return `<div class="drres"><h3>最新的${whole ? "整節統整" : merge ? "融合" : "改寫"}結果</h3><div class="fin-view">${finHtml(r)}</div>
-    ${used ? `<p class="note">✓ 這個結果已經在「本節論文內容」中，不需要再加入。</p>` : `${btn ? "" : `<p class="note warn">沒有出現「以此取代」按鈕：原本選的段落已不在本節定稿中（可能已修改或刪除）。請在上方「本節的段落」重新按「用這一段」${merge ? "或勾選「加入融合」" : ""}，選好要被取代的段落後，就會出現取代按鈕。</p>`}<p class="fin-btns">${btn}${whole ? "" : `<button type="button" data-drrep="all">以此取代本節全部內容</button>`}<button type="button" data-drrep="append">不取代，另外加在本節最後</button>
+    ${used ? `<p class="note">✓ 這個結果已經在「本節論文內容」中，不需要再加入。</p>` : `${btn ? "" : `<p class="note warn">沒有出現「以此取代」按鈕：原本選的段落已不在本節定稿中（可能已修改或刪除）。請在上方「本節的段落」重新按「用這一段」${merge ? "或勾選「加入融合」" : ""}，選好要被取代的段落後，就會出現取代按鈕。</p>`}<p class="fin-btns">${btn}${whole || allPicked ? "" : `<button type="button" data-drrep="all">以此取代本節全部內容</button>`}<button type="button" data-drrep="append">不取代，另外加在本節最後</button>
     <span class="hint">一般請按「以此取代」；取代後會更新「本節論文內容」與論文.md</span></p>`}</div>`;
 }
 // 整節統整：本節全文先分則送出，最後一則才是統整任務；在「常用 → 修訂論文」使用時，由使用者選章節
@@ -1388,7 +1389,7 @@ function drParas() {
 function drView() {
   const ps = drParas(), done = store.values.dr_done || {}, cur = (store.values.dr_text || "").trim();
   const merge = store.values.dr_stage === "merge", sel = store.values.dr_sel || [];
-  return `<p class="hint">本節共 ${ps.length} 段，已完成 ${ps.filter(x => done[x.key]).length} 段。${merge ? "融合：按「加入融合」選兩段以上（依清單順序帶入），複製 Prompt 送出，AI 會先提出排序方案再寫出融合後的段落。" : "按「用這一段」帶入下方，複製 Prompt 送出；回覆貼到「AI 回覆」後，按「完成」標記，再換下一段。"}</p>` +
+  return `<p class="hint">本節共 ${ps.length} 段，已完成 ${ps.filter(x => done[x.key]).length} 段。${merge ? "融合：按「加入融合」選兩段以上（依清單順序帶入），複製 Prompt 送出，AI 會先提出排序方案再寫出融合後的段落。" : "按「用這一段」帶入下方，複製 Prompt 送出；回覆貼到「AI 回覆」後，按「完成」標記，再換下一段。"}　<button type="button" data-drall="1">${merge ? "全選（全部加入融合）" : "全選（帶入本節全部段落）"}</button></p>` +
     ps.map((x, i) => `<div class="dr-para${done[x.key] ? " done" : ""}${(merge ? sel.includes(x.key) : cur === x.text.trim()) ? " cur" : ""}"><b>${i + 1}</b>
       <div class="dr-txt">${x.head ? `<small>${esc(x.head)}</small>` : ""}${x.text.length > 90
         ? `<details><summary>${esc(x.text.slice(0, 90))}……<span class="dr-more">展開全文</span></summary><div class="dr-full">${esc(x.text)}</div></details>`
