@@ -1328,8 +1328,8 @@ function finHtml(t, ed) {   // 定稿的簡易排版：#### 小標題、段落�
 function finBox() {   // 第一～五章各節：所有步驟下方的「本節論文內容」
   const s = sec(); if (!THESIS_SECS().some(x => x.id === s.id)) return "";
   const t = finText(s.id), own = typeof (store.values.fin || {})[s.id] === "string";
-  const miss = t ? finRefMiss(s) : 0, dup = t ? finDups(t).length : 0;
-  return `<details class="fin" id="finbox"><summary>本節論文內容（定稿）${t ? "" : "：尚未撰寫"}${miss ? `<span class="fin-refhint">　📚 尚缺 ${miss} 筆參考文獻，點開到最下方「查找參考文獻」</span>` : ""}${dup ? `<span class="fin-refhint">　⚠ 有 ${dup} 組重複段落</span>` : ""}</summary>
+  const missR = t ? finRefMissRows(s) : [], miss = missR.length, dup = t ? finDups(t).length : 0;
+  return `<details class="fin" id="finbox"><summary>本節論文內容（定稿）${t ? "" : "：尚未撰寫"}${miss ? `<span class="fin-refhint">　📚 尚缺 ${miss} 筆參考文獻${miss <= 3 ? "：" + missR.map(r => "（" + esc(r.label) + "）").join("") : ""}，點開到最下方「查找參考文獻」</span>` : ""}${dup ? `<span class="fin-refhint">　⚠ 有 ${dup} 組重複段落</span>` : ""}</summary>
     ${finDupBox(t)}${t ? `<p class="hint">直接點文字即可修改，整節連在一起，可以跨段落選取；自動存檔。按 Enter 另起一段，刪掉段落之間的分隔即合併兩段。</p>
     <div class="fin-view fin-ed" id="finview" contenteditable="true" spellcheck="false" data-fall="1">${finHtml(t)}</div>` : `<div class="fin-view" id="finview"><p class="hint">完成本節的撰寫步驟並貼上 AI 回覆後，正文會自動出現在這裡。</p></div>`}
     <p class="fin-btns">${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}${(store.values.fin_undo || {})[s.id] ? `<button type="button" data-finundo="1">復原上一次清除或取代前的內容</button>` : ""}
@@ -1351,7 +1351,8 @@ function finDedupLatest(t) {   // 重複或幾乎相同的段落：每組只保�
   return bs.join("\n\n");
 }
 // 本節定稿下方：查找本節缺少的參考文獻 → 貼上 AI 回覆 → 自動匯入參考文獻頁
-function finRefMiss(s) { const rows = refRows().filter(r => r.secs.has(s.no)); return rows.length - rows.filter(r => r.entry.trim() && (r.saved || refApa(r.entry))).length; }
+const finRefMissRows = s => refRows().filter(r => r.secs.has(s.no) && !(r.entry.trim() && (r.saved || refApa(r.entry))));   // 本節缺 APA 出處的引用
+function finRefMiss(s) { return finRefMissRows(s).length; }
 function finRefCount(s) {
   const rows = refRows().filter(r => r.secs.has(s.no)); if (!rows.length) return "";
   const ok = rows.filter(r => r.entry.trim() && (r.saved || refApa(r.entry))).length;
@@ -1360,7 +1361,8 @@ function finRefCount(s) {
 function finRefBox(s) {
   const c = finRefCount(s); if (!c) return "";
   const pasted = (store.values.rf_paste || {})[s.id] || "", need = !!refFillItems(s.no);
-  return `<div class="fin-ref"><h4>查找參考文獻</h4><p class="hint" id="finrefcount">${c}</p>` + (need || pasted ? `
+  const mr = finRefMissRows(s);
+  return `<div class="fin-ref"><h4>查找參考文獻</h4><p class="hint" id="finrefcount">${c}</p>` + (mr.length ? `<p class="note warn">尚缺出處：${mr.map(r => `（${esc(r.label)}）${r.entry.trim() ? "<small>已有出處但不是 APA 格式</small>" : ""}`).join("、")}</p>` : "") + (need || pasted ? `
     <p><b>①</b> <button type="button" data-finrefcopy="${esc(s.no)}">複製查找文獻 Prompt（貼到一般 AI）</button> <span class="hint">需開啟網路搜尋；接在查過資料的同一個對話最準</span></p>
     <label><b>②</b> 貼上 AI 回覆，自動匯入參考文獻<textarea data-finref="${s.id}" rows="3" placeholder="貼上 AI 列出的 APA 參考文獻（一行一筆）">${esc(pasted)}</textarea></label>` : "") + `</div>`;
 }
