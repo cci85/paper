@@ -329,7 +329,11 @@ $("pane").addEventListener("input", e => {
     $("out").textContent = tbText(); $("copy").disabled = !tbText();
     return;
   }
-  if (t.dataset.reply) { (store.replies ||= {})[replyKey()] = t.value; save(); renderReplyView(); return; }
+  if (t.dataset.reply) {
+    (store.replies ||= {})[replyKey()] = t.value; save(); renderReplyView();
+    const fb = $("finbox"); if (fb) { const open = fb.open; fb.outerHTML = finBox(); const nb = $("finbox"); if (nb) nb.open = open; }   // 撰寫步驟貼上回覆後，定稿立即更新
+    return;
+  }
   if (t.dataset.f) {
     store.values[vkey(t.dataset.f)] = t.value;
     if (t.type === "radio") {

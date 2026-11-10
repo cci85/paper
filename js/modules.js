@@ -1217,10 +1217,10 @@ function cleanBody(text) {   // 撰寫步驟的回覆 → 論文正文：去掉�
   const first = t.search(/^#{1,6}\s/m); if (first > 0) t = t.slice(first);
   return t.split("\n").filter(l => !/^\s*-{3,}\s*$/.test(l))
     .map(l => /^#{1,6}\s/.test(l) ? "#### " + l.replace(/^#+\s*|\*\*/g, "").trim() : l.replace(/\*\*/g, "").replace(/\s?\[\d+(?:\s*[,，–-]\s*\d+)*\]/g, ""))
-    .join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    .join("\n").replace(/^(#### .*)\n(?=\S)/gm, "$1\n\n").replace(/\n{3,}/g, "\n\n").trim();   // 小標題自成一段
 }
 function finText(sid) {
-  const v = (store.values.fin || {})[sid]; if (typeof v === "string") return v;
+  const v = (store.values.fin || {})[sid]; if (typeof v === "string" && v.trim()) return v;   // 定稿被清空時，改回由撰寫步驟的回覆產生
   const s = ALL_SECS.find(x => x.id === sid), st = s && writeStep(s);
   const t = st ? cleanBody((store.replies || {})[sid + "|" + st.mod]) : "", hs = t.match(/^#### .*$/gm) || [];
   return hs.length === 1 && t.startsWith("#### ") ? t.replace(/^#### .*\n*/, "") : t;   // 只有一個小標題（例如「研究背景與動機」）時去掉，正文不設小標題
