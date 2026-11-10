@@ -365,12 +365,9 @@ $("pane").addEventListener("click", async e => {
     if (a) { (store.values.refs ||= {})[r.key] = refNoLetter(a, r.year); save(); update(); } return; }
   const rd = e.target.closest("button[data-refdel]");
   if (rd) { delete (store.values.refs || {})[rd.dataset.refdel]; save(); renderPane(); update(); return; }
-  if (e.target.closest("button[data-drhl]")) {   // 修訂論文：用反白的文字
-    if (!FIN_SEL.trim()) { alert("請先在下方「本節論文內容」反白要修改的文字，再按「用反白的文字」。"); return; }
-    const x = finFind(finText(drSid()), FIN_SEL);
-    if (!x) { alert("在本節定稿中找不到反白的文字（可能選到了定稿以外的內容），請只在「本節論文內容」裡反白。"); return; }
-    store.values.dr_text = x; store.values.dr_sel = []; FIN_SEL = "";
-    save(); renderPane(); update(); const ta = document.querySelector('textarea[data-f="dr_text"]'); if (ta) ta.scrollIntoView({ behavior: "smooth", block: "center" }); return;
+  if (e.target.closest("button[data-drhl]")) {   // 修訂論文：用反白的文字（還沒反白時，展開並捲到「本節論文內容」）
+    if (!FIN_SEL.trim()) { const fb = $("finbox"); if (fb) { fb.open = true; fb.scrollIntoView({ behavior: "smooth", block: "start" }); } return; }
+    drUseSel(FIN_SEL); return;
   }
   const fb2 = e.target.closest("button[data-finedit], button[data-finreset], button[data-drrep]");
   if (fb2) {   // 本節定稿：修改文字／重新帶入；段落核實改寫：以改寫結果取代
@@ -530,9 +527,27 @@ $("outd").addEventListener("toggle", () => {
   });
 })();
 
-// 記住「本節論文內容」中最後一次反白的文字（按按鈕時選取可能已消失）
+// 記住「本節論文內容」中最後一次反白的文字（按按鈕時選取可能已消失）；反白時在旁邊浮出「用這段修改」
 let FIN_SEL = "";
+const drStepIdx = () => steps().findIndex(x => x.mod === "dr");
+function drUseSel(sel) {   // 反白的文字帶入本節「修訂論文」步驟的「論文段落」
+  const x = finFind(finText(store.sec), sel);
+  if (!x) { alert("在本節定稿中找不到反白的文字（可能選到了定稿以外的內容），請只在「本節論文內容」裡反白。"); return; }
+  const k = drStepIdx(); if (k < 0) return;
+  store.step[store.sec] = k; Object.assign(store.values, { dr_text: x, dr_sel: [], dr_text_sid: store.sec }); FIN_SEL = ""; hlBtn.style.display = "none";
+  if (getSelection()) getSelection().removeAllRanges();
+  save(); renderSection(); renderPane(); foldOut(); update();
+  const ta = document.querySelector('textarea[data-f="dr_text"]'); if (ta) ta.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+const hlBtn = Object.assign(document.createElement("button"), { type: "button", className: "copy hl-float", textContent: "用這段修改" });
+hlBtn.style.cssText = "display:none;position:absolute;z-index:50;padding:4px 10px;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,.25)";
+hlBtn.addEventListener("mousedown", e => { e.preventDefault(); if (FIN_SEL.trim()) drUseSel(FIN_SEL); });   // mousedown：避免點按鈕時選取先消失
+document.body.appendChild(hlBtn);
 document.addEventListener("selectionchange", () => {
-  const g = getSelection(), v = $("finview"); if (!g || !g.rangeCount || g.isCollapsed || !v) return;
-  if (v.contains(g.anchorNode) && v.contains(g.focusNode)) FIN_SEL = g.toString();
+  const g = getSelection(), v = $("finview");
+  if (!g || !g.rangeCount || g.isCollapsed || !v || !v.contains(g.anchorNode) || !v.contains(g.focusNode) || !g.toString().trim()) { hlBtn.style.display = "none"; return; }
+  FIN_SEL = g.toString();
+  if (drStepIdx() < 0) return;   // 本節沒有「修訂論文」步驟
+  const r = g.getRangeAt(0).getBoundingClientRect();
+  hlBtn.style.left = Math.max(8, r.right + scrollX - 90) + "px"; hlBtn.style.top = (r.bottom + scrollY + 6) + "px"; hlBtn.style.display = "";
 });
