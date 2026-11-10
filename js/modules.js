@@ -633,20 +633,19 @@ const DEFS = {
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。"
   },
   flow: {
-    label: "研究流程", target: "nlm",
-    hint: "說明本研究的主要階段、各階段的目的與依據，以及在哪一章呈現；著重推論邏輯，不寫成流水帳，不畫流程圖。",
+    label: "研究流程", target: "ai",
+    hint: "依第一章到第三章（或全文）已完成的定稿，說明本研究的主要階段、各階段的目的，以及在哪一章呈現；不需要文獻，貼到一般 AI 即可。",
     fields: [
-      { id: "sc_topic", type: "textarea", label: "研究題目與研究架構", hint: "與 1.3 共用；自動帶入 0.5 定稿題目、研究情境與研究架構", rows: 4 },
-      { id: "fl_extra", type: "textarea", label: "流程補充", hint: "選填；例如前測、專家效度、資料蒐集期間等特別的步驟", rows: 2 },
-      ...partBoxes("fl_b", "flow", p => flParts(p))
+      { id: "fl_src", type: "textarea", label: "各章定稿摘要", hint: "自動帶入第一章到第五章已有定稿的各節（研究方法各節帶入較多內容）；可自行增刪", rows: 8 },
+      { id: "fl_extra", type: "textarea", label: "流程補充", hint: "選填；例如前測、專家效度、資料蒐集期間等定稿中沒寫到的步驟", rows: 2 }
     ],
-    seed: () => ({ sc_topic: bgSeed().bg_topic }),
-    seedFrom: "前面步驟", seedNote: "研究題目與研究架構由 0.5、3.1／0.3 帶入",
-    rules: () => ["style", "ch1"],
-    build: p => flParts(p)[0] || "",
-    status: p => partsNote(flParts(p)),
-    empty: "（請先完成 0.5 論文題目或 0.3 研究架構）",
-    next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。"
+    seed: () => ({ fl_src: flSummary() }),
+    seedFrom: "各章定稿", seedNote: "各章定稿摘要由第一章到第五章已有定稿的各節帶入",
+    rules: () => ["style"],
+    build: (p, R) => blank(p.fl_src) ? "" : T.flow({ src: p.fl_src.trim(), extra: (p.fl_extra || "").trim(),
+      chapters: OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).map(c => c.ch + "（" + c.secs.map(s => s.title).join("、") + "）").join("；") }) + R,
+    empty: "（第一章到第三章還沒有定稿內容；建議第三章定稿後再寫研究流程）",
+    next: "下一步：貼到一般 AI（不需要上傳文獻）。"
   },
   tbfill: {
     label: "待補資料查證", target: "tool",
@@ -1504,8 +1503,6 @@ function partBoxes(pre, mod, fn) { return [2, 3, 4].map(k => ({ id: pre + k, typ
   hint: "上一則送出、NotebookLM 回覆「已收到」後，在同一個對話接著送出",
   copyLabel: `${"②③"[k - 2]} 複製第 ${k} 則（同一個對話接著送出）`, build: p => fn(p)[k - 1] || "" })); }
 function puParts(p) { return blank(p.hy_paths) ? [] : ruleSplit("purpose", p, T.purpose({ paths: p.hy_paths, motive: p.pu_motive }), "研究目的"); }
-function flParts(p) { return blank(p.sc_topic) ? [] : ruleSplit("flow", p, T.flow({ topic: p.sc_topic.trim(), extra: (p.fl_extra || "").trim(),
-  chapters: OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).map(c => c.ch + "（" + c.secs.map(s => s.title).join("、") + "）").join("；") }), "研究流程"); }
 function scParts(p) {
   if (blank(p.sc_topic)) return [];
   const q = { topic: p.sc_topic.trim(), target: (p.sc_target || "").trim(), extra: (p.sc_extra || "").trim(), ctx: (p.sc_ctx || "").trim() };
@@ -1513,6 +1510,14 @@ function scParts(p) {
   const one = T.scope(q) + R;
   if (one.length <= 2800) return [one];
   return splitForNLM(T.scope_mat(q) + (R ? "\n\n【撰寫時須遵守的規則】" + R : ""), T.scope_task(q) + (R ? "\n\n撰寫時請遵守前面提供的「撰寫時須遵守的規則」。" : ""), "研究範圍");
+}
+// 1.4 研究流程：各章已有定稿的摘要（第三章研究方法帶入較多內容）
+function flSummary() {
+  return THESIS_SECS().map(s => {
+    const t = finBlocks(finText(s.id)).filter(b => !/^#/.test(b)).join(" "); if (!t) return "";
+    const n = /^s3-/.test(s.id) ? 500 : 120;
+    return `${s.no} ${s.title}：${t.length > n ? t.slice(0, n) + "……" : t}`;
+  }).filter(Boolean).join("\n");
 }
 // 1.3 研究範圍：1.1 定稿中描述研究情境（平台）的段落，用來說明選擇此平台的理由
 function scCtx() {
@@ -1603,8 +1608,8 @@ const OUTLINE = [
       { mod: "purpose", rules: ["citation", "style", "ch1"], note: "研究架構（假說清單）由架構圖自動帶入，請補上預期方向；研究缺口自動帶入 1.1 定稿的最後一段。貼到寫 1.1 的同一個 NotebookLM 對話。" }], finish: FIN_POLISH },
     { id: "s1-3", no: "1.3", title: "研究範圍", desc: "界定研究的情境、對象與變數邊界。", steps: [
       { mod: "scope", rules: ["citation", "style", "ch1"], note: "研究題目、研究架構、研究情境與研究對象會自動帶入；可補充要排除的範圍。" }], finish: FIN_FULL },
-    { id: "s1-4", no: "1.4", title: "研究流程", desc: "說明研究的主要階段與各章安排（碩論特有小節，投稿期刊時可整段刪除）。", steps: [
-      { mod: "flow", rules: ["citation", "style", "ch1"], note: "研究題目與研究架構會自動帶入；有前測、專家效度等特別步驟可在「流程補充」說明。" }], finish: FIN_FULL }
+    { id: "s1-4", no: "1.4", title: "研究流程", desc: "說明研究的主要階段與各章安排；建議第三章定稿後再寫（碩論特有小節，投稿期刊時可整段刪除）。", steps: [
+      { mod: "flow", rules: ["style"], note: "建議在第三章定稿後（或全文完成後）再寫：各章定稿摘要會自動帶入，貼到一般 AI 即可。" }], finish: FIN_FULL }
   ] },
   { ch: "第二章 文獻探討", secs: [
     { id: "s2-1", no: "2.1", title: "各構念之定義與相關研究", desc: "每個構念各寫一節；這一節的步驟對每個構念重複一次。", steps: [
