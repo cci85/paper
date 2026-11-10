@@ -609,17 +609,23 @@ const DEFS = {
   },
   scope: {
     label: "研究範圍", target: "nlm",
-    hint: "依研究題目、研究架構、研究情境與研究對象，撰寫「研究範圍」：研究情境、研究對象、變數的範圍與排除項目。",
+    hint: "依研究題目、研究架構、研究情境與研究對象，撰寫「研究範圍」：先說明選擇此研究情境（平台）的理由，再說明研究對象、變數的範圍與排除項目。",
     fields: [
       { id: "sc_topic", type: "textarea", label: "研究題目與研究架構", hint: "自動帶入 0.5 定稿題目、研究情境與研究架構", rows: 4 },
       { id: "sc_target", type: "text", label: "研究對象", hint: "自動帶入 0.4 的研究對象", placeholder: "例如：年滿 18 歲、過去半年曾在蝦皮購物的消費者" },
-      { id: "sc_extra", type: "textarea", label: "範圍補充", hint: "選填；例如要排除的平台、商品類別或購物情境", rows: 2 }
+      { id: "sc_extra", type: "textarea", label: "範圍補充", hint: "選填；例如要排除的平台、商品類別或購物情境", rows: 2 },
+      { id: "sc_ctx", type: "textarea", label: "研究情境資料", hint: "自動帶入 1.1 定稿中提到平台的段落（用來說明選擇此平台的理由）；可自行增刪", rows: 4 },
+      ...[2, 3, 4].map(k => ({ id: "sc_b" + k, type: "promptbox", afterOut: true, when: p => scParts(p).length >= k,
+        get label() { const n = scParts(valuesOf(DEFS.scope)).length; return k === n ? `第 ${k} 則 Prompt（最後一則：開始撰寫）` : `第 ${k} 則 Prompt`; },
+        hint: "上一則送出、NotebookLM 回覆「已收到」後，在同一個對話接著送出",
+        copyLabel: `${"②③"[k - 2]} 複製第 ${k} 則（同一個對話接著送出）`, build: p => scParts(p)[k - 1] || "" }))
     ],
-    seed: () => ({ sc_topic: bgSeed().bg_topic, sc_target: (store.values.as_target || "").trim() }),
+    seed: () => ({ sc_topic: bgSeed().bg_topic, sc_target: (store.values.as_target || "").trim(), sc_ctx: scCtx() }),
+    seedQuiet: ["sc_ctx"],
     seedFrom: "前面步驟", seedNote: "研究題目與研究架構由 0.5、3.1／0.3 帶入，研究對象由 0.4 帶入",
     rules: () => ["style", "ch1"],
-    build: (p, R) => blank(p.sc_topic) ? "" : T.scope({ topic: p.sc_topic.trim(), target: (p.sc_target || "").trim(), extra: (p.sc_extra || "").trim(),
-      chapters: OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).map(c => c.ch + "（" + c.secs.map(s => s.title).join("、") + "）").join("；") }) + R,
+    build: p => scParts(p)[0] || "",
+    status: p => scParts(p).length > 1 ? `內容較長，Prompt 自動分成 ${scParts(p).length} 則：前幾則是參考資料（NotebookLM 只會回覆「已收到」），最後一則才開始撰寫；請在同一個對話依序送出。` : "",
     empty: "（請先完成 0.5 論文題目或 0.3 研究架構）",
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。"
   },
@@ -1461,6 +1467,20 @@ function bgSeed() {
   const paths = d.edges.map(e => `${nm(e.from)} → ${nm(e.to)}`).concat(d.mods.map(m => { const [a, b] = m.edge.split(">"); return `${nm(m.from)} 調節（${nm(a)} → ${nm(b)}）`; }));
   const topic = [(v.tt_zh || "").trim() && "論文題目：" + v.tt_zh.trim(), (v.as_ctx || "").trim() && "研究情境：" + v.as_ctx.trim(), paths.length && "研究架構：" + paths.join("；")].filter(Boolean).join("\n");
   return { bg_topic: topic, bg_facts: mdSection(r["s1-1|asp"], ["台灣統計資料", "研究情境", "實務問題", "實務缺口"]), bg_gaps: mdSection(r["s0-5|archchk"], ["研究缺口"]) };
+}
+function scParts(p) {
+  if (blank(p.sc_topic)) return [];
+  const q = { topic: p.sc_topic.trim(), target: (p.sc_target || "").trim(), extra: (p.sc_extra || "").trim(), ctx: (p.sc_ctx || "").trim() };
+  const R = RULES.filter(r => activeRules(DEFS.scope, p).includes(r.key)).map(r => typeof r.text === "function" ? r.text(p) : r.text).join("");
+  const one = T.scope(q) + R;
+  if (one.length <= 2800) return [one];
+  return splitForNLM(T.scope_mat(q) + (R ? "\n\n【撰寫時須遵守的規則】" + R : ""), T.scope_task(q) + (R ? "\n\n撰寫時請遵守前面提供的「撰寫時須遵守的規則」。" : ""), "研究範圍");
+}
+// 1.3 研究範圍：1.1 定稿中描述研究情境（平台）的段落，用來說明選擇此平台的理由
+function scCtx() {
+  const name = (store.values.as_ctx || "").replace(/[（(].*$/, "").trim().slice(0, 4), bs = finBlocks(finText("s1-1")).filter(b => !/^#/.test(b));
+  const hit = (name && bs.find(b => b.includes(name))) || bs.find(b => /平台|市集/.test(b)) || "";   // 優先取提到平台名稱的那一段
+  return hit.length > 650 ? hit.slice(0, 650) + "……" : hit;
 }
 // 由架構圖列出假說清單（一行一條；預期方向請研究者自行補上）
 function archHyp() {
