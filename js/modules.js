@@ -632,6 +632,18 @@ const DEFS = {
     copyLabel: "複製論文全文（Markdown）",
     next: "【待補】標記可到「待補資料查證」填入查證內容。"
   },
+  rename: {
+    label: "全站用詞取代", target: "tool", noReply: true,
+    hint: "把一個用詞全面換成新用詞（例如變數改名）：各章節論文內容、AI 回覆、研究假說、第二章架構、架構圖的變數名稱、題目與問卷構念都會一併更新；第二章的節名改變時，原本那一節的內容、AI 回覆與進度會一起搬到新的節名下。",
+    fields: [
+      { id: "rn_old", type: "text", label: "原用詞", placeholder: "例如：特惠偏好度" },
+      { id: "rn_new", type: "text", label: "新用詞", placeholder: "例如：促銷傾向" },
+      { id: "rn_prev", type: "cands", label: "預覽", render: p => rnPreview(p) },
+      { id: "rn_go", type: "button", label: "全部取代", run: p => rnRun(p) },
+      { id: "rn_undo", type: "button", label: "復原上一次取代", hint: "回到最近一次「全部取代」之前的狀態", run: () => rnUndo() }
+    ],
+    build: () => "", empty: "（填入原用詞與新用詞，確認預覽後按「全部取代」）"
+  },
   refs: {
     label: "參考文獻", target: "tool",
     hint: "正文中每一筆引用列成一項：自動帶入的出處（黃框）請核對後修改；找不到出處的（紅框）請填入完整的 APA 參考文獻；填過的會變成綠框並保存。",
@@ -1768,6 +1780,8 @@ const OUTLINE = [
       { mod: "m8" }] },
     { id: "q-full", no: "", title: "論文全文", desc: "依章節顯示各節的定稿（就是「研究名稱_論文.md」的內容）；各節的定稿可在該節最下方的「本節論文內容」查看與修改。", steps: [
       { mod: "fulltext", note: "定稿來自各節撰寫步驟的正文，修訂論文（補強、精簡、整節統整、融合）後可取代為改寫版。" }] },
+    { id: "q-rename", no: "", title: "全站用詞取代", desc: "變數改名或統一譯名時使用：一次更新全站的論文內容、AI 回覆、研究假說、架構圖與第二章分節。", steps: [
+      { mod: "rename", note: "取代前會先顯示各處的數量；取代後可按「復原上一次取代」。" }] },
     { id: "q-ref", no: "", title: "參考文獻", desc: "掃描各節定稿中的行內引用，從各步驟的 AI 回覆中找出完整出處；請逐筆核對或填入，論文.md 最後會附上依 APA 第七版排序的參考文獻。", steps: [
       { mod: "refs", note: "中文文獻在前（依筆畫）、英文文獻在後（依字母）。自動帶入的出處請務必核對原文。" }] },
     { id: "q-tb", no: "", title: "待補資料查證", desc: "集中列出第一章到第五章各節定稿中所有【待補資料】【待補文獻】【待補引用】【待補量表】，查證後直接填入；論文.md 會以填入的內容取代標記。", steps: [
@@ -1875,6 +1889,52 @@ function cvScale(vars) {
   const vs = String(vars || "").split(/[、，,／/]/).map(x => x.trim()).filter(Boolean);
   const cs = F.cons.filter(c => vs.some(v => c.name === v || c.name.startsWith(v) || v.startsWith(c.name.replace(/\s*[（(].*$/, ""))));
   return cs.map(c => `- ${c.name}：${c.src || "出處未填"}${c.items.length ? `，${c.items.length} 題` : ""}${F.scale ? `，${F.scale}` : ""}`).join("\n");
+}
+// 全站用詞取代：以 JSON 字串整體取代（同時涵蓋欄位值、AI 回覆與以變數為名的鍵），再把第二章改名後的節 id 搬到新 id
+const RN_UNDO = "pr-rename-undo";
+const rnEsc = t => JSON.stringify(String(t)).slice(1, -1);
+const rnCount = (o, w) => { const j = JSON.stringify(o ?? ""), k = rnEsc(w); return k ? j.split(k).length - 1 : 0; };
+function rnPreview(p) {
+  const a = (p.rn_old || "").trim(), b = (p.rn_new || "").trim();
+  if (!a) return `<p class="hint">填入原用詞後，這裡會列出各處要改的數量。</p>`;
+  const v = store.values, rest = Object.fromEntries(Object.entries(v).filter(([k]) => !["fin", "hy_paths", "ch2_plan", "rn_old", "rn_new", "fin_undo"].includes(k)));
+  const rows = [["各章節論文內容", v.fin], ["AI 回覆", store.replies], ["研究假說", v.hy_paths], ["第二章架構", v.ch2_plan], ["架構圖、題目、問卷與其他欄位", rest], ["研究名稱", store.name]].map(([n, o]) => [n, rnCount(o, a)]);
+  const total = rows.reduce((x, r) => x + r[1], 0);
+  return `<table class="rn-prev"><tbody>${rows.map(([n, c]) => `<tr><td>${esc(n)}</td><td>${c} 處</td></tr>`).join("")}</tbody></table>` +
+    `<p class="${total ? "note" : "note warn"}">${total ? `共 ${total} 處「${esc(a)}」${b ? `將改為「${esc(b)}」` : "（請填入新用詞）"}。` : `全站找不到「${esc(a)}」。`}${b && b.includes(a) ? "新用詞包含原用詞，取代只會進行一次，不會重複套用。" : ""}</p>`;
+}
+const ch2Ids = () => ((OUTLINE.find(c => /^第二章/.test(c.ch)) || { secs: [] }).secs).filter(x => !x.setup && x.id !== "s2-th").map(x => x.id);
+function rnRun(p) {
+  const a = (p.rn_old || "").trim(), b = (p.rn_new || "").trim();
+  if (!a || !b) return "請填入原用詞與新用詞。";
+  if (a === b) return "原用詞與新用詞相同。";
+  const n = rnCount([store.values, store.replies, store.name], a) - rnCount([store.values.rn_old], a);
+  if (!n) return `全站找不到「${a}」。`;
+  if (!confirm(`將全站 ${n} 處「${a}」改為「${b}」？（之後可按「復原上一次取代」）`)) return "已取消。";
+  const keep = { rn_old: store.values.rn_old, rn_new: store.values.rn_new };
+  try { localStorage.setItem(RN_UNDO, JSON.stringify({ values: store.values, replies: store.replies, step: store.step, rules: store.rules, sec: store.sec, name: store.name })); } catch {}
+  const before = ch2Ids(), sub = o => JSON.parse(JSON.stringify(o ?? null).split(rnEsc(a)).join(rnEsc(b)));
+  store.values = sub(store.values) || {}; store.replies = sub(store.replies) || {}; store.name = sub(store.name) || "";
+  Object.assign(store.values, keep);
+  rebuildCh2();
+  const after = ch2Ids(), moved = before.length === after.length ? before.map((o, i) => [o, after[i]]).filter(([o, w]) => o !== w) : [];
+  if (moved.length) {   // 第二章節 id 隨節名改變：論文內容、AI 回覆、步驟進度、每節欄位與規則勾選一併搬移
+    const re = new RegExp(`(?<![\\w-])(${moved.map(([o]) => o).join("|")})(?![\\w])`, "g"), mp = Object.fromEntries(moved);
+    const mv = o => JSON.parse(JSON.stringify(o ?? null).replace(re, m => mp[m]));
+    store.values = mv(store.values) || {}; store.replies = mv(store.replies) || {}; store.step = mv(store.step) || {}; store.rules = mv(store.rules) || {};
+    if (mp[store.sec]) store.sec = mp[store.sec];
+    rebuildCh2();
+  }
+  if (typeof renderToc === "function") renderToc();
+  return `已將 ${n} 處「${a}」改為「${b}」${moved.length ? `，並把第二章 ${moved.length} 節的內容搬到新的節名下` : ""}。`;
+}
+function rnUndo() {
+  let u = null; try { u = JSON.parse(localStorage.getItem(RN_UNDO) || "null"); } catch {}
+  if (!u) return "沒有可以復原的取代。";
+  if (!confirm("回到最近一次「全部取代」之前的狀態？之後所做的修改也會一併還原。")) return "已取消。";
+  Object.assign(store, u); try { localStorage.removeItem(RN_UNDO); } catch {}
+  rebuildCh2(); if (typeof renderToc === "function") renderToc();
+  return "已復原。";
 }
 // 3.2 研究假說：從第二章各變數一節的論文內容取出假說敘述（舊版「研究假說之推導」的回覆也一併讀取）
 function hlItems() {
