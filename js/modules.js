@@ -359,8 +359,8 @@ const DEFS = {
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話；【待補資料】請自行查找後補入。"
   },
   purpose: {
-    label: "研究目的與問題", target: "nlm",
-    hint: "依研究架構與研究動機，寫出研究目的與研究問題，並檢核「動機 → 目的 → 問題 → 假說」是否一一對應。",
+    label: "研究目的", target: "nlm",
+    hint: "依研究架構與 1.1 的研究缺口，參考上傳文獻宣告研究目的的寫法撰寫研究目的，並檢核「缺口 → 目的 → 假說」是否一一對應。",
     fields: [
       { id: "hy_paths", type: "textarea", label: "研究架構", hint: "一行一條假說；與{#hypo}共用同一份內容", rows: 5, placeholder: "H1：品牌人格 → 自我一致性（正向）" },
       { id: "pu_motive", type: "textarea", label: "1.1 的研究缺口", hint: "自動帶入 1.1 定稿的最後一段（研究缺口）；可自行修改", rows: 4 }
@@ -1213,6 +1213,7 @@ const NOT_TEXT = new Set(["bgplan", "asp", "m7a", "m7b"]);   // 分析、查資�
 const writeStep = s => { const st = stepsOf(s).filter(x => !x.finish && DEFS[x.mod].target !== "tool" && !NOT_TEXT.has(x.mod)); return st[st.length - 1]; };
 function cleanBody(text) {   // 撰寫步驟的回覆 → 論文正文：去掉開場說明、查證與待補清單類小節、角標
   let t = deLatex(String(text || "")).replace(/\r\n?/g, "\n");
+  t = t.replace(/^#{1,4}\s*(?:\d+[.、]\s*)?文獻中的寫法[^\n]*\n[\s\S]*?(?=^#{1,4}\s|(?![\s\S]))/m, "");   // 寫法分析不放進正文
   const cut = t.search(VERIFY_HEAD); if (cut >= 0) t = t.slice(0, cut);
   const first = t.search(/^#{1,6}\s/m); if (first > 0) t = t.slice(first);
   return t.split("\n").filter(l => !/^\s*-{3,}\s*$/.test(l))
@@ -1525,7 +1526,7 @@ const OUTLINE = [
       { mod: "bgplan", rules: ["citation", "ch1"], note: "先看相關文獻怎麼寫研究背景與動機：必寫的要素、要放幾點統計數據、從理論或從實務資料切入，並整理出幾種寫法供你選擇。" },
       { mod: "asp", note: "依選定的寫法查台灣的統計與實務資料：把選定寫法的段落大綱與{#archchk}的回覆交給有網路搜尋的 AI，寫成研究情境、實務問題與實務缺口，並整理台灣統計資料。" },
       { mod: "bg", rules: ["citation", "style", "verify", "ch1"], note: "依選定的寫法撰寫；研究主題、選定的寫法、背景資料與研究缺口會自動帶入。" }], finish: FIN_FULL },
-    { id: "s1-2", no: "1.2", title: "研究目的與問題", desc: "研究目的要對應動機，研究問題要能由假說回答。", steps: [
+    { id: "s1-2", no: "1.2", title: "研究目的", desc: "承接 1.1 的研究缺口，參考文獻的寫法說明本研究的整體目的與檢驗重點；不另寫研究問題。", steps: [
       { mod: "purpose", rules: ["style", "ch1"], note: "研究架構（假說清單）由架構圖自動帶入，請補上預期方向；研究缺口自動帶入 1.1 定稿的最後一段。貼到寫 1.1 的同一個 NotebookLM 對話。" }], finish: FIN_POLISH },
     { id: "s1-3", no: "1.3", title: "研究範圍與流程", desc: "界定研究的情境、對象與變數邊界，並說明研究流程與各章安排。", steps: [
       { mod: "scope", rules: ["style", "ch1"], note: "研究題目、研究架構、研究情境與研究對象會自動帶入；可補充要排除的範圍。" }], finish: FIN_FULL }
