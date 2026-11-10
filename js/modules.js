@@ -1789,8 +1789,6 @@ const OUTLINE = [
       { mod: "discuss", note: "可接在 5.1 同一個對話。", fixed: { ds_secs: ["limit"] } }], finish: FIN_FULL }
   ] },
   { ch: "論文整理", secs: [
-    { id: "q-newlit", no: "", title: "補入新文獻", desc: "第二章寫到一半又找到新文獻時使用：判斷新文獻該放進哪一節，並與同主題的代表文獻比較。", steps: [
-      { mod: "m8" }] },
     { id: "q-full", no: "", title: "論文全文", desc: "依章節顯示各節的定稿（就是「研究名稱_論文.md」的內容）；各節的定稿可在該節最下方的「本節論文內容」查看與修改。", steps: [
       { mod: "fulltext", note: "定稿來自各節撰寫步驟的正文，修訂論文（補強、精簡、整節統整、融合）後可取代為改寫版。" }] },
     { id: "q-rename", no: "", title: "全站用詞取代", desc: "變數改名或統一譯名時使用：一次更新全站的論文內容、AI 回覆、研究假說、架構圖與第二章分節。", steps: [
