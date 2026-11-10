@@ -337,7 +337,7 @@ const DEFS = {
     next: "下一步：在下方勾選要用的寫法（可勾多種合併），會自動帶入{#asp}與{#bg}的「選定的寫法」。"
   },
   bg: {
-    label: "研究背景與動機", target: "nlm",
+    label: "研究動機", target: "nlm",
     hint: "由產業現象收斂到文獻缺口，撰寫研究背景與研究動機。產業數據只會用您提供的資料，缺的會標【待補資料】。",
     fields: [
       { id: "bg_topic", type: "textarea", label: "研究主題與研究架構", hint: "自動帶入 0.5 定稿題目、研究情境與 3.1／0.3 的研究架構路徑", rows: 4, placeholder: "例如：品牌人格透過自我一致性影響品牌依附——以台灣精釀啤酒為例" },
@@ -370,7 +370,7 @@ const DEFS = {
     rules: () => ["style"],
     build: (p, R) => blank(p.hy_paths) ? "" : T.purpose({ paths: p.hy_paths, motive: p.pu_motive }) + R,
     empty: "（請填入研究架構）",
-    next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話（可接在寫研究背景與動機的同一個對話）。"
+    next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話（可接在寫研究動機的同一個對話）。"
   },
   sample: {
     label: "研究對象與抽樣", target: "ai",
@@ -608,8 +608,8 @@ const DEFS = {
     next: "第一章各步驟的 Prompt 會自動附上精簡版規範（附加共用規則中的「第一章寫作規範」）。"
   },
   scope: {
-    label: "研究範圍與流程", target: "nlm",
-    hint: "依研究題目、研究架構、研究情境與研究對象，撰寫「研究範圍」（情境、對象、變數邊界與排除項目）與「研究流程」（研究的主要階段、各階段的目的，以及對應的章節）。",
+    label: "研究範圍", target: "nlm",
+    hint: "依研究題目、研究架構、研究情境與研究對象，撰寫「研究範圍」：研究情境、研究對象、變數的範圍與排除項目。",
     fields: [
       { id: "sc_topic", type: "textarea", label: "研究題目與研究架構", hint: "自動帶入 0.5 定稿題目、研究情境與研究架構", rows: 4 },
       { id: "sc_target", type: "text", label: "研究對象", hint: "自動帶入 0.4 的研究對象", placeholder: "例如：年滿 18 歲、過去半年曾在蝦皮購物的消費者" },
@@ -1522,13 +1522,13 @@ const OUTLINE = [
       { mod: "ttl", note: "可接在 0.3 或 0.4 的同一個 NotebookLM 對話；定稿題目填在最下方。", go: [{ to: "s1-1", step: 0, when: "題目定稿後，開始撰寫第一章緒論" }] }] }
   ] },
   { ch: "第一章 緒論", secs: [
-    { id: "s1-1", no: "1.1", title: "研究背景與動機", desc: "由產業現象收斂到文獻缺口。", steps: [
+    { id: "s1-1", no: "1.1", title: "研究動機", desc: "由產業與平台背景逐步收斂到研究缺口（期刊式引言）。", steps: [
       { mod: "bgplan", rules: ["citation", "ch1"], note: "先看相關文獻怎麼寫研究背景與動機：必寫的要素、要放幾點統計數據、從理論或從實務資料切入，並整理出幾種寫法供你選擇。" },
       { mod: "asp", note: "依選定的寫法查台灣的統計與實務資料：把選定寫法的段落大綱與{#archchk}的回覆交給有網路搜尋的 AI，寫成研究情境、實務問題與實務缺口，並整理台灣統計資料。" },
       { mod: "bg", rules: ["citation", "style", "verify", "ch1"], note: "依選定的寫法撰寫；研究主題、選定的寫法、背景資料與研究缺口會自動帶入。" }], finish: FIN_FULL },
     { id: "s1-2", no: "1.2", title: "研究目的", desc: "承接 1.1 的研究缺口，參考文獻的寫法說明本研究的整體目的與檢驗重點；不另寫研究問題。", steps: [
       { mod: "purpose", rules: ["style", "ch1"], note: "研究架構（假說清單）由架構圖自動帶入，請補上預期方向；研究缺口自動帶入 1.1 定稿的最後一段。貼到寫 1.1 的同一個 NotebookLM 對話。" }], finish: FIN_POLISH },
-    { id: "s1-3", no: "1.3", title: "研究範圍與流程", desc: "界定研究的情境、對象與變數邊界，並說明研究流程與各章安排。", steps: [
+    { id: "s1-3", no: "1.3", title: "研究範圍", desc: "界定研究的情境、對象與變數邊界。", steps: [
       { mod: "scope", rules: ["style", "ch1"], note: "研究題目、研究架構、研究情境與研究對象會自動帶入；可補充要排除的範圍。" }], finish: FIN_FULL }
   ] },
   { ch: "第二章 文獻探討", secs: [
