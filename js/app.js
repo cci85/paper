@@ -427,6 +427,14 @@ $("pane").addEventListener("click", async e => {
     const bs = finBlocks(finText(store.sec)); bs.splice(+fd.dataset.findel, 1); setFin(store.sec, bs.join("\n\n")); save(); renderPane(); update();
     const fbx = $("finbox"); if (fbx) fbx.open = true; return;
   }
+  const ff = e.target.closest("button[data-drfollow]");
+  if (ff) {   // 修訂論文：只有追問回覆時，複製接續修訂 Prompt
+    const old = ff.textContent;
+    try { await navigator.clipboard.writeText(DR_FOLLOW); } catch {
+      const ta = document.createElement("textarea"); ta.value = DR_FOLLOW; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+    }
+    ff.textContent = "已複製 ✓"; setTimeout(() => (ff.textContent = old), 1500); return;
+  }
   const fr = e.target.closest("button[data-finrefcopy]");
   if (fr) {   // 本節定稿：複製查找文獻 Prompt
     const it = refFillItems(fr.dataset.finrefcopy), text = it ? T.ref_fill({ items: it }) : "", old = fr.textContent;

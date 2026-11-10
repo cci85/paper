@@ -1403,7 +1403,8 @@ function drLatest(text) {
 function drResultView(t) {
   const ans = (mdSection(deLatex(String(t || "")), ["追問回覆"]) || "").split("\n").slice(1).join("\n").trim();
   const ansBox = ans ? `<details class="drres" open><summary><b>追問回覆</b></summary><div class="fin-view">${finHtml(ans)}</div></details>` : "";
-  const r = drLatest(t); if (!r) return ansBox + (blank(t) ? "" : `<p class="hint">（回覆中沒有找到「## 改寫後段落」或「## 融合後的段落」；新版 Prompt 會固定用這兩個標題）</p>`);
+  const r = drLatest(t); if (!r && ans) return ansBox + `<p class="note warn">回覆中只有追問回覆，還沒有修訂後的段落。<button type="button" class="copy" data-drfollow="1">複製接續修訂 Prompt</button> 在同一個 NotebookLM 對話送出，再把回覆接著貼在上方「AI 回覆」原有內容的後面。</p>`;
+  if (!r) return ansBox + (blank(t) ? "" : `<p class="hint">（回覆中沒有找到「## 改寫後段落」或「## 融合後的段落」；新版 Prompt 會固定用這兩個標題）</p>`);
   const ps = drParas(), merge = store.values.dr_stage === "merge", whole = store.values.dr_stage === "whole", sel = (store.values.dr_sel || []).filter(k => ps.some(x => x.key === k));
   const cur = ps.findIndex(x => x.text.trim() === (store.values.dr_text || "").trim());
   const have = new Set(finBlocks(finText(drSid()))), used = finBlocks(r).every(b => have.has(b)) || finText(drSid()).includes(r.trim());   // 結果已在定稿中：不再顯示加入按鈕，避免重複加入
@@ -1449,7 +1450,8 @@ const drCh2Check = (whole, full = true) => !drCh2() ? "" : "\n\n[第二章修訂
   "\n4. 小標題一律寫成「(一)標題」的形式，獨立一行。" +
   "\n改寫說明中簡要列出做了哪些改正即可。";
 // 研究者的追問：先逐題回答，再依回答修訂
-const drAskNote = (p, out) => blank(p.dr_ask) ? "" : `\n\n[研究者的追問與修改意見]\n${p.dr_ask.trim()}\n請先在「## 追問回覆」標題下逐題回答：只依據上傳文獻並附引用，文獻無法回答的明確說明，不得臆測；認同我的意見時說明理由，不認同時也要說明文獻依據。接著依回答修訂，結果照常放在「${out}」標題之下。追問與前述規則衝突時，以追問為準。`;
+const drAskNote = (p, out) => blank(p.dr_ask) ? "" : `\n\n[研究者的追問與修改意見]\n${p.dr_ask.trim()}\n請依下列順序輸出（與前述步驟的順序衝突時，以此為準）：\n1.「## 追問回覆」：逐題回答，只依據上傳文獻並附引用，文獻無法回答的明確說明，不得臆測；認同我的意見時說明理由，不認同時也要說明文獻依據。\n2.「${out}」：緊接在追問回覆之後輸出修訂結果；每一項你認同或部分認同的意見，都必須實際反映在文字中，不得只回答而不修改。\n3.「## 追問對應的修改」：逐題一句話說明改了哪裡；不認同而未修改的，說明原因。\n4. 前述其他步驟（引用核實、術語查證、診斷等）放在最後，盡量精簡。\n追問與前述規則衝突時，以追問為準。`;
+const DR_FOLLOW = "請依你在「追問回覆」中的結論修訂這個段落：每一項你認同或部分認同的意見，都要實際反映在文字中。修訂後的完整段落請放在「## 改寫後段落」標題之下，其後在「## 追問對應的修改」逐題說明改了哪裡。不需要重做引用核實與術語查證。";
 // 第二章分到假說的節：修訂時附上現行假說清單，避免 NotebookLM 沿用對話中較早的編號
 function drHypNote() {
   const h = drCh2() ? ch2SecHyps(drSid()) : []; if (!h.length) return "";
