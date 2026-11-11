@@ -2155,8 +2155,8 @@ const odDefsText = p => odNames(p).filter(n => !(store.values.od_skip || []).inc
 function odDefsView() {
   const ns = odNames(valuesOf(DEFS.opdef)); if (!ns.length) return `<p class="hint">（填入構念清單後，這裡會列出第二章界定各構念的句子）</p>`;
   const skip = store.values.od_skip || [];
-  return `<p class="hint">勾選要寫進 3.2 的構念；問卷有、但論文不討論的構念（例如只作為檢核用的題目）取消勾選即可。</p><ul class="hlist od-pick">${ns.map(n => { const d = ch2Def(n), on = !skip.includes(n);
-    return `<li><label><input type="checkbox" data-odskip="${esc(n)}" ${on ? "checked" : ""}> <b>${esc(n)}</b></label>：${d ? esc(d) : `<span class="hint">第二章論文內容中沒有找到界定此構念的句子；將依上傳文獻撰寫</span>`}</li>`; }).join("")}</ul>`;
+  return `<div class="od-box"><p class="hint">勾選要寫進 3.2 的構念；問卷有、但論文不討論的構念取消勾選即可。下方灰字是第二章界定此構念的句子，會帶進 Prompt。</p>${ns.map(n => { const d = ch2Def(n), on = !skip.includes(n);
+    return `<div class="od-row${on ? "" : " off"}"><label><input type="checkbox" data-odskip="${esc(n)}" ${on ? "checked" : ""}><b>${esc(n)}</b>${on ? "" : `<small>不寫進 3.2</small>`}</label><div class="od-def">${d ? esc(d) : "第二章論文內容中沒有找到界定此構念的句子；將依上傳文獻撰寫"}</div></div>`; }).join("")}</div>`;
 }
 // 3.1：假說清單接在架構說明之後；再按一次只更新清單
 function hlPut() {
