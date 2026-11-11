@@ -22,7 +22,7 @@ const CH3_PLAN_TONE = "7. 本節為論文計畫書版本：尚未執行的程序
 const SP_M = [["conv", "便利抽樣"], ["purp", "立意抽樣"], ["snow", "滾雪球抽樣"], ["quota", "配額抽樣"], ["srs", "簡單隨機抽樣"], ["strat", "分層隨機抽樣"], ["other", "其他"]];
 const SP_CH = [["fb", "Facebook 社團"], ["ptt", "PTT"], ["dcard", "Dcard"], ["line", "LINE 群組"], ["ig", "Instagram"], ["other", "其他"]];
 const SP_EX = [["screen", "篩選題"], ["attn", "注意力檢查題"], ["fast", "作答時間過短"], ["straight", "連續相同作答"], ["rev", "反向題前後矛盾"], ["dup", "重複填答"], ["incomplete", "未完成作答"], ["other", "其他"]];
-const SP_ETH = [["intro", "首頁說明研究目的、填答時間與自願參與"], ["consent", "勾選同意後才開始填答"], ["quit", "可隨時退出"], ["noid", "不蒐集可識別身分的資料"], ["sep", "抽獎聯絡資料與問卷答案分開保存"], ["acad", "資料僅供學術研究使用"], ["irb", "通過研究倫理審查"]];
+const SP_ETH = [["intro", "首頁說明研究目的、填答時間與自願參與"], ["consent", "詳閱說明並勾選知情同意選項後，方能進入填答頁面"], ["quit", "完全自願，填答過程中可隨時中止或退出"], ["noid", "不蒐集可識別身分的資料"], ["sep", "抽獎聯絡資料與問卷答案分開保存"], ["acad", "資料僅供學術研究使用，並受到保密處理"], ["irb", "通過研究倫理審查"]];
 const spCtx = () => ((store.values.as_ctx || "").replace(/[（(].*$/, "").trim().replace(/(.{2,})購物$/, "$1") || "研究情境");   // 「蝦皮購物」→「蝦皮」，避免「在蝦皮購物購物」
 const spLab = (opts, keys) => (keys || []).filter(k => k !== "other").map(k => (opts.find(o => o[0] === k) || [])[1]).filter(Boolean);
 const spNum = x => { const n = parseFloat(String(x || "").replace(/[^\d.]/g, "")); return isFinite(n) ? n : NaN; };

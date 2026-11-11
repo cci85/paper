@@ -1707,6 +1707,17 @@ function deLatex(text) {
 // 選項：去掉 AI 自行加上的 ○ □ 等符號；題目或選項含「複選」或方框者視為複選題
 const svOpts = t => String(t || "").split(/[／/]/).map(x => x.replace(/^[\s○◯●◎□☐■◻▢☑✓]+/, "").trim()).filter(Boolean);
 const svMulti = (q, t) => /複選|多選/.test(q || "") || /^[\s]*[□☐■◻▢☑]/.test(t || "");
+// 研究倫理：填答說明一律含保密聲明，問卷最前面（填答說明之後）一律加上 3 題知情同意（AI 回覆已有時不重複加）
+const SV_PRIVACY = "本問卷僅供學術研究使用，沒有標準答案或正確與錯誤之分。您所提供的資料將僅用於研究分析，並受到保密處理。";
+const SV_CONSENT = [
+  { id: "C1", q: "我的參與是自願的，且我可以隨時退出，且不需給予任何理由。", opts: ["我是自願參加，且了解隨時可以退出此調查。", "我不是自願參加，且不了解隨時可以退出此調查。"], multi: false },
+  { id: "C2", q: "我的資訊將被保留以研究使用，並在相關的情況下，用於學術期刊之投稿。", opts: ["好。", "不好。"], multi: false },
+  { id: "C3", q: "我同意參加此次研究，並願意完成此問卷。", opts: ["是，我同意。", "不，我不同意。"], multi: false }
+];
+function svConsent(S) {
+  if (!/僅供學術研究使用/.test(S.intro)) S.intro = S.intro ? S.intro.replace(/\s*$/, "") + (/[。！？]$/.test(S.intro.trim()) ? "" : "。") + SV_PRIVACY : SV_PRIVACY;
+  if (!S.other.some(o => /知情同意/.test(o.head) || o.qs.some(x => /同意參加/.test(x.q)))) S.other.unshift({ head: "知情同意", text: "", qs: SV_CONSENT.map(x => ({ ...x, opts: x.opts.slice() })), after: "intro" });
+}
 function parseSurvey(text) {
   const t = String(text || "").replace(/\r\n?/g, "\n").replace(/\*\*/g, "");
   const m = lastSection(t, /^#{1,3}\s*問卷草稿[^\n]*\n([\s\S]*?)(?=^#{1,2}\s(?!#)|(?![\s\S]))/gm);
@@ -1741,6 +1752,7 @@ function parseSurvey(text) {
       S.constructs.push(con);
     } else S.other.push({ head, text: body.join("\n"), qs: [], after: last });
   });
+  svConsent(S);
   const nums = [...S.scaleText.matchAll(/(\d+)\s*[＝=]/g)].map(x => +x[1]);
   S.points = nums.length ? Math.max(...nums) : /五點/.test(S.scaleText) ? 5 : 7;
   S.ends = (() => { const a = S.scaleText.match(/1\s*[＝=]\s*([^／/、,，；;（(]+)/), z = S.scaleText.match(new RegExp(S.points + "\\s*[＝=]\\s*([^／/、,，；;（(]+)")); return [a ? a[1].trim() : "", z ? z[1].trim() : ""]; })();
