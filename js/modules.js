@@ -12,7 +12,7 @@ const RULES = [
   { key: "ch2", label: "第二章寫作規範", opt: true,
     text: () => "\n\n[第二章寫作規範]\n本段屬於論文第二章文獻探討，請遵守以下規範；與其他規則衝突時，以本規範為準：\n" + GUIDE_CH2.ai },
   { key: "ch3", label: "第三章寫作規範", opt: true,
-    text: () => "\n\n[第三章寫作規範]\n本段屬於論文第三章研究方法，請遵守以下規範；與其他規則衝突時，以本規範為準：\n" + (spPlan() ? GUIDE_CH3.ai.replace(/^7\. .*$/m, CH3_PLAN_TONE) : GUIDE_CH3.ai) }
+    text: () => "\n\n[第三章寫作規範]\n本段屬於論文第三章研究方法，請遵守以下規範；與其他規則衝突時，以本規範為準：\n" + ch3Rules() }
 ];
 // 3.3 研究對象與抽樣分計畫書版與完整論文版；計畫書版改用預定語氣（只影響 3.3，含其修訂論文步驟）
 const SP_STAGE0 = "full";
@@ -85,6 +85,11 @@ function spCompose(p) {   // 勾選與補充欄位 → 與舊版相同的文字�
       c.ok === true ? `排除合計 ${c.ex} 份；回收 ${c.n2} 份扣除排除 ${c.ex} 份，即為有效問卷 ${c.n3} 份（已由網頁核對）` : c.ok === false ? `【網頁核對：回收 ${c.n2} 份扣除排除 ${c.ex} 份為 ${c.n2 - c.ex} 份，與有效問卷 ${c.n3} 份不一致，請研究者確認】` : ""]),
     sp_minn: sz.n
   };
+}
+function ch3Rules() {   // 3.3 只附與本節有關的條目（1 定位、2 理由、4 只寫做過的事、7 語氣），並重新編號
+  const ai = spPlan() ? GUIDE_CH3.ai.replace(/^7\. .*$/m, CH3_PLAN_TONE) : GUIDE_CH3.ai;
+  if (store.sec !== "s3-4") return ai;
+  return ai.split("\n").filter(l => /^(1|2|4|7)\. /.test(l)).map((l, i) => l.replace(/^\d+\. /, `${i + 1}. `)).join("\n");
 }
 const inCh1 = () => /^s1-/.test(store.sec || "");
 
@@ -491,10 +496,10 @@ const DEFS = {
       { id: "sp_n3", type: "text", label: "有效問卷份數", when: p => p.sp_stage !== "plan" },
       { id: "sp_excl", type: "text", label: "排除補充", hint: "選填；其他排除原因與份數", when: p => p.sp_stage !== "plan" },
       { id: "sp_nchk", type: "cands", label: "", render: p => spCountView(p), when: p => p.sp_stage !== "plan" },
-      { id: "sp_scope", type: "textarea", label: "研究範圍（由 1.3 帶入）", hint: "上方欄位留白、但這裡已寫到的項目（例如研究情境、研究對象），依此撰寫；與上方欄位不一致時以欄位為準", rows: 4 }
+      { id: "sp_scope", type: "textarea", label: "研究範圍（由 1.3 帶入）", hint: "只在「研究母體與抽樣架構」留白時才附進 Prompt，供 AI 依此撰寫母體與研究情境", rows: 4 }
     ],
     seed: () => ({ sp_scope: finText("s1-3").trim() }), seedQuiet: ["sp_scope"], seedFrom: "1.3 研究範圍", seedNote: "研究範圍由 1.3 的論文內容帶入",
-    rules: () => R3.filter(k => k !== "citation"),
+    rules: () => ["style", "ch3"],
     build: (p, R) => {
       const q = spCompose(p);
       if (blank(p.sp_pop) && blank(q.sp_method)) return "";
@@ -2061,7 +2066,7 @@ const OUTLINE = [
     { id: "s3-3", no: "3.2", title: "操作型定義與衡量", desc: "各構念的操作型定義、量表來源與選用理由、題數與量尺、題項修改說明；有前測時寫在最後一段。", steps: [
       { mod: "opdef", rules: [...R3, "verify"], note: "構念與題項由 0.4「定稿問卷」帶入，本研究定義由第二章各節帶入；量表原始文獻要先上傳到 NotebookLM。有做前測時填入前測欄位，前測寫成本節最後一段。" }], finish: FIN_FULL },
     { id: "s3-4", no: "3.3", title: "研究對象與抽樣", desc: "母體、抽樣方法、樣本數依據、研究倫理、資料蒐集、篩選與排除標準、回收與有效樣本。", steps: [
-      { mod: "sample", rules: R3.filter(k => k !== "citation"), note: "先選撰寫版本（計畫書或完整論文），再準備母體、抽樣方法、樣本數依據、蒐集期間與份數；沒做或還沒有的項目留白，文中會標【待補】。前測寫在 3.2，未回應偏差檢驗寫在 4.1。" }], finish: FIN_FULL },
+      { mod: "sample", rules: ["style", "ch3"], note: "先選撰寫版本（計畫書或完整論文），再準備母體、抽樣方法、樣本數依據、蒐集期間與份數；沒做或還沒有的項目留白，文中會標【待補】。前測寫在 3.2，未回應偏差檢驗寫在 4.1。" }], finish: FIN_FULL },
     { id: "s3-5", no: "3.4", title: "資料分析方法", desc: "依分析順序說明各方法的目的、做法、判斷準則與出處。", steps: [
       { mod: "analysis", rules: R3, note: "勾選要用的分析方法；統計方法與門檻的原始文獻（例如 Hair et al.、Henseler et al.）要先上傳到 NotebookLM。" }], finish: FIN_FULL }
   ] },
