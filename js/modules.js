@@ -1542,13 +1542,25 @@ function finRefCount(s) {
   const ok = rows.filter(r => r.entry.trim() && (r.saved || refApa(r.entry))).length;
   return `本節共 ${rows.length} 筆引用，已有 APA 格式出處 ${ok} 筆${ok < rows.length ? `，尚缺 ${rows.length - ok} 筆` : "，全部齊全"}。逐筆核對在「論文整理 → 參考文獻」。`;
 }
+// 本節定稿：貼上的書目確認匯入（存成參考文獻頁的已確認出處），之後清空貼上欄
+const FINREF_MSG = {};
+function finRefImport(sid) {
+  const s = ALL_SECS.find(x => x.id === sid); if (!s) return;
+  const lines = refLines((store.values.rf_paste || {})[sid] || ""), refs = (store.values.refs ||= {}); let n = 0;
+  refRows().filter(r => r.secs.has(s.no) && !r.saved).forEach(r => { const b = refAuto(r, lines); if (b) { refs[r.key] = refTidy(zhRef(b)); n++; } });
+  delete (store.values.rf_paste || {})[sid];
+  const left = finRefMissRows(s).length;
+  FINREF_MSG[sid] = n ? `已匯入 ${n} 筆參考文獻${left ? `；仍缺 ${left} 筆，貼上的回覆中找不到對應的書目` : "，本節的引用都有出處了"}。` : "貼上的回覆中沒有找到對應本節引用的書目（請確認作者姓氏與年份和正文引用一致），回覆已清空。";
+}
 function finRefBox(s) {
   const c = finRefCount(s); if (!c) return "";
   const pasted = (store.values.rf_paste || {})[s.id] || "", need = !!refFillItems(s.no);
   const mr = finRefMissRows(s);
-  return `<div class="fin-ref"><h4>查找參考文獻</h4><p class="hint" id="finrefcount">${c}</p>` + (mr.length ? `<p class="note warn">尚缺出處：${mr.map(r => `（${esc(r.label)}）${r.entry.trim() ? "<small>已有出處但不是 APA 格式</small>" : ""}`).join("、")}</p>` : "") + (need || pasted ? `
+  const msg = FINREF_MSG[s.id] || ""; delete FINREF_MSG[s.id];
+  return `<div class="fin-ref"><h4>查找參考文獻</h4>${msg ? `<p class="note">${esc(msg)}</p>` : ""}<p class="hint" id="finrefcount">${c}</p>` + (mr.length ? `<p class="note warn">尚缺出處：${mr.map(r => `（${esc(r.label)}）${r.entry.trim() ? "<small>已有出處但不是 APA 格式</small>" : ""}`).join("、")}</p>` : "") + (need || pasted ? `
     <p><b>①</b> <button type="button" data-finrefcopy="${esc(s.no)}">複製查找文獻 Prompt（貼到一般 AI）</button> <span class="hint">需開啟網路搜尋；接在查過資料的同一個對話最準</span></p>
-    <label><b>②</b> 貼上 AI 回覆，自動匯入參考文獻<textarea data-finref="${s.id}" rows="3" placeholder="貼上 AI 列出的 APA 參考文獻（一行一筆）">${esc(pasted)}</textarea></label>` : "") + `</div>`;
+    <label><b>②</b> 貼上 AI 回覆<textarea data-finref="${s.id}" rows="3" placeholder="貼上 AI 列出的 APA 參考文獻（一行一筆）">${esc(pasted)}</textarea></label>
+    <p><b>③</b> <button type="button" class="copy" data-finrefok="${s.id}">確認匯入參考文獻</button> <span class="hint">把對應到本節引用的書目存入參考文獻，並清空上方的回覆</span></p>` : "") + `</div>`;
 }
 function thesisBody() {   // 論文全文（Markdown）：題目＋各章節定稿
   const zh = (store.values.tt_zh || "").trim(), en = (store.values.tt_en || "").trim();

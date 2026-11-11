@@ -452,6 +452,8 @@ $("pane").addEventListener("click", async e => {
     }
     ff.textContent = "已複製 ✓"; setTimeout(() => (ff.textContent = old), 1500); return;
   }
+  const fok = e.target.closest("button[data-finrefok]");
+  if (fok) { finRefImport(fok.dataset.finrefok); save(); const fb = $("finbox"); if (fb) { fb.outerHTML = finBox(); const nb = $("finbox"); if (nb) { nb.open = true; const r = nb.querySelector(".fin-ref"); if (r) r.scrollIntoView({ block: "nearest" }); } } return; }
   const fr = e.target.closest("button[data-finrefcopy]");
   if (fr) {   // 本節定稿：複製查找文獻 Prompt
     const it = refFillItems(fr.dataset.finrefcopy), text = it ? T.ref_fill({ items: it }) : "", old = fr.textContent;
