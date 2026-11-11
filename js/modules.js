@@ -18,6 +18,74 @@ const RULES = [
 const SP_STAGE0 = "full";
 const spPlan = () => store.sec === "s3-4" && (store.values.sp_stage || SP_STAGE0) === "plan";
 const CH3_PLAN_TONE = "7. 本節為論文計畫書版本：尚未執行的程序以預定語氣陳述（例如「本研究預計……」「問卷預定於……期間發放」）；已完成的程序（例如已完成的前測）以已完成語氣陳述；不得寫出發放、回收與有效問卷份數等尚未發生的結果。";
+// ── 3.3 研究對象與抽樣：勾選項目 → 交給 AI 的文字；最低樣本數與份數核對由網頁計算 ──
+const SP_M = [["conv", "便利抽樣"], ["purp", "立意抽樣"], ["snow", "滾雪球抽樣"], ["quota", "配額抽樣"], ["srs", "簡單隨機抽樣"], ["strat", "分層隨機抽樣"], ["other", "其他"]];
+const SP_CH = [["fb", "Facebook 社團"], ["ptt", "PTT"], ["dcard", "Dcard"], ["line", "LINE 群組"], ["ig", "Instagram"], ["other", "其他"]];
+const SP_EX = [["screen", "篩選題"], ["attn", "注意力檢查題"], ["fast", "作答時間過短"], ["straight", "連續相同作答"], ["rev", "反向題前後矛盾"], ["dup", "重複填答"], ["incomplete", "未完成作答"], ["other", "其他"]];
+const SP_ETH = [["intro", "首頁說明研究目的、填答時間與自願參與"], ["consent", "勾選同意後才開始填答"], ["quit", "可隨時退出"], ["noid", "不蒐集可識別身分的資料"], ["sep", "抽獎聯絡資料與問卷答案分開保存"], ["acad", "資料僅供學術研究使用"], ["irb", "通過研究倫理審查"]];
+const spCtx = () => ((store.values.as_ctx || "").replace(/[（(].*$/, "").trim().replace(/(.{2,})購物$/, "$1") || "研究情境");   // 「蝦皮購物」→「蝦皮」，避免「在蝦皮購物購物」
+const spLab = (opts, keys) => (keys || []).filter(k => k !== "other").map(k => (opts.find(o => o[0] === k) || [])[1]).filter(Boolean);
+const spNum = x => { const n = parseFloat(String(x || "").replace(/[^\d.]/g, "")); return isFinite(n) ? n : NaN; };
+function spK() {   // 研究架構中，指向同一個變數的預測變數最多幾個（調節：加調節變數與交互作用項）
+  try {
+    const { vars, d } = finalArch(), nm = k => ((vars.find(x => x.key === k) || {}).name || k).replace(/\s*[（(][^（）()]*[）)]\s*$/, ""), pr = {};
+    d.edges.forEach(e => (pr[e.to] ||= new Set()).add(e.from));
+    d.mods.forEach(m => { const to = String(m.edge).split(">")[1]; if (!to) return; (pr[to] ||= new Set()).add(m.from); pr[to].add("×" + m.from + m.edge); });
+    let best = null; Object.entries(pr).forEach(([to, s]) => { if (!best || s.size > best.k) best = { k: s.size, to: nm(to) }; });
+    return best;
+  } catch (e) { return null; }
+}
+function spSize(p) {   // { k, auto, n, text }
+  const a = spK(), kIn = parseInt(p.sp_k, 10), k = kIn > 0 ? kIn : a ? a.k : 0, auto = !(kIn > 0) && !!a;
+  if (p.sp_sz === "gp") {
+    const f2 = +p.sp_f2, al = +p.sp_alpha, pw = +p.sp_pw, n = k ? gpN(f2, al, pw, k) : null;
+    return { k, auto, a, n, text: k ? `以 G*Power 進行事前檢定力分析，檢定類型為多元迴歸 F 檢定（固定模型，R² 異於 0），效果量 f² = ${p.sp_f2}、顯著水準 α = ${p.sp_alpha}、檢定力 ${p.sp_pw}、預測變數 ${k} 個${auto ? `（研究架構中預測變數最多的依變數為${a.to}）` : ""}，最低樣本數為 ${n} 份（已由網頁依 G*Power 相同算法計算）` : "以 G*Power 進行事前檢定力分析【待補：預測變數個數】" };
+  }
+  if (p.sp_sz === "ten") return { k, auto, a, n: k ? k * 10 : null, text: k ? `依十倍法則，研究架構中指向同一變數的最大路徑數為 ${k}，最低樣本數為 ${k * 10} 份` : "依十倍法則【待補：最大路徑數】" };
+  return { k, auto, a, n: null, text: "" };
+}
+function spSizeView(p) {
+  if (p.sp_sz === "other") return "";
+  const s = spSize(p);
+  if (!s.k) return `<p class="note warn">找不到研究架構，無法自動計算預測變數個數，請在上方填入。</p>`;
+  return `<p class="note">最低樣本數：<b>${s.n} 份</b>（預測變數 ${s.k} 個${s.auto ? `，依研究架構自動計算：${esc(s.a.to)}有 ${s.k} 個預測變數` : ""}${p.sp_sz === "gp" ? `；f² = ${esc(p.sp_f2)}、α = ${esc(p.sp_alpha)}、檢定力 ${esc(p.sp_pw)}` : "；十倍法則"}）</p>`;
+}
+function spCount(p) {   // 回收 − 排除 = 有效 的核對
+  const n2 = spNum(p.sp_n2), n3 = spNum(p.sp_n3), xs = (p.sp_ex || []).map(k => [k, spNum(p["sp_xn_" + k])]).filter(([, n]) => n > 0);
+  const ex = xs.reduce((a, [, n]) => a + n, 0) + (spNum(p.sp_excl) > 0 ? spNum(p.sp_excl) : 0);
+  return { n2, n3, ex, ok: n2 > 0 && n3 > 0 && ex > 0 ? n2 - ex === n3 : null };
+}
+function spCountView(p) {
+  const c = spCount(p); if (c.ok === null) return "";
+  return c.ok ? `<p class="note">份數核對：回收 ${c.n2} − 排除 ${c.ex} = 有效 ${c.n3}，一致。</p>`
+    : `<p class="note warn">份數核對：回收 ${c.n2} − 排除 ${c.ex} = ${c.n2 - c.ex}，與有效問卷 ${c.n3} 份不一致，請檢查各項排除份數。</p>`;
+}
+function spVals() { const p = {}; DEFS.sample.fields.forEach(f => { p[f.id] = store.values[f.id] ?? (Array.isArray(f.value) ? f.value.slice() : f.value ?? ""); }); return p; }   // 3.3 的欄位值（在其他節使用）
+function spCompose(p) {   // 勾選與補充欄位 → 與舊版相同的文字欄位，交給 T.sample
+  const j = a => a.filter(x => !blank(x)).join("；"), plan = p.sp_stage === "plan";
+  const m = spLab(SP_M, p.sp_m), sz = spSize(p), ch = spLab(SP_CH, p.sp_ch);
+  const cm = { web: "網路問卷", paper: "紙本問卷", both: "網路問卷與紙本問卷並行" }[p.sp_cm] || "";
+  const plat = p.sp_cm !== "paper" ? ({ gf: "Google 表單", sc: "SurveyCake", qx: "Qualtrics" }[p.sp_plat] || "") : "";
+  const per = !blank(p.sp_from) || !blank(p.sp_to) ? `${(p.sp_from || "").trim() || "【待補：起始時間】"}至${(p.sp_to || "").trim() || "【待補：結束時間】"}` : "";
+  const bs = p.sp_bs === "last" ? `請受訪者回想最近一次在${spCtx()}購物的經驗作答` : p.sp_bs === "usual" ? "請受訪者依平時的使用經驗作答" : "";
+  const exT = { screen: p.sp_ex_screen ? `以篩選題確認受訪者資格（${p.sp_ex_screen.trim()}）` : "以篩選題確認受訪者資格【待補：篩選條件】",
+    attn: p.sp_ex_attn ? `設置注意力檢查題（${p.sp_ex_attn.trim()}），答錯者剔除` : "設置注意力檢查題，答錯者剔除", fast: p.sp_ex_fast ? `剔除作答時間過短（${p.sp_ex_fast.trim()}）者` : "剔除作答時間過短者【待補：時間門檻】",
+    straight: "剔除連續相同作答者", rev: "剔除反向題前後矛盾者", dup: "剔除重複填答者", incomplete: "剔除未完成作答者" };
+  const eth = spLab(SP_ETH, p.sp_eth).map(t => t === "通過研究倫理審查" ? `通過研究倫理審查${blank(p.sp_irb) ? "【待補：審查單位與核准編號】" : `（${p.sp_irb.trim()}）`}` : t);
+  const inc = p.sp_inc === "lottery" ? `填答誘因為抽獎${blank(p.sp_inc_txt) ? "" : `（${p.sp_inc_txt.trim()}）`}，須留下聯絡方式，因此文中應寫「資料保密」而非「匿名」` : p.sp_inc === "gift" ? `填答誘因為每人贈禮${blank(p.sp_inc_txt) ? "" : `（${p.sp_inc_txt.trim()}）`}` : p.sp_inc === "none" ? "無填答誘因" : "";
+  const xs = (p.sp_ex || []).map(k => [k, spNum(p["sp_xn_" + k])]).filter(([, n]) => n > 0), c = spCount(p);
+  return {
+    sp_method: j([m.join("、"), p.sp_method]),
+    sp_size: j([sz.text, p.sp_size]),
+    sp_collect: j([cm && `${cm}${plat ? `（${plat}）` : ""}`, ch.length ? `透過${ch.join("、")}發放` : "", per && `蒐集期間為${per}`, p.sp_collect]),
+    sp_basis: j([bs, p.sp_basis]),
+    sp_screen: j([...(p.sp_ex || []).filter(k => exT[k]).map(k => exT[k]), p.sp_screen]),
+    sp_ethics: j([...eth, inc, p.sp_ethics]),
+    sp_excl: plan ? "" : j([xs.map(([k, n]) => `${(SP_EX.find(o => o[0] === k) || [])[1]} ${n} 份`).join("、"), p.sp_excl,
+      c.ok === true ? `排除合計 ${c.ex} 份；回收 ${c.n2} 份扣除排除 ${c.ex} 份，即為有效問卷 ${c.n3} 份（已由網頁核對）` : c.ok === false ? `【網頁核對：回收 ${c.n2} 份扣除排除 ${c.ex} 份為 ${c.n2 - c.ex} 份，與有效問卷 ${c.n3} 份不一致，請研究者確認】` : ""]),
+    sp_minn: sz.n
+  };
+}
 const inCh1 = () => /^s1-/.test(store.sec || "");
 
 // 共用規則中的引用格式（欄位內第二個 Prompt 使用）
@@ -385,36 +453,60 @@ const DEFS = {
   },
   sample: {
     label: "研究對象與抽樣", target: "ai",
-    hint: "把您的抽樣與資料蒐集資訊寫成段落。只會使用您填的數字與程序，沒填的項目會標【待補】，不讓 AI 代寫；回收率與有效率由網頁計算，不交給 AI 算。",
+    hint: "大部分項目用勾選即可；勾選的內容由網頁組成文字交給 AI，沒填的項目會標【待補】，不讓 AI 代寫。最低樣本數、回收率與有效率由網頁計算，不交給 AI 算。",
     fields: [
       { id: "sp_stage", type: "radio", label: "撰寫版本", hint: "計畫書版以預定語氣撰寫，不收回收資料；問卷回收後切換為完整論文版，已填的欄位會保留，正文請重新產生", options: [["plan", "論文計畫書（尚未回收問卷）"], ["full", "完整論文（已回收問卷）"]], value: SP_STAGE0 },
-      { id: "sp_pop", type: "text", label: "研究母體與抽樣架構", placeholder: "例如：近一年曾購買精釀啤酒之台灣消費者；以精釀啤酒社群成員為抽樣架構" },
-      { id: "sp_method", type: "text", label: "抽樣方法", placeholder: "例如：便利抽樣、滾雪球抽樣" },
-      { id: "sp_size", type: "text", label: "樣本數規劃依據", hint: "以檢定力分析為主；十倍法則等經驗法則已被認為過於簡化", placeholder: "例如：G*Power，效果量 f² = .15、α = .05、檢定力 .80、預測變數 5 個，最低樣本數 92" },
-      { id: "sp_collect", type: "text", label: "資料蒐集方式、管道與期間", hint: "可附選擇此期間的理由；計畫書版填預定的管道與期間", placeholder: "例如：網路問卷，透過 Facebook 社團與 PTT 發放，2026 年 3 月至 4 月" },
-      { id: "sp_basis", type: "text", label: "填答依據", hint: "受訪者依據什麼經驗作答；也會帶到 3.1", placeholder: "例如：請受訪者回想最近一次在蝦皮購物的經驗作答" },
-      { id: "sp_screen", type: "textarea", label: "篩選與排除標準", hint: "篩選題、注意力檢查題，以及無效問卷的排除條件", rows: 2, placeholder: "例如：以「近一年是否曾在蝦皮購物」篩選；設一題注意力檢查題；剔除答錯檢查題、填答時間少於 2 分鐘或連續相同作答者" },
-      { id: "sp_ethics", type: "text", label: "研究倫理", hint: "知情同意、匿名與資料保密、填答誘因", placeholder: "例如：問卷首頁說明研究目的與匿名原則，勾選同意後才開始填答；完成者可參加抽獎" },
-      { id: "sp_nplan", type: "text", label: "預計回收份數", hint: "選填；可附估算依據", placeholder: "例如：最低樣本數 92 份，考量約兩成無效問卷，預計回收 120 份", when: p => p.sp_stage === "plan" },
-      { id: "sp_n1", type: "text", label: "發放份數", hint: "選填", when: p => p.sp_stage !== "plan" },
-      { id: "sp_n2", type: "text", label: "回收份數", hint: "選填", when: p => p.sp_stage !== "plan" },
-      { id: "sp_n3", type: "text", label: "有效問卷份數", hint: "選填", when: p => p.sp_stage !== "plan" },
-      { id: "sp_excl", type: "textarea", label: "排除份數與原因", hint: "選填；各類無效問卷的份數，與回收、有效份數要對得起來", rows: 2, when: p => p.sp_stage !== "plan", placeholder: "例如：未通過注意力檢查 32 份、作答時間少於 2 分鐘 5 份、連續相同作答 3 份" },
+      { id: "sp_pop", type: "text", label: "研究母體與抽樣架構", placeholder: "例如：近一年曾於蝦皮購物之台灣消費者；以網路購物相關社群成員為抽樣架構" },
+      { id: "sp_m", type: "checks", label: "抽樣方法", hint: "可複選", options: SP_M, value: [] },
+      { id: "sp_method", type: "text", label: "抽樣方法補充", hint: "選填；勾「其他」時寫方法名稱，也可寫選用理由", placeholder: "例如：本研究母體缺乏完整名冊，故採便利抽樣" },
+      { id: "sp_sz", type: "radio", label: "樣本數規劃依據", options: [["gp", "G*Power 檢定力分析"], ["ten", "十倍法則"], ["other", "其他"]], value: "gp" },
+      { id: "sp_f2", type: "radio", label: "效果量 f²", options: [[".02", ".02（小）"], [".15", ".15（中）"], [".35", ".35（大）"]], value: ".15", when: p => p.sp_sz === "gp" },
+      { id: "sp_alpha", type: "radio", label: "顯著水準 α", options: [[".05", ".05"], [".01", ".01"]], value: ".05", when: p => p.sp_sz === "gp" },
+      { id: "sp_pw", type: "radio", label: "檢定力", options: [[".80", ".80"], [".95", ".95"]], value: ".80", when: p => p.sp_sz === "gp" },
+      { id: "sp_k", type: "text", label: "預測變數個數", hint: "留白時依研究架構自動計算（指向同一個變數的箭頭最多幾條；調節效果另計調節變數與交互作用項）", placeholder: "留白＝自動", when: p => p.sp_sz !== "other" },
+      { id: "sp_szinfo", type: "cands", label: "", render: p => spSizeView(p) },
+      { id: "sp_size", type: "text", label: "樣本數補充", hint: "選填；效果量的出處（例如 Cohen, 1988）、其他依據的說明", placeholder: "例如：效果量依 Cohen（1988）之中等效果量設定" },
+      { id: "sp_cm", type: "radio", label: "資料蒐集方式", options: [["web", "網路問卷"], ["paper", "紙本問卷"], ["both", "網路與紙本並行"]], value: "web" },
+      { id: "sp_plat", type: "radio", label: "問卷平台", options: [["gf", "Google 表單"], ["sc", "SurveyCake"], ["qx", "Qualtrics"], ["other", "其他"]], value: "", when: p => p.sp_cm !== "paper" },
+      { id: "sp_ch", type: "checks", label: "發放管道", hint: "可複選", options: SP_CH, value: [] },
+      { id: "sp_from", type: "text", label: "蒐集期間：起", hint: "計畫書版填預定期間", placeholder: "例如：2026 年 3 月" },
+      { id: "sp_to", type: "text", label: "蒐集期間：迄", placeholder: "例如：2026 年 4 月" },
+      { id: "sp_collect", type: "text", label: "資料蒐集補充", hint: "選填；其他平台或管道的名稱、選擇此期間的理由", placeholder: "例如：避開雙 11 等大型促銷檔期，以免受訪者的購物經驗受特殊活動影響" },
+      { id: "sp_bs", type: "radio", label: "填答依據", hint: "受訪者依據什麼經驗作答；也會帶到 3.1", get options() { return [["last", `回想最近一次在${spCtx()}購物的經驗`], ["usual", "依平時的使用經驗"], ["other", "其他"]]; }, value: "" },
+      { id: "sp_basis", type: "text", label: "填答依據補充", hint: "選填；勾「其他」時寫在這裡", placeholder: "例如：請受訪者回想最近一次在蝦皮瀏覽後購買的經驗作答" },
+      { id: "sp_ex", type: "checks", label: "篩選與排除標準", hint: "可複選；勾選後填寫下方對應的條件", options: SP_EX.map(([k, t]) => [k, t]), value: [] },
+      { id: "sp_ex_screen", type: "text", label: "篩選條件", placeholder: "例如：近一年是否曾在蝦皮購物", when: p => (p.sp_ex || []).includes("screen") },
+      { id: "sp_ex_attn", type: "text", label: "注意力檢查題的題數與形式", placeholder: "例如：1 題，「本題請選非常同意」", when: p => (p.sp_ex || []).includes("attn") },
+      { id: "sp_ex_fast", type: "text", label: "作答時間門檻", placeholder: "例如：少於 2 分鐘", when: p => (p.sp_ex || []).includes("fast") },
+      { id: "sp_screen", type: "text", label: "篩選與排除補充", hint: "選填；勾「其他」時寫在這裡", placeholder: "例如：同一 IP 重複填答者只保留第一份" },
+      { id: "sp_eth", type: "checks", label: "研究倫理", hint: "可複選；只勾實際有做（計畫書版：預定要做）的項目", options: SP_ETH, value: [] },
+      { id: "sp_irb", type: "text", label: "倫理審查單位與核准編號", placeholder: "例如：國立暨南國際大學研究倫理審查委員會，核准編號 XXX", when: p => (p.sp_eth || []).includes("irb") },
+      { id: "sp_inc", type: "radio", label: "填答誘因", options: [["none", "無"], ["lottery", "抽獎"], ["gift", "每人贈禮"]], value: "" },
+      { id: "sp_inc_txt", type: "text", label: "誘因內容", placeholder: "例如：抽出 10 位各贈 100 元超商禮券", when: p => p.sp_inc === "lottery" || p.sp_inc === "gift" },
+      { id: "sp_ethics", type: "text", label: "研究倫理補充", hint: "選填", placeholder: "例如：研究資料於論文完成後保存五年" },
+      { id: "sp_nplan", type: "text", label: "預計回收份數", hint: "選填；可附估算依據", placeholder: "例如：考量約兩成無效問卷，預計回收 120 份", when: p => p.sp_stage === "plan" },
+      { id: "sp_n1", type: "text", label: "發放份數", hint: "選填；網路問卷多半無法得知，可留白", when: p => p.sp_stage !== "plan" },
+      { id: "sp_n2", type: "text", label: "回收份數", when: p => p.sp_stage !== "plan" },
+      ...SP_EX.map(([k, t]) => ({ id: "sp_xn_" + k, type: "text", label: `排除份數：${t}`, when: p => p.sp_stage !== "plan" && (p.sp_ex || []).includes(k) })),
+      { id: "sp_n3", type: "text", label: "有效問卷份數", when: p => p.sp_stage !== "plan" },
+      { id: "sp_excl", type: "text", label: "排除補充", hint: "選填；其他排除原因與份數", when: p => p.sp_stage !== "plan" },
+      { id: "sp_nchk", type: "cands", label: "", render: p => spCountView(p), when: p => p.sp_stage !== "plan" },
       { id: "sp_scope", type: "textarea", label: "研究範圍（由 1.3 帶入）", hint: "上方欄位留白、但這裡已寫到的項目（例如研究情境、研究對象），依此撰寫；與上方欄位不一致時以欄位為準", rows: 4 }
     ],
     seed: () => ({ sp_scope: finText("s1-3").trim() }), seedQuiet: ["sp_scope"], seedFrom: "1.3 研究範圍", seedNote: "研究範圍由 1.3 的論文內容帶入",
     rules: () => R3.filter(k => k !== "citation"),
     build: (p, R) => {
-      if (blank(p.sp_pop) && blank(p.sp_method)) return "";
-      const n = k => parseFloat(String(p[k]).replace(/[^\d.]/g, ""));
-      const [a, b, c] = [n("sp_n1"), n("sp_n2"), n("sp_n3")];
-      const pct = (x, y) => (x / y * 100).toFixed(2) + "%";
-      const r = [];
-      if (p.sp_stage !== "plan" && a > 0 && b > 0) r.push(`回收率 ${pct(b, a)}`);
-      if (p.sp_stage !== "plan" && b > 0 && c > 0) r.push(`有效回收率（有效／回收）${pct(c, b)}`);
-      return T.sample({ ...p, rates: r.join("；") }) + (R || "");
+      const q = spCompose(p);
+      if (blank(p.sp_pop) && blank(q.sp_method)) return "";
+      const [a, b, c] = [spNum(p.sp_n1), spNum(p.sp_n2), spNum(p.sp_n3)], pct = (x, y) => (x / y * 100).toFixed(2) + "%", r = [];
+      if (p.sp_stage !== "plan") {
+        if (a > 0 && b > 0) r.push(`回收率 ${pct(b, a)}`);
+        if (b > 0 && c > 0) r.push(`有效回收率（有效／回收）${pct(c, b)}`);
+        if (c > 0 && q.sp_minn) r.push(`有效問卷 ${c} 份${c >= q.sp_minn ? "已達" : "未達"}最低樣本數 ${q.sp_minn} 份`);
+      }
+      return T.sample({ ...p, ...q, rates: r.join("；") }) + (R || "");
     },
-    empty: "（請至少填入研究母體或抽樣方法）",
+    empty: "（請至少填入研究母體或勾選抽樣方法）",
     next: "下一步：貼到一般 AI 對話；【待補】與【待補引用】請補上資料與文獻後，到「修訂論文」反白該句補強。"
   },
   analysis: {
@@ -2162,7 +2254,7 @@ function rnUndo() {
 // ── 第三章：各節 Prompt 分則、第二章定義帶入、假說清單接入 3.1 ──
 const ruleText = (mod, p) => RULES.filter(r => activeRules(DEFS[mod], p).includes(r.key)).map(r => typeof r.text === "function" ? r.text(p) : r.text).join("");
 function f31Parts(p) { const t = f31Text(), v = store.values; return t ? ruleSplit("fa31", p, T.frame31({ arch: t, theory: (p.f31_theory || "").trim(), ctx: (v.as_ctx || "").trim(), scope: (p.f31_scope || "").trim(),
-  design: [["資料蒐集方式（只取設計類型，平台、管道與期間不寫入 3.1）", v.sp_collect], ["填答依據", v.sp_basis], ["研究母體", v.sp_pop]].filter(([, x]) => !blank(x)).map(([k, x]) => `- ${k}：${x.trim()}`).join("\n") }), "研究架構與假說") : []; }
+  design: (sq => [["資料蒐集方式（只取設計類型，平台、管道與期間不寫入 3.1）", sq.sp_collect], ["填答依據", sq.sp_basis], ["研究母體", v.sp_pop]])(spCompose(spVals())).filter(([, x]) => !blank(x)).map(([k, x]) => `- ${k}：${x.trim()}`).join("\n") }), "研究架構與假說") : []; }
 function anParts(p) { return !(p.an_methods || []).length ? [] : ruleSplit("analysis", p, T.analysis({ soft: p.an_soft, boot: p.an_boot, methods: p.an_methods, paths: p.hy_paths, dv: p.an_dv, criteria: p.an_criteria }), "資料分析方法"); }
 // 3.2：題項分批的 Prompt 前面加上共用規則（放不進第 1 則時，先分則送規則，NotebookLM 只回覆「已收到」）
 function odParts(p) {
