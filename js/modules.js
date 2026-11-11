@@ -646,7 +646,8 @@ const DEFS = {
   fulltext: {
     label: "論文全文", target: "tool",
     hint: "依章節顯示各節定稿，也就是「研究名稱_論文.md」的內容；要修改某一節，到該節最下方的「本節論文內容」。",
-    fields: [{ id: "ft_view", type: "cands", label: "", render: () => fullView() }],
+    fields: [{ id: "ins_mode", type: "radio", label: "圖表編號方式", hint: "全站的表號與圖號依此自動編排，正文中的「如表 3-1 所示」也會一起改", options: [["chap", "依章（圖 3-1）"], ["sec", "依節（圖 3.1-1）"], ["all", "全文連續（圖 1）"]], value: "chap" },
+      { id: "ft_view", type: "cands", label: "", render: () => fullView() }],
     build: () => thesisBody(),
     empty: "（目前還沒有任何一節有內容）",
     copyLabel: "複製論文全文（Markdown）",
@@ -1354,7 +1355,8 @@ function finRaw(sid) { const v = (store.values.fin || {})[sid]; return typeof v 
 
 // ── 圖表：正文中的表格移到「本節表格」，原位置留下插入標記；表號與圖號依全章順序自動編號 ──
 const TBL_CAP = /^(?:#{1,6}\s*)?\**\s*表\s*(\d+\s*[-－–]\s*\d+)?\s*[：:．.]?\s*(.*?)\s*\**\s*$/;
-const INS_RE = /〔插入([表圖])\s*([0-9?？]+(?:\s*[-－–]\s*[0-9?？]+)?)?[\s　]*([^〕]*)〕/g;
+const INS_RE = /〔插入([表圖])\s*([0-9?？]+(?:\s*[.．\-－–]\s*[0-9?？]+)*)?[\s　]*([^〕]*)〕/g;
+const insNorm = x => String(x || "").replace(/\s/g, "").replace(/[－–]/g, "-").replace(/．/g, ".");
 const tblCells = l => l.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim().replace(/\*\*/g, "").replace(/<br\s*\/?>/gi, "\n"));
 const TBL_MEMO = new Map();
 function tblSplit(text) {   // { body, tables:[{ num, cap, rows, note }] }
@@ -1384,12 +1386,15 @@ function finTables(sid) {   // 表格來源：本節論文內容中仍有的表�
   const v = (store.values.fin || {})[sid], own = typeof v === "string" && v.trim() ? tblSplit(v).tables : [];
   return own.length ? own : tblSplit(finReply(sid)).tables;
 }
-function insMap(sid) {   // 本節各插入標記在全章的新編號：[{ type, old, num }]
-  const ch = OUTLINE.find(c => c.secs.some(x => x.id === sid)), s = ch && ch.secs.find(x => x.id === sid);
-  const cn = s && (String(s.no).match(/^(\d+)\./) || [])[1]; if (!cn) return null;
+function insMap(sid) {   // 本節各插入標記的新編號：[{ type, old, num }]；編號方式依「論文全文」的設定（依章／依節／全文連續）
+  const mode = store.values.ins_mode || "chap", all = THESIS_SECS(), me = all.find(x => x.id === sid); if (!me) return null;
+  const chOf = x => (String(x.no).match(/^(\d+)\./) || [])[1];
+  const scope = mode === "all" ? all : mode === "sec" ? [me] : all.filter(x => chOf(x) === chOf(me));
+  if (mode === "chap" && !chOf(me)) return null;
   const cnt = { 表: 0, 圖: 0 }; let mine = null;
-  ch.secs.filter(x => !x.setup).forEach(x => { const list = [];
-    for (const m of finBody(x.id).matchAll(INS_RE)) { cnt[m[1]]++; list.push({ type: m[1], old: (m[2] || "").replace(/\s|[－–]/g, x => /\s/.test(x) ? "" : "-"), num: `${cn}-${cnt[m[1]]}` }); }
+  scope.forEach(x => { const list = [];
+    for (const m of finBody(x.id).matchAll(INS_RE)) { cnt[m[1]]++;
+      list.push({ type: m[1], old: insNorm(m[2]), num: mode === "all" ? String(cnt[m[1]]) : mode === "sec" ? `${x.no}-${cnt[m[1]]}` : `${chOf(x)}-${cnt[m[1]]}` }); }
     if (x.id === sid) mine = list; });
   return mine;
 }
@@ -1398,7 +1403,7 @@ function insRenum(sid, t) {   // 插入標記與正文中的「如表 3-1 所示
   const ref = {}; mp.forEach(m => { if (m.old && !/[?？]/.test(m.old) && !ref[m.type + m.old]) ref[m.type + m.old] = m.num; });
   let k = 0, keep = [];
   t = t.replace(INS_RE, (all, ty, old, cap) => { const m = mp[k++] || { num: old || "?" }; keep.push(`〔插入${ty} ${m.num}　${cap.trim()}〕`); return `\u0000${keep.length - 1}\u0000`; });
-  t = t.replace(/([表圖])\s*(\d+)\s*[-－–]\s*(\d+)/g, (all, ty, a, b) => ref[ty + a + "-" + b] ? `${ty} ${ref[ty + a + "-" + b]}` : all);
+  t = t.replace(/([表圖])\s*(\d+(?:\s*[.．\-－–]\s*\d+)*)/g, (all, ty, a) => ref[ty + insNorm(a)] ? `${ty} ${ref[ty + insNorm(a)]}` : all);
   return t.replace(/\u0000(\d+)\u0000/g, (a, i) => keep[+i]);
 }
 function finText(sid) { return insRenum(sid, finBody(sid)); }
@@ -1420,7 +1425,7 @@ function tblHtml(x, word) {   // APA 三線表：表頂、欄名下方、表底�
 }
 function finTblBox(sid) {
   const ls = finTblList(sid); if (!ls.length) return "";
-  return `<div class="fin-tbl"><h4>本節表格</h4><p class="hint">正文中以〔插入表…〕標出位置；按「複製表格」後直接貼到 Word，就是 APA 三線表。表號依全章順序自動編排。</p>` +
+  return `<div class="fin-tbl"><h4>本節表格</h4><p class="hint">正文中以〔插入表…〕標出位置；按「複製表格」後直接貼到 Word，就是 APA 三線表。表號依「論文整理 → 論文全文」設定的編號方式（依章、依節或全文連續）自動編排。</p>` +
     ls.map((x, k) => `<div class="tblbox"><p class="tbl-cap">表 ${esc(x.num)}　${esc(x.cap)}<button type="button" class="copy" data-tblcopy="${k}">複製表格（貼到 Word）</button></p>${tblHtml(x)}</div>`).join("") + `</div>`;
 }
 const setFin = (sid, t) => { (store.values.fin ||= {})[sid] = t; };
