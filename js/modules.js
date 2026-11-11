@@ -1308,6 +1308,8 @@ const writeStep = s => { const st = stepsOf(s).filter(x => !x.finish && DEFS[x.m
 function cleanBody(text) {   // 撰寫步驟的回覆 → 論文正文：去掉開場說明、查證與待補清單類小節、角標
   let t = deLatex(String(text || "")).replace(/\r\n?/g, "\n");
   t = t.replace(/^#{1,4}\s*(?:\d+[.、]\s*)?文獻中的寫法[^\n]*\n[\s\S]*?(?=^#{1,4}\s|(?![\s\S]))/m, "");   // 寫法分析不放進正文
+  t = /^#{1,4}\s*正文\s*$/m.test(t) ? t.replace(/^#{1,4}\s*論證架構[^\n]*\n[\s\S]*?^#{1,4}\s*正文\s*\n/m, "").replace(/^#{1,4}\s*正文\s*\n/m, "")
+    : t.replace(/^#{1,4}\s*論證架構[^\n]*\n[\s\S]*?(?=^#{1,4}\s|(?![\s\S]))/m, "");   // 論證架構不放進正文
   const cut = t.search(VERIFY_HEAD); if (cut >= 0) t = t.slice(0, cut);
   const first = t.search(/^#{1,6}\s/m), lead = first > 0 ? t.slice(0, first) : "";   // 第一個標題前的文字：沒有引用且很短，才視為開場說明去掉
   if (lead && !/[（(][^（）()\n]*\d{4}[a-z]?[）)]/.test(lead) && lead.replace(/\s/g, "").length <= 200) t = t.slice(first);
@@ -1463,6 +1465,7 @@ const drCh2Check = (whole, full = true) => !drCh2() ? "" : "\n\n[第二章修訂
     : "\n2. 要改寫的內容本身前後重複時（例如同一份量表的說明寫了兩次），合併為一處。" +
     "\n3. 要改寫的內容中，若解釋變數關係的理論或實證放在介紹構念的段落，而該關係的推導段落也在要改寫的範圍內，就直接移過去。")) +
   "\n4. 小標題一律寫成「(一)標題」的形式，獨立一行。" +
+  "\n5. 論證鏈：" + (whole ? "依「構念性質、構成要素、要素的心理機制、範圍取捨與本研究定義、定義與題項一致」的順序檢查全節，" : "改寫範圍內") + "每段只回答一個問題，段末要接到下一段；理論必須解釋前文提到的要素，與要素無關的內容刪除；本研究的定義必須在取捨理由之後提出。" +
   "\n改寫說明中簡要列出做了哪些改正即可。";
 // 共用規則：超過 NotebookLM 單次上限時，依規則區塊分成數則
 function drRuleParts(p) {
@@ -1893,8 +1896,15 @@ function rebuildCh2() {
 rebuildCh2();
 // 第二章：理論基礎與各變數一節的 Prompt（規則過長時分則）
 function thParts(p) { return blank(p.cv_arch) ? [] : ruleSplit("ch2th", p, T.ch2th({ arch: p.cv_arch.trim(), theory: (p.th_theory || "").trim(), title: (s => s ? `${s.no} ${s.title}` : "理論基礎")(sec && sec()) }), "理論基礎"); }
-function cvParts(p) { return blank(p.cv_arch) || blank(p.cv_vars) ? [] : ruleSplit("ch2var", p, T.ch2var({ arch: p.cv_arch.trim(), vars: p.cv_vars.trim(), hyps: ch2SecHyps((sec && sec() || {}).id).join("\n"), title: `${(sec && sec() || {}).no || ""} ${p.cv_title || ""}`.trim() }), p.cv_title || "本節"); }
+function cvParts(p) { return blank(p.cv_arch) || blank(p.cv_vars) ? [] : ruleSplit("ch2var", p, T.ch2var({ arch: p.cv_arch.trim(), vars: p.cv_vars.trim(), hyps: ch2SecHyps((sec && sec() || {}).id).join("\n"), items: cvItems(p.cv_vars), title: `${(sec && sec() || {}).no || ""} ${p.cv_title || ""}`.trim() }), p.cv_title || "本節"); }
 // 第二章各變數一節：本節變數在 0.4 定稿問卷中的量表（出處、題數、量尺）
+// 本節變數在 0.4 定稿問卷中的題項（供核對定義要素與題項是否一致；正文不列出）
+function cvItems(vars) {
+  const F = typeof finalSurvey === "function" ? finalSurvey() : null; if (!F) return "";
+  const vs = String(vars || "").split(/[、，,／/]/).map(x => x.trim()).filter(Boolean);
+  return F.cons.filter(c => c.items.length && vs.some(v => c.name === v || c.name.startsWith(v) || v.startsWith(c.name.replace(/\s*[（(].*$/, ""))))
+    .map(c => `${c.name}：\n` + c.items.map(it => `  ${it.id} ${it.zh}`).join("\n")).join("\n");
+}
 function cvScale(vars) {
   const F = finalSurvey(); if (!F) return "";
   const vs = String(vars || "").split(/[、，,／/]/).map(x => x.trim()).filter(Boolean);
