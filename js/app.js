@@ -61,6 +61,7 @@ if ((store.layout || 0) < 7) {   // 常用「核實改寫：補強」「核實�
 if ((store.layout || 0) < 8) { if ((store.step || {})["s1-2"]) store.step["s1-2"] = 0; store.layout = 8; }   // 1.2 只保留撰寫步驟
 rebuildCh2();   // 第二章各節依「第二章架構」產生
 if ((store.layout || 0) < 9) { migrateCh3(); delete store.step["s3-1"]; delete store.step["s3-3"]; store.layout = 9; }   // 3.1 與 3.2 合併；3.2（原 3.3）移除名詞釋義步驟
+if ((store.layout || 0) < 10) { delete (store.step || {})["s3-1"]; store.layout = 10; }   // 3.1 合併為單一撰寫步驟
 if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} if (window.onStoreSave) window.onStoreSave(); };
 

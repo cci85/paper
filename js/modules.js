@@ -618,7 +618,7 @@ const DEFS = {
   },
   fa31: {
     label: "研究架構圖與說明", target: "nlm",
-    hint: "由 0.3 檢核後的研究架構自動帶入架構圖，可微調位置後按「下載 PNG」放進論文；再複製 Prompt，請 NotebookLM 撰寫 3.1 的架構說明（研究設計類型、各變數在架構中的角色）。假說清單在下一步接上。",
+    hint: "由 0.3 檢核後的研究架構自動帶入架構圖，可微調位置後按「下載 PNG」或「複製圖片」放進論文；再複製 Prompt，請 NotebookLM 撰寫 3.1 的架構說明（研究設計類型、各變數在架構中的角色）。第二章的假說會自動接在架構說明之後。",
     fields: [
       { id: "f31_diag", type: "diagram", label: "研究架構圖（由 0.3 帶入）", hint: "拖曳方塊調整位置；點一個方塊再點另一個方塊可加箭頭；未選方塊時點箭頭可刪除。0.3 的架構改過後，按「依文字重畫」更新",
         emptyHint: "（0.3 還沒有研究架構：請先完成 0.3 研究架構合理性檢核）",
@@ -626,13 +626,15 @@ const DEFS = {
         seed: () => { const { d } = finalArch(); return { sig: JSON.stringify([d.edges, d.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: d.edges, mods: d.mods, pos: d.pos }; } },
       { id: "f31_theory", type: "text", label: "理論基礎", hint: "由第二章 2.1 帶入；不填時由 NotebookLM 依文獻判斷", placeholder: "例如：刺激—有機體—反應（S-O-R）模式" },
       { id: "f31_scope", type: "textarea", label: "研究範圍（由 1.3 帶入）", hint: "研究設計的情境與對象依此撰寫；施測方式與填答依據由 3.3 的欄位帶入", rows: 4 },
-      ...partBoxes("f31_b", "fa31", p => f31Parts(p))
+      ...partBoxes("f31_b", "fa31", p => f31Parts(p)),
+      { id: "hl_view", type: "cands", below: true, label: "研究假說（自動接在架構說明之後）", render: () => hlView() },
+      { id: "hl_put", type: "button", below: true, label: "更新本節論文內容中的假說清單", hint: "第二章的假說改過、或本節論文內容修改過之後，按這裡把清單換成第二章的最新版本；不影響前面的架構說明", run: () => hlPut() }
     ],
     seed: () => ({ f31_theory: (store.values.th_theory || "").trim(), f31_scope: finText("s1-3").trim() }), seedQuiet: ["f31_scope"], seedFrom: "2.1 與 1.3", seedNote: "理論基礎由第二章 2.1 的「理論」欄位帶入，研究範圍由 1.3 的論文內容帶入",
     rules: () => R3,
     build: p => f31Parts(p)[0] || "", status: p => partsNote(f31Parts(p)),
     empty: "（0.3 還沒有研究架構）",
-    next: "下一步：貼到已上傳理論文獻的 NotebookLM 對話，回覆貼到下方「AI 回覆」；接著到下一步把第二章的假說清單接在架構說明之後。"
+    next: "下一步：貼到已上傳理論文獻的 NotebookLM 對話，回覆貼到下方「AI 回覆」；第二章的假說清單會自動接在架構說明之後。"
   },
   m7a: {
     label: "文字轉關係圖", target: "nlm",
@@ -1911,10 +1913,7 @@ const OUTLINE = [
   ] },
   { ch: "第三章 研究方法", secs: [
     { id: "s3-1", no: "3.1", title: "研究架構與假說", desc: "研究設計類型、研究架構圖、各變數在架構中的角色，最後列出研究假說（碩論特有，投稿期刊時可整節刪除）。", steps: [
-      { mod: "fa31", rules: R3, note: "由 0.3 的研究架構帶入架構圖，微調後下載 PNG；再產生撰寫架構說明的 Prompt。" },
-      { mod: "hylist", note: "從第二章各變數一節取出每一條假說敘述，按「放入本節論文內容」接在架構說明之後；再按一次只會更新假說清單。" },
-      { mod: "m7a", note: "選用：需要 Mermaid 格式的架構圖時，貼上描述研究架構的文字，請 NotebookLM 畫成 Mermaid 圖。" },
-      { mod: "m7b", note: "把回覆補好圍籬，貼進 Obsidian 或轉成圖片。" }], finish: FIN_FULL },
+      { mod: "fa31", rules: R3, note: "由 0.3 的研究架構帶入架構圖，微調後下載或複製圖片；再產生撰寫架構說明的 Prompt。第二章的假說會自動接在架構說明之後。" }], finish: FIN_FULL },
     { id: "s3-3", no: "3.2", title: "操作型定義與衡量", desc: "各構念的操作型定義、量表來源與選用理由、題數與量尺、題項修改說明。", steps: [
       { mod: "opdef", rules: [...R3, "verify"], note: "構念與題項由 0.4「定稿問卷」帶入，本研究定義由第二章各節帶入；量表原始文獻要先上傳到 NotebookLM。" }], finish: FIN_FULL },
     { id: "s3-4", no: "3.3", title: "研究對象與抽樣", desc: "母體、抽樣方法、樣本數依據、資料蒐集、篩選與排除標準、研究倫理。", steps: [
