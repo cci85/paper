@@ -1525,7 +1525,7 @@ function finBox() {   // 第一～五章各節：所有步驟下方的「本節�
   return `<details class="fin" id="finbox"><summary>本節論文內容（定稿）${t ? "" : "：尚未撰寫"}${miss ? `<span class="fin-refhint">　📚 尚缺 ${miss} 筆參考文獻${miss <= 3 ? "：" + missR.map(r => "（" + esc(r.label) + "）").join("") : ""}，點開到最下方「查找參考文獻」</span>` : ""}${dup ? `<span class="fin-refhint">　⚠ 有 ${dup} 組重複段落</span>` : ""}</summary>
     ${finDupBox(t)}${finWholeNote(s, t)}${t ? `<p class="hint">直接點文字即可修改，整節連在一起，可以跨段落選取；自動存檔。按 Enter 另起一段，刪掉段落之間的分隔即合併兩段。</p>
     <div class="fin-view fin-ed" id="finview" contenteditable="true" spellcheck="false" data-fall="1">${finHtml(t)}</div>` : `<div class="fin-view" id="finview"><p class="hint">完成本節的撰寫步驟並貼上 AI 回覆後，正文會自動出現在這裡。</p></div>`}
-    <p class="fin-btns">${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}${(store.values.fin_undo || {})[s.id] ? `<button type="button" data-finundo="1">復原上一次清除或取代前的內容</button>` : ""}
+    <p class="fin-btns">${t ? `<button type="button" class="copy" data-finrecheck="1">確認修改並檢查引用</button>` : ""}${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}${(store.values.fin_undo || {})[s.id] ? `<button type="button" data-finundo="1">復原上一次清除或取代前的內容</button>` : ""}
     <span class="hint">論文.md 與「論文全文」只放這裡的內容</span></p>${t ? finTblBox(s.id) : ""}${finRefBox(s)}</details>`;
 }
 // 定稿提醒：本節內容在最近一次「整節統整」之後又改過（或從未做過），提醒先到修訂論文做整體檢查

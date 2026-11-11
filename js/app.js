@@ -277,6 +277,12 @@ $("pane").addEventListener("focusout", e => {
   const v = $("finview"); if (v) v.innerHTML = finHtml(finText(store.sec));
   finRefRefresh();
 });
+$("pane").addEventListener("click", e => {   // 「確認修改並檢查引用」：存檔並重新檢查本節引用
+  const b = e.target.closest("button[data-finrecheck]"); if (!b) return;
+  const v = $("finview"); if (v && v.isContentEditable) { setFin(store.sec, finFromView(v)); save(); v.innerHTML = finHtml(finText(store.sec)); }
+  finRefRefresh();
+  const t = b.textContent; b.textContent = "已存檔並更新引用檢查"; setTimeout(() => { b.textContent = t; }, 1500);
+});
 // 本節論文內容修改後：重新檢查引用，更新標題列的「尚缺參考文獻」與「查找參考文獻」（內容沒變時不動，避免打斷正要按的按鈕）
 function finRefRefresh() {
   const fb = $("finbox"); if (!fb) return;
