@@ -500,7 +500,7 @@ const DEFS = {
       { id: "od_list", type: "textarea", label: "構念清單", hint: "一行一個；可附上預計採用的量表", rows: 6,
         placeholder: "品牌人格｜預計採用 Aaker (1997)\n自我一致性\n品牌依附" },
       { id: "od_scale", type: "text", label: "量尺形式", hint: "選填；請寫出點數與端點文字", placeholder: "例如：Likert 七點量尺，1 為非常不同意、7 為非常同意" },
-      { id: "od_defs", type: "cands", label: "第二章的界定（自動帶入）", render: () => odDefsView() },
+      { id: "od_defs", type: "cands", label: "要寫進 3.2 的構念與第二章的界定", render: () => odDefsView() },
       ...[2, 3, 4, 5, 6, 7].map(k => ({ id: "od_b" + k, type: "promptbox", afterOut: true, label: `第 ${k} 則 Prompt`, when: p => odParts(p).length >= k,
         hint: "上一則的回覆完成後，在同一個對話接著送出；每則回覆都貼到下方同一個「AI 回覆」欄位，接在前一則之後，不要覆蓋",
         copyLabel: `${"②③④⑤⑥⑦"[k - 2]} 複製第 ${k} 則 Prompt（同一個對話接著送出）`, build: p => odParts(p)[k - 1] || "" }))
@@ -1107,7 +1107,7 @@ function ch2Order(lines) {
 }
 function odBatches(p) {   // 依構念清單附上定稿題項，依字數分批
   const F = finalSurvey(); if (!F || blank(p.od_list)) return [];
-  const blocks = ch2Order(splitLines(p.od_list)).map(line => {
+  const blocks = odKeep(ch2Order(splitLines(p.od_list))).map(line => {
     const name = line.split(/[｜|]/)[0].trim(), src = (line.split(/[｜|]/)[1] || "").replace(/^預計採用\s*/, "").trim();
     const c = F.cons.find(x => x.name === name || x.name.startsWith(name) || name.startsWith(x.name));
     const df = ch2Def(name);
@@ -2126,7 +2126,7 @@ function anParts(p) { return !(p.an_methods || []).length ? [] : ruleSplit("anal
 // 3.2：題項分批的 Prompt 前面加上共用規則（放不進第 1 則時，先分則送規則，NotebookLM 只回覆「已收到」）
 function odParts(p) {
   if (blank(p.od_list)) return [];
-  const base = odBatches(p); if (!base.length) base.push(T.opdef({ list: ch2Order(splitLines(p.od_list)).join("\n"), scale: p.od_scale, defs: odDefsText(p), ctx: (store.values.as_ctx || "").trim() }));
+  const base = odBatches(p); if (!base.length) base.push(T.opdef({ list: odKeep(ch2Order(splitLines(p.od_list))).join("\n"), scale: p.od_scale, defs: odDefsText(p), ctx: (store.values.as_ctx || "").trim() }));
   const R = ruleText("opdef", p); if (!R) return base;
   if ((base[0] + R).length <= 2800) return [base[0] + R, ...base.slice(1)];
   const blocks = R.split(/\n\n(?=\[)/).map(b => b.trim()).filter(Boolean), rs = []; let cur = "";
@@ -2148,11 +2148,15 @@ function ch2Def(name) {
     return out.join("").replace(/^(?:相較之下|相對地|另一方面|此外|然而)[，,]\s*/, ""); }
   return "";
 }
+const odName = l => String(l).split(/[｜|]/)[0].trim();
+const odKeep = lines => lines.filter(l => !(store.values.od_skip || []).includes(odName(l)));   // 3.2：取消勾選的構念不寫進論文
 const odNames = p => ch2Order(splitLines(p.od_list || "")).map(l => l.split(/[｜|]/)[0].trim()).filter(Boolean);
-const odDefsText = p => odNames(p).map(n => (d => d ? `${n}：${d}` : "")(ch2Def(n))).filter(Boolean).join("\n");
+const odDefsText = p => odNames(p).filter(n => !(store.values.od_skip || []).includes(n)).map(n => (d => d ? `${n}：${d}` : "")(ch2Def(n))).filter(Boolean).join("\n");
 function odDefsView() {
   const ns = odNames(valuesOf(DEFS.opdef)); if (!ns.length) return `<p class="hint">（填入構念清單後，這裡會列出第二章界定各構念的句子）</p>`;
-  return `<ul class="hlist">${ns.map(n => { const d = ch2Def(n); return `<li><b>${esc(n)}</b>：${d ? esc(d) : `<span class="hint">第二章論文內容中沒有找到界定此構念的句子；將依上傳文獻撰寫</span>`}</li>`; }).join("")}</ul>`;
+  const skip = store.values.od_skip || [];
+  return `<p class="hint">勾選要寫進 3.2 的構念；問卷有、但論文不討論的構念（例如只作為檢核用的題目）取消勾選即可。</p><ul class="hlist od-pick">${ns.map(n => { const d = ch2Def(n), on = !skip.includes(n);
+    return `<li><label><input type="checkbox" data-odskip="${esc(n)}" ${on ? "checked" : ""}> <b>${esc(n)}</b></label>：${d ? esc(d) : `<span class="hint">第二章論文內容中沒有找到界定此構念的句子；將依上傳文獻撰寫</span>`}</li>`; }).join("")}</ul>`;
 }
 // 3.1：假說清單接在架構說明之後；再按一次只更新清單
 function hlPut() {

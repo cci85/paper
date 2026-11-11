@@ -419,3 +419,5 @@ ol.steps[hidden] { display: none !important; }
 .tbl-cap { margin: 6px 0; text-indent: 0 !important; font-weight: 600; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 table.apa { border-collapse: collapse; font-size: 14px; line-height: 1.6; }
 table.apa td { text-indent: 0; }
+.od-pick { list-style: none; padding-left: 0; }
+.od-pick li { margin: 6px 0; }

@@ -282,6 +282,10 @@ $("pane").addEventListener("paste", e => {   // 貼上時只保留純文字
 });
 $("pane").addEventListener("input", e => {
   const t = e.target;
+  if (t.dataset && t.dataset.odskip != null) {   // 3.2：勾選要寫進論文的構念（取消勾選的記在 od_skip）
+    const sk = new Set(store.values.od_skip || []); t.checked ? sk.delete(t.dataset.odskip) : sk.add(t.dataset.odskip);
+    store.values.od_skip = [...sk]; save(); update(); return;
+  }
   if (t.dataset.sved) {   // 問卷預覽：直接修改題項（不重畫，避免游標跳走）
     const e = (store.values.sv_edit ||= {}), txt = t.textContent.trim();
     if (txt === t.dataset.orig) delete e[t.dataset.sved]; else e[t.dataset.sved] = { orig: t.dataset.orig, text: txt };
@@ -575,3 +579,4 @@ $("pane").addEventListener("click", async e => {
   catch { try { await navigator.clipboard.writeText(txt); } catch {} }
   const t = b.textContent; b.textContent = "已複製，可貼到 Word"; setTimeout(() => { b.textContent = t; }, 1500);
 });
+
