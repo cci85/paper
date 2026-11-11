@@ -625,7 +625,7 @@ const DEFS = {
         source: () => finalArch().vars,
         seed: () => { const { d } = finalArch(); return { sig: JSON.stringify([d.edges, d.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: d.edges, mods: d.mods, pos: d.pos }; } },
       { id: "f31_theory", type: "text", label: "理論基礎", hint: "由第二章 2.1 帶入；不填時由 NotebookLM 依文獻判斷", placeholder: "例如：刺激—有機體—反應（S-O-R）模式" },
-      { id: "f31_scope", type: "textarea", label: "研究範圍（由 1.3 帶入）", hint: "研究設計的情境與對象依此撰寫；施測方式與填答依據由 3.3 的欄位帶入", rows: 4 },
+      { id: "f31_scope", type: "textarea", label: "研究範圍（由 1.3 帶入）", hint: "研究設計的情境與對象依此撰寫；問卷平台、發放管道與期間寫在 3.3，不寫入 3.1", rows: 4 },
       ...partBoxes("f31_b", "fa31", p => f31Parts(p)),
       { id: "hl_view", type: "cands", below: true, label: "研究假說（自動接在架構說明之後）", render: () => hlView() },
       { id: "hl_put", type: "button", below: true, label: "更新本節論文內容中的假說清單", hint: "第二章的假說改過、或本節論文內容修改過之後，按這裡把清單換成第二章的最新版本；不影響前面的架構說明", run: () => hlPut() }
@@ -2110,7 +2110,7 @@ function rnUndo() {
 // ── 第三章：各節 Prompt 分則、第二章定義帶入、假說清單接入 3.1 ──
 const ruleText = (mod, p) => RULES.filter(r => activeRules(DEFS[mod], p).includes(r.key)).map(r => typeof r.text === "function" ? r.text(p) : r.text).join("");
 function f31Parts(p) { const t = f31Text(), v = store.values; return t ? ruleSplit("fa31", p, T.frame31({ arch: t, theory: (p.f31_theory || "").trim(), ctx: (v.as_ctx || "").trim(), scope: (p.f31_scope || "").trim(),
-  design: [["施測方式與期間", v.sp_collect], ["填答依據", v.sp_basis], ["研究母體", v.sp_pop]].filter(([, x]) => !blank(x)).map(([k, x]) => `- ${k}：${x.trim()}`).join("\n") }), "研究架構與假說") : []; }
+  design: [["資料蒐集方式（只取設計類型，平台、管道與期間不寫入 3.1）", v.sp_collect], ["填答依據", v.sp_basis], ["研究母體", v.sp_pop]].filter(([, x]) => !blank(x)).map(([k, x]) => `- ${k}：${x.trim()}`).join("\n") }), "研究架構與假說") : []; }
 function anParts(p) { return !(p.an_methods || []).length ? [] : ruleSplit("analysis", p, T.analysis({ soft: p.an_soft, boot: p.an_boot, methods: p.an_methods, paths: p.hy_paths, dv: p.an_dv, criteria: p.an_criteria }), "資料分析方法"); }
 // 3.2：題項分批的 Prompt 前面加上共用規則（放不進第 1 則時，先分則送規則，NotebookLM 只回覆「已收到」）
 function odParts(p) {
