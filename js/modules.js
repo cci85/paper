@@ -643,10 +643,32 @@ const DEFS = {
     empty: "（請貼上要畫圖的文字）",
     next: "下一步：貼到 NotebookLM（建議在產生這段文字的同一個對話）；回覆整段複製後，到{#m7b}補好圍籬。"
   },
+  abstract: {
+    label: "中英文摘要", target: "ai",
+    hint: "依研究目的、研究方法、主要發現、結論與意涵的順序，產生中文摘要、關鍵詞、Abstract 與 Keywords；只能使用各章定稿中已有的內容。",
+    fields: [
+      { id: "ab_src", type: "textarea", label: "各章定稿（自動帶入）", hint: "帶入 1.2 研究目的、第三章研究方法、4.3 假說檢定與第五章；可自行增刪", rows: 8 },
+      { id: "ab_len", type: "text", label: "中文摘要字數", hint: "選填", placeholder: "例如：500 字以內", value: "500 字以內" }
+    ],
+    seed: () => ({ ab_src: abSource() }), seedQuiet: ["ab_src"], seedFrom: "各章定稿", seedNote: "研究目的、研究方法、研究結果與結論由各章定稿帶入",
+    build: p => blank(p.ab_src) ? "" : T.abstract({ title: (store.values.tt_zh || "").trim(), titleEn: (store.values.tt_en || "").trim(), src: p.ab_src.trim(), len: (p.ab_len || "").trim() }),
+    empty: "（第一章到第五章還沒有定稿內容）",
+    next: "下一步：貼到一般 AI；回覆貼到下方「AI 回覆」，下載 Word 檔時會放進摘要與 Abstract 頁。"
+  },
   fulltext: {
     label: "論文全文", target: "tool",
     hint: "依章節顯示各節定稿，也就是「研究名稱_論文.md」的內容；要修改某一節，到該節最下方的「本節論文內容」。",
     fields: [{ id: "ins_mode", type: "radio", label: "圖表編號方式", hint: "全站的表號與圖號依此自動編排，正文中的「如表 3-1 所示」也會一起改", options: [["chap", "依章（圖 3-1）"], ["sec", "依節（圖 3.1-1）"], ["all", "全文連續（圖 1）"]], value: "chap" },
+      { id: "wd_student", type: "text", label: "研究生", placeholder: "例如：王大明" },
+      { id: "wd_student_en", type: "text", label: "研究生英文姓名", hint: "先名後姓", placeholder: "例如：Da-Ming Wang" },
+      { id: "wd_adv", type: "text", label: "指導教授", hint: "不加「博士」；兩位以上以頓號分隔", placeholder: "例如：陳靜怡" },
+      { id: "wd_adv_en", type: "text", label: "指導教授英文姓名", hint: "兩位以上以分號分隔", placeholder: "例如：Ching-Yi Chen" },
+      { id: "wd_ym", type: "text", label: "畢業年月（民國）", hint: "不可早於審定書", placeholder: "例如：115 年 6 月" },
+      { id: "wd_dept", type: "text", label: "學系", value: "國際企業學系" },
+      { id: "wd_college", type: "text", label: "學院", value: "管理學院" },
+      { id: "wd_dept_en", type: "text", label: "學系英文名稱", value: "Department of International Business" },
+      { id: "wd_college_en", type: "text", label: "學院英文名稱", value: "College of Management" },
+      { id: "wd_go", type: "button", label: "下載 Word 檔", hint: "依暨南大學〈中文論文格式暨範本〉排版；用 Word 開啟時，按「是」更新目次與頁碼", run: () => { wordDownload(); return "正在產生 Word 檔…"; } },
       { id: "ft_view", type: "cands", label: "", render: () => fullView() }],
     build: () => thesisBody(),
     empty: "（目前還沒有任何一節有內容）",
@@ -1406,7 +1428,13 @@ function insRenum(sid, t) {   // 插入標記與正文中的「如表 3-1 所示
   t = t.replace(/([表圖])\s*(\d+(?:\s*[.．\-－–]\s*\d+)*)/g, (all, ty, a) => ref[ty + insNorm(a)] ? `${ty} ${ref[ty + insNorm(a)]}` : all);
   return t.replace(/\u0000(\d+)\u0000/g, (a, i) => keep[+i]);
 }
-function finText(sid) { return insRenum(sid, finBody(sid)); }
+function finText(sid) {
+  let t = insRenum(sid, finBody(sid));
+  if (sid === "s3-1" && t.trim() && !/(^|\n)H\d+[a-z]?\s*[：:]/.test(t)) {   // 3.1：架構說明之後自動接上第二章的假說清單
+    const it = hlItems(); if (it.length) t = t.trim() + "\n\n" + (/如下[。：:]?\s*$/.test(t.trim()) ? "" : "依據第二章的推導，本研究提出以下假說：\n\n") + it.join("\n");
+  }
+  return t;
+}
 // 本節表格：依正文中插入標記的順序配對表格（先比對標題，再依順序）
 function finTblList(sid) {
   const ts = finTables(sid), ms = [...finText(sid).matchAll(INS_RE)].filter(m => m[1] === "表"), used = new Set();
@@ -1772,6 +1800,11 @@ function scParts(p) {
   if (one.length <= 2800) return [one];
   return splitForNLM(T.scope_mat(q) + (R ? "\n\n【撰寫時須遵守的規則】" + R : ""), T.scope_task(q) + (R ? "\n\n撰寫時請遵守前面提供的「撰寫時須遵守的規則」。" : ""), "研究範圍");
 }
+// 摘要：研究目的、研究方法、研究結果與結論的定稿
+function abSource() {
+  const pick = ["s1-2", "s3-1", "s3-4", "s3-5", "s4-3", "s5-1", "s5-2", "s5-3"];
+  return THESIS_SECS().filter(s => pick.includes(s.id)).map(s => { const t = finBlocks(finText(s.id)).filter(b => !/^#|^〔插入/.test(b)).join("\n"); return t ? `【${s.no} ${s.title}】\n${t}` : ""; }).filter(Boolean).join("\n\n");
+}
 // 1.4 研究流程：各章已有定稿的摘要（第三章研究方法帶入較多內容）
 function flSummary() {
   return THESIS_SECS().map(s => {
@@ -1908,6 +1941,8 @@ const OUTLINE = [
       { mod: "discuss", note: "可接在 5.1 同一個對話。", fixed: { ds_secs: ["limit"] } }], finish: FIN_FULL }
   ] },
   { ch: "論文整理", secs: [
+    { id: "q-abs", no: "", title: "摘要", desc: "依第一章到第五章的定稿產生中英文摘要與關鍵詞；回覆會放進下載的 Word 檔。建議全文定稿後再做。", steps: [
+      { mod: "abstract", note: "各章定稿會自動帶入；貼到一般 AI 即可，回覆貼到下方「AI 回覆」。" }] },
     { id: "q-full", no: "", title: "論文全文", desc: "依章節顯示各節的定稿（就是「研究名稱_論文.md」的內容）；各節的定稿可在該節最下方的「本節論文內容」查看與修改。", steps: [
       { mod: "fulltext", note: "定稿來自各節撰寫步驟的正文，修訂論文（補強、精簡、整節統整、融合）後可取代為改寫版。" }] },
     { id: "q-rename", no: "", title: "全站用詞取代", desc: "變數改名或統一譯名時使用：一次更新全站的論文內容、AI 回覆、研究假說、架構圖與第二章分節。", steps: [
@@ -2110,7 +2145,7 @@ function hlPut() {
   const strip = x => String(x || "").replace(/\n*依據第二章[^\n]*假說[：:][\s\S]*$/, "").replace(/(\n*H\d+[a-z]?\s*[：:][^\n]*)+\s*$/, "").trim();
   const fin = store.values.fin || {}; let base = strip(finText("s3-1"));
   if (!base && typeof fin["s3-1"] === "string") { const keep = fin["s3-1"]; delete fin["s3-1"]; base = strip(finText("s3-1")); fin["s3-1"] = keep; }   // 只有清單時，改用架構說明的回覆
-  setFin("s3-1", base ? base + "\n\n" + t : t);
+  setFin("s3-1", base ? base + "\n\n" + (/如下[。：:]?$/.test(base) ? hlItems().join("\n") : t) : t);
   return base ? "已接在架構說明之後；原有的假說清單已更新。" : "已放入本節論文內容。架構說明還沒有內容：完成第一步並貼上回覆後，再按一次，清單會接在架構說明之後。";
 }
 // 3.1 與 3.2 合併：舊的 3.2 假說清單併入 3.1（舊存檔讀入時也會套用）

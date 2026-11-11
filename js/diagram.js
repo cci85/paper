@@ -295,6 +295,7 @@ function diagramAction(f, act, key) {
   if (act === "clear") { d.edges = []; d.mods = []; dgSel[f.id] = null; }
   if (act === "reset") { d.sig = null; dgSel[f.id] = null; dgAutoPos(vars, d.pos, true); }
   if (act === "png") return downloadDiagram(vars, d);
+  if (act === "copypng") return copyDiagram(vars, d, document.querySelector(`button[data-dg="${f.id}"][data-act="copypng"]`));
   update();
 }
 
@@ -312,6 +313,13 @@ function diagramBlob(vars, d) {
   });
 }
 
+// 架構圖複製到剪貼簿（PNG），可直接貼到 Word
+function copyDiagram(vars, d, btn) {
+  if (!vars.length) return;
+  const done = t => { if (!btn) return; const o = btn.textContent; btn.textContent = t; setTimeout(() => { btn.textContent = o; }, 1500); };
+  navigator.clipboard.write([new ClipboardItem({ "image/png": diagramBlob(vars, d) })])
+    .then(() => done("已複製，可貼到 Word"), () => done("無法複製，請改用下載 PNG"));
+}
 function downloadDiagram(vars, d) {
   if (!vars.length) return;
   diagramBlob(vars, d).then(b => {
