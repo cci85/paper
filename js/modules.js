@@ -387,14 +387,17 @@ const DEFS = {
       { id: "sp_method", type: "text", label: "抽樣方法", placeholder: "例如：便利抽樣、滾雪球抽樣" },
       { id: "sp_size", type: "text", label: "樣本數規劃依據", hint: "以檢定力分析為主；十倍法則等經驗法則已被認為過於簡化", placeholder: "例如：G*Power，效果量 f² = .15、α = .05、檢定力 .80、預測變數 5 個，最低樣本數 92" },
       { id: "sp_collect", type: "text", label: "資料蒐集方式、管道與期間", hint: "可附選擇此期間的理由", placeholder: "例如：網路問卷，透過 Facebook 社團與 PTT 發放，2026 年 3 月至 4 月" },
+      { id: "sp_basis", type: "text", label: "填答依據", hint: "受訪者依據什麼經驗作答；也會帶到 3.1", placeholder: "例如：請受訪者回想最近一次在蝦皮購物的經驗作答" },
       { id: "sp_pretest", type: "text", label: "前測", hint: "選填", placeholder: "例如：前測 40 份，各構念 α 皆大於 .80" },
       { id: "sp_screen", type: "textarea", label: "篩選與排除標準", hint: "篩選題、注意力檢查題，以及無效問卷的排除條件", rows: 2, placeholder: "例如：以「近一年是否曾在蝦皮購物」篩選；設一題注意力檢查題；剔除答錯檢查題、填答時間少於 2 分鐘或連續相同作答者" },
       { id: "sp_ethics", type: "text", label: "研究倫理", hint: "知情同意、匿名與資料保密、填答誘因", placeholder: "例如：問卷首頁說明研究目的與匿名原則，勾選同意後才開始填答；完成者可參加抽獎" },
       { id: "sp_n1", type: "text", label: "發放份數", hint: "選填" },
       { id: "sp_n2", type: "text", label: "回收份數", hint: "選填" },
       { id: "sp_n3", type: "text", label: "有效問卷份數", hint: "選填" },
-      { id: "sp_nrb", type: "text", label: "未回應偏差檢驗", hint: "選填；有做才填", placeholder: "例如：比較前 25% 與後 25% 回收者在人口統計變數上的差異，均未達顯著" }
+      { id: "sp_nrb", type: "text", label: "未回應偏差檢驗", hint: "選填；有做才填", placeholder: "例如：比較前 25% 與後 25% 回收者在人口統計變數上的差異，均未達顯著" },
+      { id: "sp_scope", type: "textarea", label: "研究範圍（由 1.3 帶入）", hint: "上方欄位留白、但這裡已寫到的項目（例如研究情境、研究對象），依此撰寫；與上方欄位不一致時以欄位為準", rows: 4 }
     ],
+    seed: () => ({ sp_scope: finText("s1-3").trim() }), seedQuiet: ["sp_scope"], seedFrom: "1.3 研究範圍", seedNote: "研究範圍由 1.3 的論文內容帶入",
     rules: () => R3.filter(k => k !== "citation"),
     build: (p, R) => {
       if (blank(p.sp_pop) && blank(p.sp_method)) return "";
@@ -622,9 +625,10 @@ const DEFS = {
         source: () => finalArch().vars,
         seed: () => { const { d } = finalArch(); return { sig: JSON.stringify([d.edges, d.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: d.edges, mods: d.mods, pos: d.pos }; } },
       { id: "f31_theory", type: "text", label: "理論基礎", hint: "由第二章 2.1 帶入；不填時由 NotebookLM 依文獻判斷", placeholder: "例如：刺激—有機體—反應（S-O-R）模式" },
+      { id: "f31_scope", type: "textarea", label: "研究範圍（由 1.3 帶入）", hint: "研究設計的情境與對象依此撰寫；施測方式與填答依據由 3.3 的欄位帶入", rows: 4 },
       ...partBoxes("f31_b", "fa31", p => f31Parts(p))
     ],
-    seed: () => ({ f31_theory: (store.values.th_theory || "").trim() }), seedFrom: "第二章 2.1", seedNote: "理論基礎由第二章 2.1 的「理論」欄位帶入",
+    seed: () => ({ f31_theory: (store.values.th_theory || "").trim(), f31_scope: finText("s1-3").trim() }), seedQuiet: ["f31_scope"], seedFrom: "2.1 與 1.3", seedNote: "理論基礎由第二章 2.1 的「理論」欄位帶入，研究範圍由 1.3 的論文內容帶入",
     rules: () => R3,
     build: p => f31Parts(p)[0] || "", status: p => partsNote(f31Parts(p)),
     empty: "（0.3 還沒有研究架構）",
@@ -1979,7 +1983,8 @@ function rnUndo() {
 }
 // ── 第三章：各節 Prompt 分則、第二章定義帶入、假說清單接入 3.1 ──
 const ruleText = (mod, p) => RULES.filter(r => activeRules(DEFS[mod], p).includes(r.key)).map(r => typeof r.text === "function" ? r.text(p) : r.text).join("");
-function f31Parts(p) { const t = f31Text(); return t ? ruleSplit("fa31", p, T.frame31({ arch: t, theory: (p.f31_theory || "").trim(), ctx: (store.values.as_ctx || "").trim() }), "研究架構與假說") : []; }
+function f31Parts(p) { const t = f31Text(), v = store.values; return t ? ruleSplit("fa31", p, T.frame31({ arch: t, theory: (p.f31_theory || "").trim(), ctx: (v.as_ctx || "").trim(), scope: (p.f31_scope || "").trim(),
+  design: [["施測方式與期間", v.sp_collect], ["填答依據", v.sp_basis], ["研究母體", v.sp_pop]].filter(([, x]) => !blank(x)).map(([k, x]) => `- ${k}：${x.trim()}`).join("\n") }), "研究架構與假說") : []; }
 function anParts(p) { return !(p.an_methods || []).length ? [] : ruleSplit("analysis", p, T.analysis({ soft: p.an_soft, boot: p.an_boot, methods: p.an_methods, paths: p.hy_paths, dv: p.an_dv, criteria: p.an_criteria }), "資料分析方法"); }
 // 3.2：題項分批的 Prompt 前面加上共用規則（放不進第 1 則時，先分則送規則，NotebookLM 只回覆「已收到」）
 function odParts(p) {
