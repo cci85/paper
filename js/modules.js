@@ -12,8 +12,12 @@ const RULES = [
   { key: "ch2", label: "第二章寫作規範", opt: true,
     text: () => "\n\n[第二章寫作規範]\n本段屬於論文第二章文獻探討，請遵守以下規範；與其他規則衝突時，以本規範為準：\n" + GUIDE_CH2.ai },
   { key: "ch3", label: "第三章寫作規範", opt: true,
-    text: () => "\n\n[第三章寫作規範]\n本段屬於論文第三章研究方法，請遵守以下規範；與其他規則衝突時，以本規範為準：\n" + GUIDE_CH3.ai }
+    text: () => "\n\n[第三章寫作規範]\n本段屬於論文第三章研究方法，請遵守以下規範；與其他規則衝突時，以本規範為準：\n" + (spPlan() ? GUIDE_CH3.ai.replace(/^7\. .*$/m, CH3_PLAN_TONE) : GUIDE_CH3.ai) }
 ];
+// 3.3 研究對象與抽樣分計畫書版與完整論文版；計畫書版改用預定語氣（只影響 3.3，含其修訂論文步驟）
+const SP_STAGE0 = "full";
+const spPlan = () => store.sec === "s3-4" && (store.values.sp_stage || SP_STAGE0) === "plan";
+const CH3_PLAN_TONE = "7. 本節為論文計畫書版本：尚未執行的程序以預定語氣陳述（例如「本研究預計……」「問卷預定於……期間發放」）；已完成的程序（例如已完成的前測）以已完成語氣陳述；不得寫出發放、回收與有效問卷份數等尚未發生的結果。";
 const inCh1 = () => /^s1-/.test(store.sec || "");
 
 // 共用規則中的引用格式（欄位內第二個 Prompt 使用）
@@ -383,18 +387,20 @@ const DEFS = {
     label: "研究對象與抽樣", target: "ai",
     hint: "把您的抽樣與資料蒐集資訊寫成段落。只會使用您填的數字與程序，沒填的項目會標【待補】，不讓 AI 代寫；回收率與有效率由網頁計算，不交給 AI 算。",
     fields: [
+      { id: "sp_stage", type: "radio", label: "撰寫版本", hint: "計畫書版以預定語氣撰寫，不收回收資料；問卷回收後切換為完整論文版，已填的欄位會保留，正文請重新產生", options: [["plan", "論文計畫書（尚未回收問卷）"], ["full", "完整論文（已回收問卷）"]], value: SP_STAGE0 },
       { id: "sp_pop", type: "text", label: "研究母體與抽樣架構", placeholder: "例如：近一年曾購買精釀啤酒之台灣消費者；以精釀啤酒社群成員為抽樣架構" },
       { id: "sp_method", type: "text", label: "抽樣方法", placeholder: "例如：便利抽樣、滾雪球抽樣" },
       { id: "sp_size", type: "text", label: "樣本數規劃依據", hint: "以檢定力分析為主；十倍法則等經驗法則已被認為過於簡化", placeholder: "例如：G*Power，效果量 f² = .15、α = .05、檢定力 .80、預測變數 5 個，最低樣本數 92" },
-      { id: "sp_collect", type: "text", label: "資料蒐集方式、管道與期間", hint: "可附選擇此期間的理由", placeholder: "例如：網路問卷，透過 Facebook 社團與 PTT 發放，2026 年 3 月至 4 月" },
+      { id: "sp_collect", type: "text", label: "資料蒐集方式、管道與期間", hint: "可附選擇此期間的理由；計畫書版填預定的管道與期間", placeholder: "例如：網路問卷，透過 Facebook 社團與 PTT 發放，2026 年 3 月至 4 月" },
       { id: "sp_basis", type: "text", label: "填答依據", hint: "受訪者依據什麼經驗作答；也會帶到 3.1", placeholder: "例如：請受訪者回想最近一次在蝦皮購物的經驗作答" },
-      { id: "sp_pretest", type: "text", label: "前測", hint: "選填", placeholder: "例如：前測 40 份，各構念 α 皆大於 .80" },
+      { id: "sp_pretest", type: "text", label: "前測", hint: "選填；尚未進行時可填預定做法。前測在論文中自成一段", placeholder: "例如：前測 40 份，各構念 α 皆大於 .80" },
       { id: "sp_screen", type: "textarea", label: "篩選與排除標準", hint: "篩選題、注意力檢查題，以及無效問卷的排除條件", rows: 2, placeholder: "例如：以「近一年是否曾在蝦皮購物」篩選；設一題注意力檢查題；剔除答錯檢查題、填答時間少於 2 分鐘或連續相同作答者" },
       { id: "sp_ethics", type: "text", label: "研究倫理", hint: "知情同意、匿名與資料保密、填答誘因", placeholder: "例如：問卷首頁說明研究目的與匿名原則，勾選同意後才開始填答；完成者可參加抽獎" },
-      { id: "sp_n1", type: "text", label: "發放份數", hint: "選填" },
-      { id: "sp_n2", type: "text", label: "回收份數", hint: "選填" },
-      { id: "sp_n3", type: "text", label: "有效問卷份數", hint: "選填" },
-      { id: "sp_nrb", type: "text", label: "未回應偏差檢驗", hint: "選填；有做才填", placeholder: "例如：比較前 25% 與後 25% 回收者在人口統計變數上的差異，均未達顯著" },
+      { id: "sp_nplan", type: "text", label: "預計回收份數", hint: "選填；可附估算依據", placeholder: "例如：最低樣本數 92 份，考量約兩成無效問卷，預計回收 120 份", when: p => p.sp_stage === "plan" },
+      { id: "sp_n1", type: "text", label: "發放份數", hint: "選填", when: p => p.sp_stage !== "plan" },
+      { id: "sp_n2", type: "text", label: "回收份數", hint: "選填", when: p => p.sp_stage !== "plan" },
+      { id: "sp_n3", type: "text", label: "有效問卷份數", hint: "選填", when: p => p.sp_stage !== "plan" },
+      { id: "sp_nrb", type: "text", label: "未回應偏差檢驗", hint: "選填；有做才填", when: p => p.sp_stage !== "plan", placeholder: "例如：比較前 25% 與後 25% 回收者在人口統計變數上的差異，均未達顯著" },
       { id: "sp_scope", type: "textarea", label: "研究範圍（由 1.3 帶入）", hint: "上方欄位留白、但這裡已寫到的項目（例如研究情境、研究對象），依此撰寫；與上方欄位不一致時以欄位為準", rows: 4 }
     ],
     seed: () => ({ sp_scope: finText("s1-3").trim() }), seedQuiet: ["sp_scope"], seedFrom: "1.3 研究範圍", seedNote: "研究範圍由 1.3 的論文內容帶入",
@@ -405,8 +411,8 @@ const DEFS = {
       const [a, b, c] = [n("sp_n1"), n("sp_n2"), n("sp_n3")];
       const pct = (x, y) => (x / y * 100).toFixed(2) + "%";
       const r = [];
-      if (a > 0 && b > 0) r.push(`回收率 ${pct(b, a)}`);
-      if (b > 0 && c > 0) r.push(`有效回收率（有效／回收）${pct(c, b)}`);
+      if (p.sp_stage !== "plan" && a > 0 && b > 0) r.push(`回收率 ${pct(b, a)}`);
+      if (p.sp_stage !== "plan" && b > 0 && c > 0) r.push(`有效回收率（有效／回收）${pct(c, b)}`);
       return T.sample({ ...p, rates: r.join("；") }) + (R || "");
     },
     empty: "（請至少填入研究母體或抽樣方法）",
