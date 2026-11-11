@@ -419,6 +419,9 @@ ol.steps[hidden] { display: none !important; }
 .tbl-cap { margin: 6px 0; text-indent: 0 !important; font-weight: 600; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 table.apa { border-collapse: collapse; font-size: 14px; line-height: 1.6; }
 table.apa td { text-indent: 0; }
+table.apa td[contenteditable]:hover, .tbl-note[contenteditable]:hover { background: #f6f4ee; cursor: text; }
+table.apa td[contenteditable]:focus, .tbl-note[contenteditable]:focus { outline: 1px dashed #2f6f62; background: #fbfaf6; }
+.tbl-note:empty::before { content: attr(data-ph); color: #a8a69f; }
 .od-box { grid-column: 1 / -1; }
 .od-box > .hint { margin: 0 0 8px; }
 .od-row { border: 1px solid #e3e0d8; border-radius: 8px; padding: 8px 12px; margin: 6px 0; background: #fff; }

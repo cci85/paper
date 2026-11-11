@@ -277,7 +277,7 @@ $("pane").addEventListener("focusout", e => {
   const v = $("finview"); if (v) v.innerHTML = finHtml(finText(store.sec));
 });
 $("pane").addEventListener("paste", e => {   // 貼上時只保留純文字
-  if (!(e.target.closest && e.target.closest("[data-fall]"))) return;
+  if (!(e.target.closest && e.target.closest("[data-fall],[data-tc],[data-tn]"))) return;
   e.preventDefault(); document.execCommand("insertText", false, (e.clipboardData || window.clipboardData).getData("text/plain"));
 });
 $("pane").addEventListener("input", e => {
@@ -324,6 +324,15 @@ $("pane").addEventListener("input", e => {
     return;
   }
   if (t.dataset && t.dataset.fall) { setFin(store.sec, finFromView(t)); save(); return; }   // 本節定稿：直接在呈現頁面修改
+  if (t.dataset && (t.dataset.tc || t.dataset.tn)) {   // 本節表格：直接修改儲存格與註解（依表標題另存，不受重新貼 AI 回覆影響）
+    const [k, r, c] = (t.dataset.tc || t.dataset.tn).split("|").map(Number), x = finTblList(store.sec)[k]; if (!x) return;
+    const val = t.innerText.replace(/\u00a0/g, " ").replace(/\n{2,}/g, "\n").trim(), rows = x.t.rows.map(row => row.slice());
+    let note = x.t.note || "";
+    if (t.dataset.tc) rows[r][c] = val; else note = val;
+    ((store.values.tbl_edit ||= {})[store.sec] ||= {})[x.t.cap] = { rows, note }; save();
+    if (!x.t.edited) { const b = t.closest(".tblbox").querySelector(".tbl-cap"); if (b && !b.querySelector("[data-tblreset]")) b.insertAdjacentHTML("beforeend", `<button type="button" data-tblreset="${k}">還原為 AI 回覆的表格</button>`); }
+    return;
+  }
   if (t.dataset.finref) {   // 本節定稿：貼上 AI 整理的參考文獻 → 自動配對
     (store.values.rf_paste ||= {})[t.dataset.finref] = t.value; save();
     const c = $("finrefcount"); if (c) c.innerHTML = finRefCount(sec());
@@ -577,6 +586,14 @@ document.addEventListener("selectionchange", () => {
   if (drStepIdx() < 0) return;   // 本節沒有「修訂論文」步驟
   const r = g.getRangeAt(0).getBoundingClientRect();
   hlBtn.style.left = Math.max(8, r.right + scrollX - 90) + "px"; hlBtn.style.top = (r.bottom + scrollY + 6) + "px"; hlBtn.style.display = "";
+});
+// 本節表格：還原為 AI 回覆中的表格（刪除直接修改的內容）
+$("pane").addEventListener("click", e => {
+  const b = e.target.closest("button[data-tblreset]"); if (!b) return;
+  const x = finTblList(store.sec)[+b.dataset.tblreset], ed = (store.values.tbl_edit || {})[store.sec]; if (!x || !ed) return;
+  if (!confirm(`「${x.cap}」直接修改過的內容會清除，改回 AI 回覆中的表格。確定嗎？`)) return;
+  delete ed[x.t.cap]; save();
+  const fb = $("finbox"); if (fb) { const open = fb.open; fb.outerHTML = finBox(); const nb = $("finbox"); if (nb) nb.open = open; }
 });
 // 本節表格：複製成 Word 可貼上的 APA 三線表（HTML），純文字以 Tab 分隔
 $("pane").addEventListener("click", async e => {

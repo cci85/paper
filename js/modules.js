@@ -1435,7 +1435,8 @@ function finBody(sid) {   // 正文（表格已換成插入標記）；「本節
 }
 function finTables(sid) {   // 表格來源：本節論文內容中仍有的表格；沒有時取撰寫步驟回覆中的表格
   const v = (store.values.fin || {})[sid], own = typeof v === "string" && v.trim() ? tblSplit(v).tables : [];
-  return own.length ? own : tblSplit(finReply(sid)).tables;
+  const ed = (store.values.tbl_edit || {})[sid] || {};   // 在「本節表格」直接修改過的表（依表標題），優先於 AI 回覆中的表
+  return (own.length ? own : tblSplit(finReply(sid)).tables).map(x => ed[x.cap] ? { ...x, rows: ed[x.cap].rows, note: ed[x.cap].note, edited: true } : x);
 }
 function insMap(sid) {   // 本節各插入標記的新編號：[{ type, old, num }]；編號方式依「論文全文」的設定（依章／依節／全文連續）
   const mode = store.values.ins_mode || "sec", all = THESIS_SECS(), me = all.find(x => x.id === sid); if (!me) return null;
@@ -1475,18 +1476,20 @@ function finTblList(sid) {
   return out;   // 正文中刪掉插入標記的表格，不再列出
 }
 const tblMd = x => [`表 ${x.num}　${x.cap}`, "", ...x.t.rows.map((r, i) => "| " + r.map(c => c.replace(/\n/g, "<br>")).join(" | ") + " |" + (i === 0 ? "\n|" + r.map(() => "---").join("|") + "|" : "")), ...(x.t.note ? ["", x.t.note] : [])].join("\n");
-function tblHtml(x, word) {   // APA 三線表：表頂、欄名下方、表底三條橫線
+function tblHtml(x, word, k) {   // APA 三線表：表頂、欄名下方、表底三條橫線；k：網頁上第 k 張表，儲存格可直接修改
   const B = w => word ? `border:none;border-${w}` : `border-${w}`, th = word ? "solid windowtext 1.5pt" : "1.5px solid #222", tn = word ? "solid windowtext .75pt" : "1px solid #222";
-  const cell = (c, st) => `<td style="padding:${word ? "2pt 6pt" : "4px 8px"};vertical-align:top;${st}">${esc(c).replace(/\n/g, "<br>")}</td>`;
+  const ed = !word && k != null, ce = (r, c) => ed ? ` contenteditable="true" spellcheck="false" data-tc="${k}|${r}|${c}"` : "";
+  const cell = (c, st, r, j) => `<td${ce(r, j)} style="padding:${word ? "2pt 6pt" : "4px 8px"};vertical-align:top;${st}">${esc(c).replace(/\n/g, "<br>")}</td>`;
   const n = x.t.rows.length, font = word ? "font-family:'Times New Roman',新細明體,serif;font-size:12pt;" : "";
-  return `${word ? `<p style="${font}margin:0 0 4pt 0">表 ${esc(x.num)}　${esc(x.cap)}</p>` : ""}<table class="apa" style="border-collapse:collapse;${font}">` + x.t.rows.map((r, i) => `<tr>${r.map(c => cell(c, i === 0 ? `${B("top")}:${th};border-bottom:${tn};${word ? "" : "font-weight:600;"}` : i === n - 1 ? `${B("bottom")}:${th};` : (word ? "border:none;" : ""))).join("")}</tr>`).join("") + `</table>` +
-    (x.t.note ? `<p style="${font}${word ? "font-size:10pt;" : ""}margin:4pt 0 0 0">${esc(x.t.note)}</p>` : "");
+  return `${word ? `<p style="${font}margin:0 0 4pt 0">表 ${esc(x.num)}　${esc(x.cap)}</p>` : ""}<table class="apa" style="border-collapse:collapse;${font}">` + x.t.rows.map((r, i) => `<tr>${r.map((c, j) => cell(c, i === 0 ? `${B("top")}:${th};border-bottom:${tn};${word ? "" : "font-weight:600;"}` : i === n - 1 ? `${B("bottom")}:${th};` : (word ? "border:none;" : ""), i, j)).join("")}</tr>`).join("") + `</table>` +
+    (ed ? `<p class="tbl-note" contenteditable="true" spellcheck="false" data-tn="${k}" data-ph="（沒有註解；點這裡可加上「註：……」）" style="margin:4pt 0 0 0">${esc(x.t.note || "")}</p>`
+      : x.t.note ? `<p style="${font}${word ? "font-size:10pt;" : ""}margin:4pt 0 0 0">${esc(x.t.note)}</p>` : "");
 }
 function finTblBox(sid) {
   const ls = finTblList(sid), sk = tblSkip(sid), off = finTables(sid).filter(x => sk.includes(x.cap));
   if (!ls.length && !off.length) return "";
-  return `<div class="fin-tbl"><h4>本節表格</h4><p class="hint">正文中以〔插入表…〕標出位置；按「複製表格」後直接貼到 Word，就是 APA 三線表。取消「放入論文」，正文中的插入標記與引導這張表的句子會一併移除，其餘表號自動遞補。表號依「論文整理 → 論文全文」設定的編號方式自動編排。</p>` +
-    ls.map((x, k) => `<div class="tblbox"><p class="tbl-cap"><label class="tbl-on"><input type="checkbox" data-tblskip="${esc(x.cap)}" checked>放入論文</label>表 ${esc(x.num)}　${esc(x.cap)}<button type="button" class="copy" data-tblcopy="${k}">複製表格（貼到 Word）</button></p>${tblHtml(x)}</div>`).join("") +
+  return `<div class="fin-tbl"><h4>本節表格</h4><p class="hint">正文中以〔插入表…〕標出位置；按「複製表格」後直接貼到 Word，就是 APA 三線表。取消「放入論文」，正文中的插入標記與引導這張表的句子會一併移除，其餘表號自動遞補。表號依「論文整理 → 論文全文」設定的編號方式自動編排。表格內容與「註：」可以直接點一下修改，自動存檔；表的標題請在正文的〔插入表…〕標記中修改。</p>` +
+    ls.map((x, k) => `<div class="tblbox"><p class="tbl-cap"><label class="tbl-on"><input type="checkbox" data-tblskip="${esc(x.cap)}" checked>放入論文</label>表 ${esc(x.num)}　${esc(x.cap)}<button type="button" class="copy" data-tblcopy="${k}">複製表格（貼到 Word）</button>${x.t.edited ? `<button type="button" data-tblreset="${k}">還原為 AI 回覆的表格</button>` : ""}</p>${tblHtml(x, false, k)}</div>`).join("") +
     off.map(x => `<div class="tblbox off"><p class="tbl-cap"><label class="tbl-on"><input type="checkbox" data-tblskip="${esc(x.cap)}">放入論文</label>${esc(x.cap)}<small>（未放入論文）</small></p></div>`).join("") + `</div>`;
 }
 const setFin = (sid, t) => { (store.values.fin ||= {})[sid] = t; };
