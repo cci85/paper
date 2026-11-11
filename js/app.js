@@ -60,6 +60,7 @@ if ((store.layout || 0) < 7) {   // 常用「核實改寫：補強」「核實�
 }
 if ((store.layout || 0) < 8) { if ((store.step || {})["s1-2"]) store.step["s1-2"] = 0; store.layout = 8; }   // 1.2 只保留撰寫步驟
 rebuildCh2();   // 第二章各節依「第二章架構」產生
+if ((store.layout || 0) < 9) { migrateCh3(); delete store.step["s3-1"]; delete store.step["s3-3"]; store.layout = 9; }   // 3.1 與 3.2 合併；3.2（原 3.3）移除名詞釋義步驟
 if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} if (window.onStoreSave) window.onStoreSave(); };
 
@@ -144,9 +145,9 @@ function renderPane() {
   const top = shown.filter(f => f.top).map(fieldHtml).join("");   // top：放在步驟說明之前，最醒目的位置
   const afterOut = shown.filter(f => f.afterOut).map(fieldHtml).join("");
   const below = shown.filter(f => f.below).map(fieldHtml).join("");
-  const ch2g = /^s2-/.test(store.sec), gd = (GUIDE_CH1.secs || {})[store.sec] || (ch2g ? GUIDE_CH2.html : "");   // 第一、二章各節：可展開的寫作規範
-  $("pane").innerHTML = `${gd ? `<details class="guide"><summary>${ch2g ? "第二章寫作規範" : "本節寫作規範（第一章）"}　點開查看</summary><div class="guide-body">${gd}</div>
-      ${ch2g ? "" : `<p><button type="button" data-go="q-ch1g" data-gostep="0">查看第一章完整寫作規範 →</button></p>`}</details>` : ""}${steps().length === 1 && !sec().no ? "" : `<h3>${sec().no ? `步驟 ${stepIdx() + 1}　` : ""}${esc(m.label)}</h3>`}
+  const ch2g = /^s2-/.test(store.sec), ch3g = /^s3-/.test(store.sec), gd = (GUIDE_CH1.secs || {})[store.sec] || (ch2g ? GUIDE_CH2.html : ch3g ? GUIDE_CH3.html : "");   // 第一、二、三章各節：可展開的寫作規範
+  $("pane").innerHTML = `${gd ? `<details class="guide"><summary>${ch2g ? "第二章寫作規範" : ch3g ? "第三章寫作規範" : "本節寫作規範（第一章）"}　點開查看</summary><div class="guide-body">${gd}</div>
+      ${ch2g || ch3g ? "" : `<p><button type="button" data-go="q-ch1g" data-gostep="0">查看第一章完整寫作規範 →</button></p>`}</details>` : ""}${steps().length === 1 && !sec().no ? "" : `<h3>${sec().no ? `步驟 ${stepIdx() + 1}　` : ""}${esc(m.label)}</h3>`}
     <p class="target t-${m.target}">${esc(TARGETS[m.target])}</p>${top ? `<div class="topfield">${top}</div>` : ""}
     <p class="stepnote">${esc(ref(step().note))}</p>
     <p class="hint">${esc(ref(m.hint))}</p>${fields}
@@ -233,7 +234,7 @@ function renderReplyView() {
   const m = mod(), el = $("replyview"); if (!m.replyView || !el) return;
   el.innerHTML = m.replyView(deLatex((store.replies || {})[replyKey()] || ""));
 }
-function showAll() { rebuildCh2(); if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s2-0"; renderToc(); renderSection(); renderPane(); foldOut(); update(); }
+function showAll() { rebuildCh2(); migrateCh3(); if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s2-0"; renderToc(); renderSection(); renderPane(); foldOut(); update(); }
 
 // 每一步最下方的「建議下一步」：可直接跳到目標節與步驟
 function goNext() {
