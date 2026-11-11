@@ -434,3 +434,12 @@ table.apa td[contenteditable]:focus, .tbl-note[contenteditable]:focus { outline:
 .tbl-on { font-weight: 400; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; color: #555; }
 .tblbox.off .tbl-cap { color: #a8a69f; }
 .tblbox.off small { font-weight: 400; }
+/* 0.4 受訪者版問卷預覽 */
+.rview { border: 1px solid #dcdad3; border-radius: 8px; padding: 16px 20px; background: #fff; max-height: 640px; overflow-y: auto; }
+.rview .rv-title { text-align: center; margin: 0 0 10px; }
+.rview h4 { margin: 18px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #e6e4dd; }
+.rview .rv-intro, .rview .rv-note { margin: 4px 0; color: #444; }
+.rview .rv-q p { margin: 6px 0 2px; }
+.rview .rv-opts { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0 0 6px 1.6em; color: #333; }
+.rview .rv-end { text-align: center; margin-top: 18px; }
+.rview .rv-opts.col { flex-direction: column; gap: 2px; }

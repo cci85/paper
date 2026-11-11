@@ -372,7 +372,10 @@ const DEFS = {
         run: () => { const t = svText(); if (!t) return "沒有問卷預覽可帶入；請直接把定稿問卷貼到下方。";
           if (!blank(store.values.sv_final) && !confirm("「定稿問卷」已有內容，要以目前預覽取代嗎？")) return "未變更";
           store.values.sv_final = t; return "已帶入目前問卷預覽，可再直接修改。"; } },
-      { id: "sv_final", type: "textarea", below: true, label: "定稿問卷", hint: "最後確定的整份問卷（純文字即可，構念寫成〈構念名稱〉（量表出處），題項寫成 Q1. 題目）；會存入研究存檔，並帶到 3.2 撰寫操作型定義與衡量", rows: 10 }
+      { id: "sv_final", type: "textarea", below: true, label: "定稿問卷", hint: "最後確定的整份問卷（純文字即可，構念寫成〈構念名稱〉（量表出處），題項寫成 Q1. 題目）；會存入研究存檔，並帶到 3.2 撰寫操作型定義與衡量", rows: 10 },
+      { id: "rv_title", type: "text", below: true, label: "受訪者版問卷：問卷標題", hint: "留白時用「研究情境＋購物經驗調查問卷」；不要用論文題目，以免透露研究目的", placeholder: "例如：蝦皮購物經驗調查問卷" },
+      { id: "rv_go", type: "button", below: true, label: "下載受訪者版問卷（Word）", hint: "依「定稿問卷」產生紙本問卷：不顯示構念英文名稱、量表出處與反向題標註，題號全卷連續", run: () => { rvWord().then(m => { const el = document.getElementById("fmsg-rv_go"); if (el) el.textContent = m; }); return "正在產生 Word 檔…"; } },
+      { id: "rv_view", type: "cands", below: true, label: "受訪者版問卷預覽", render: () => rvView() }
     ],
     replyView: t => surveyView(t),
     rules: () => ["citation"],
