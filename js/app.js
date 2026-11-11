@@ -369,6 +369,11 @@ $("pane").addEventListener("click", async e => {
     if (!FIN_SEL.trim()) { const fb = $("finbox"); if (fb) { fb.open = true; fb.scrollIntoView({ behavior: "smooth", block: "start" }); } return; }
     drUseSel(FIN_SEL); return;
   }
+  if (e.target.closest("button[data-gowhole]")) {   // 定稿提醒：前往本節的修訂論文，改寫方向設為整節統整
+    const k = steps().findIndex(x => x.mod === "dr"); if (k < 0) return;
+    store.step[store.sec] = k; store.values.dr_stage = "whole"; store.values.dr_text_sid = store.sec;
+    save(); renderSection(); renderPane(); foldOut(); update(); window.scrollTo({ top: 0, behavior: "smooth" }); return;
+  }
   const fb2 = e.target.closest("button[data-finedit], button[data-finreset], button[data-drrep]");
   if (fb2) {   // 本節定稿：修改文字／重新帶入；段落核實改寫：以改寫結果取代
     if (fb2.dataset.finedit) { const ta = document.querySelector("textarea[data-fin]"); ta.hidden = !ta.hidden; fb2.textContent = ta.hidden ? "修改文字" : "完成修改"; if (!ta.hidden) ta.focus(); return; }
