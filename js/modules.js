@@ -1453,8 +1453,7 @@ function finTblList(sid) {
   const ts = finTables(sid), ms = [...finText(sid).matchAll(INS_RE)].filter(m => m[1] === "表"), used = new Set();
   const pick = cap => { let i = ts.findIndex((x, k) => !used.has(k) && x.cap === cap); if (i < 0) i = ts.findIndex((x, k) => !used.has(k)); if (i >= 0) used.add(i); return i >= 0 ? ts[i] : null; };
   const out = ms.map(m => ({ num: (m[2] || "?").trim(), cap: (m[3] || "").trim(), t: pick((m[3] || "").trim()) })).filter(x => x.t);
-  ts.forEach((x, k) => { if (!used.has(k)) out.push({ num: "?", cap: x.cap, t: x }); });
-  return out;
+  return out;   // 正文中刪掉插入標記的表格，不再列出
 }
 const tblMd = x => [`表 ${x.num}　${x.cap}`, "", ...x.t.rows.map((r, i) => "| " + r.map(c => c.replace(/\n/g, "<br>")).join(" | ") + " |" + (i === 0 ? "\n|" + r.map(() => "---").join("|") + "|" : "")), ...(x.t.note ? ["", x.t.note] : [])].join("\n");
 function tblHtml(x, word) {   // APA 三線表：表頂、欄名下方、表底三條橫線
