@@ -750,13 +750,13 @@ const DEFS = {
   },
   abstract: {
     label: "中英文摘要", target: "ai",
-    hint: "依研究目的、研究方法、主要發現、結論與意涵的順序，產生中文摘要、關鍵詞、Abstract 與 Keywords；只能使用各章定稿中已有的內容。",
+    hint: "依研究目的、研究方法、主要發現、結論與意涵的順序，產生中文摘要、關鍵詞、Abstract 與 Keywords；只寫各章定稿中已有的內容，還沒有的部分直接略過。3.3 選「論文計畫書」版時，摘要以預定語氣撰寫，不寫研究發現。",
     fields: [
       { id: "ab_src", type: "textarea", label: "各章定稿（自動帶入）", hint: "帶入 1.2 研究目的、第三章研究方法、4.3 假說檢定與第五章；可自行增刪", rows: 8 },
       { id: "ab_len", type: "text", label: "中文摘要字數", hint: "選填", placeholder: "例如：500 字以內", value: "500 字以內" }
     ],
     seed: () => ({ ab_src: abSource() }), seedQuiet: ["ab_src"], seedFrom: "各章定稿", seedNote: "研究目的、研究方法、研究結果與結論由各章定稿帶入",
-    build: p => blank(p.ab_src) ? "" : T.abstract({ title: (store.values.tt_zh || "").trim(), titleEn: (store.values.tt_en || "").trim(), src: p.ab_src.trim(), len: (p.ab_len || "").trim() }),
+    build: p => blank(p.ab_src) ? "" : T.abstract({ title: (store.values.tt_zh || "").trim(), titleEn: (store.values.tt_en || "").trim(), src: p.ab_src.trim(), len: (p.ab_len || "").trim(), plan: (store.values.sp_stage || SP_STAGE0) === "plan" }),
     empty: "（第一章到第五章還沒有定稿內容）",
     next: "下一步：貼到一般 AI；回覆貼到下方「AI 回覆」，下載 Word 檔時會放進摘要與 Abstract 頁。"
   },
