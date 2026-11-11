@@ -565,3 +565,12 @@ document.addEventListener("selectionchange", () => {
   const r = g.getRangeAt(0).getBoundingClientRect();
   hlBtn.style.left = Math.max(8, r.right + scrollX - 90) + "px"; hlBtn.style.top = (r.bottom + scrollY + 6) + "px"; hlBtn.style.display = "";
 });
+// 本節表格：複製成 Word 可貼上的 APA 三線表（HTML），純文字以 Tab 分隔
+$("pane").addEventListener("click", async e => {
+  const b = e.target.closest("button[data-tblcopy]"); if (!b) return;
+  const x = finTblList(store.sec)[+b.dataset.tblcopy]; if (!x) return;
+  const html = `<html><body>${tblHtml(x, true)}</body></html>`, txt = [`表 ${x.num}　${x.cap}`, ...x.t.rows.map(r => r.join("\t")), ...(x.t.note ? [x.t.note] : [])].join("\n");
+  try { await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([txt], { type: "text/plain" }) })]); }
+  catch { try { await navigator.clipboard.writeText(txt); } catch {} }
+  const t = b.textContent; b.textContent = "已複製，可貼到 Word"; setTimeout(() => { b.textContent = t; }, 1500);
+});

@@ -495,7 +495,7 @@ const DEFS = {
   },
   opdef: {
     label: "操作型定義與衡量", target: "nlm",
-    hint: "逐一交代構念的操作型定義、量表來源與選用理由、題數與量尺、原研究信效度、題項修改內容與理由，並輸出題項對照與量表彙整表；本研究定義沿用第二章，不重新定義。",
+    hint: "依第二章各節的順序，逐一交代構念的操作型定義、量表來源與選用理由、題數與量尺、原研究信效度、題項修改內容與理由，並輸出題項對照與量表彙整表；本研究定義沿用第二章，不重新定義。",
     fields: [
       { id: "od_list", type: "textarea", label: "構念清單", hint: "一行一個；可附上預計採用的量表", rows: 6,
         placeholder: "品牌人格｜預計採用 Aaker (1997)\n自我一致性\n品牌依附" },
@@ -1073,13 +1073,20 @@ function finalSurvey() {   // 定稿問卷；未填時用問卷預覽；出處�
     if (m) { if (!c.src) c.src = m.src; if (m.name !== c.name && /[（(]/.test(m.name)) c.name = m.name; } });
   return F;
 }
+// 3.2 的構念依第二章各節的順序排列（同一節依節內變數的順序），第二章沒有的構念放最後
+function ch2Order(lines) {
+  const plan = ch2Plan(), core = n => String(n).split(/[｜|]/)[0].replace(/\s*[（(].*$/, "").trim();
+  const rank = n => { const c = core(n); for (let i = 0; i < plan.length; i++) { const vs = plan[i].vars.split(/[、，,／/]/).map(x => x.trim());
+    const j = vs.findIndex(v => v && (v === c || c.startsWith(v) || v.startsWith(c))); if (j >= 0) return i * 100 + j; if (plan[i].title === c) return i * 100; } return 1e6; };
+  return lines.map((l, k) => [l, rank(l), k]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map(x => x[0]);
+}
 function odBatches(p) {   // 依構念清單附上定稿題項，依字數分批
   const F = finalSurvey(); if (!F || blank(p.od_list)) return [];
-  const blocks = splitLines(p.od_list).map(line => {
+  const blocks = ch2Order(splitLines(p.od_list)).map(line => {
     const name = line.split(/[｜|]/)[0].trim(), src = (line.split(/[｜|]/)[1] || "").replace(/^預計採用\s*/, "").trim();
     const c = F.cons.find(x => x.name === name || x.name.startsWith(name) || name.startsWith(x.name));
     const df = ch2Def(name);
-    return [`### ${name}${src ? "｜預計量表：" + src : ""}`, ...(df ? ["第二章的本研究定義：" + df] : []), ...(c ? [...(c.note ? ["說明：" + c.note] : []), ...(c.stem ? ["題幹：" + c.stem] : []), ...c.items.map(it => `${it.id} ${it.zh}`)] : ["（尚無題項）"])].join("\n");
+    return [`### ${name}${src ? "｜預計量表：" + src : ""}`, ...(df ? ["第二章的本研究定義：" + df] : []), ...(c ? [...(c.note ? ["說明：" + c.note] : []), ...(c.stem ? ["題幹：" + c.stem] : []), ...c.items.map(it => `${it.id.replace(/^Q/i, "")}. ${it.zh}`)] : ["（尚無題項）"])].join("\n");
   });
   if (!F.cons.some(c => c.items.length)) return [];
   const scale = (p.od_scale || F.scale || "").trim(), LIMIT = 2700, groups = [];
@@ -1336,13 +1343,85 @@ function cleanBody(text) {   // 撰寫步驟的回覆 → 論文正文：去掉�
     .map(l => /^#{1,6}\s/.test(l) ? "#### " + l.replace(/^#+\s*|\*\*/g, "").trim() : l.replace(/\*\*/g, "").replace(/\s?\[\d+(?:\s*[,，–-]\s*\d+)*\]/g, ""))
     .join("\n").replace(/^(#### .*)\n(?=\S)/gm, "$1\n\n").replace(/^([(（][一二三四五六七八九十]+[)）][^\n。，；]{1,30})$/gm, "\n$1\n").replace(/\n{3,}/g, "\n\n").trim();   // 小標題（含「(一)標題」）自成一段
 }
-function finText(sid) {
-  const v = (store.values.fin || {})[sid]; if (typeof v === "string" && v.trim()) return v;   // 定稿被清空時，改回由撰寫步驟的回覆產生
+function finReply(sid) {   // 由撰寫步驟的回覆產生的正文（含表格原始碼）
   const s = ALL_SECS.find(x => x.id === sid), st = s && writeStep(s);
   const t = st ? cleanBody((store.replies || {})[sid + "|" + st.mod]) : "", hs = t.match(/^#### .*$/gm) || [];
   if (hs.length === 1 && t.startsWith("#### ")) return t.replace(/^#### .*\n*/, "");   // 只有一個小標題（例如「研究背景與動機」）時去掉
   const h0 = t.startsWith("#### ") ? hs[0].slice(5).trim() : "", title = (s && s.title) || "";   // 開頭的小標題就是本節名稱時去掉
   return h0 && title && title.includes(h0) ? t.replace(/^#### .*\n*/, "") : t;   // 只有一個小標題（例如「研究背景與動機」）時去掉，正文不設小標題
+}
+function finRaw(sid) { const v = (store.values.fin || {})[sid]; return typeof v === "string" && v.trim() ? v : finReply(sid); }   // 定稿被清空時，改回由撰寫步驟的回覆產生
+
+// ── 圖表：正文中的表格移到「本節表格」，原位置留下插入標記；表號與圖號依全章順序自動編號 ──
+const TBL_CAP = /^(?:#{1,6}\s*)?\**\s*表\s*(\d+\s*[-－–]\s*\d+)?\s*[：:．.]?\s*(.*?)\s*\**\s*$/;
+const INS_RE = /〔插入([表圖])\s*([0-9?？]+(?:\s*[-－–]\s*[0-9?？]+)?)?[\s　]*([^〕]*)〕/g;
+const tblCells = l => l.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim().replace(/\*\*/g, "").replace(/<br\s*\/?>/gi, "\n"));
+const TBL_MEMO = new Map();
+function tblSplit(text) {   // { body, tables:[{ num, cap, rows, note }] }
+  const key = String(text || ""); if (TBL_MEMO.has(key)) return TBL_MEMO.get(key);
+  const lines = key.split("\n"), out = [], tables = [];
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].trim();
+    if (!(/^\|.*\|$/.test(l) && /^\|?\s*:?-{2,}/.test((lines[i + 1] || "").trim()))) { out.push(lines[i]); continue; }
+    const rows = [tblCells(l)]; i += 2;
+    while (i < lines.length && /^\|/.test(lines[i].trim())) { rows.push(tblCells(lines[i])); i++; }
+    let note = ""; while (i < lines.length && !lines[i].trim()) i++;
+    if (i < lines.length && /^(?:\*\*)?註[：:]/.test(lines[i].trim())) { note = lines[i].trim().replace(/\*\*/g, ""); i++; }
+    i--;
+    let j = out.length - 1; while (j >= 0 && !out[j].trim()) j--;
+    let num = "", cap = "";
+    if (j >= 0) { const c = out[j].trim(), m = c.match(TBL_CAP);
+      if (m && (m[1] || /^\**\s*表/.test(c.replace(/^#+\s*/, "")))) { num = (m[1] || "").replace(/\s|[－–]/g, x => /\s/.test(x) ? "" : "-"); cap = m[2]; out.splice(j); }
+      else if (/^#{1,6}\s/.test(c) && c.length <= 40) { cap = c.replace(/^#+\s*|\*\*/g, "").trim(); out.splice(j); } }
+    tables.push({ num, cap: cap || "表格", rows, note });
+    out.push("", `〔插入表 ${num || "?"}　${cap || "表格"}〕`, "");
+  }
+  const r = { body: out.join("\n").replace(/\n{3,}/g, "\n\n").trim(), tables };
+  if (TBL_MEMO.size > 200) TBL_MEMO.clear(); TBL_MEMO.set(key, r); return r;
+}
+const finBody = sid => tblSplit(finRaw(sid)).body;
+function finTables(sid) {   // 表格來源：本節論文內容中仍有的表格；沒有時取撰寫步驟回覆中的表格
+  const v = (store.values.fin || {})[sid], own = typeof v === "string" && v.trim() ? tblSplit(v).tables : [];
+  return own.length ? own : tblSplit(finReply(sid)).tables;
+}
+function insMap(sid) {   // 本節各插入標記在全章的新編號：[{ type, old, num }]
+  const ch = OUTLINE.find(c => c.secs.some(x => x.id === sid)), s = ch && ch.secs.find(x => x.id === sid);
+  const cn = s && (String(s.no).match(/^(\d+)\./) || [])[1]; if (!cn) return null;
+  const cnt = { 表: 0, 圖: 0 }; let mine = null;
+  ch.secs.filter(x => !x.setup).forEach(x => { const list = [];
+    for (const m of finBody(x.id).matchAll(INS_RE)) { cnt[m[1]]++; list.push({ type: m[1], old: (m[2] || "").replace(/\s|[－–]/g, x => /\s/.test(x) ? "" : "-"), num: `${cn}-${cnt[m[1]]}` }); }
+    if (x.id === sid) mine = list; });
+  return mine;
+}
+function insRenum(sid, t) {   // 插入標記與正文中的「如表 3-1 所示」改成全章編號
+  const mp = insMap(sid); if (!mp || !mp.length) return t;
+  const ref = {}; mp.forEach(m => { if (m.old && !/[?？]/.test(m.old) && !ref[m.type + m.old]) ref[m.type + m.old] = m.num; });
+  let k = 0, keep = [];
+  t = t.replace(INS_RE, (all, ty, old, cap) => { const m = mp[k++] || { num: old || "?" }; keep.push(`〔插入${ty} ${m.num}　${cap.trim()}〕`); return `\u0000${keep.length - 1}\u0000`; });
+  t = t.replace(/([表圖])\s*(\d+)\s*[-－–]\s*(\d+)/g, (all, ty, a, b) => ref[ty + a + "-" + b] ? `${ty} ${ref[ty + a + "-" + b]}` : all);
+  return t.replace(/\u0000(\d+)\u0000/g, (a, i) => keep[+i]);
+}
+function finText(sid) { return insRenum(sid, finBody(sid)); }
+// 本節表格：依正文中插入標記的順序配對表格（先比對標題，再依順序）
+function finTblList(sid) {
+  const ts = finTables(sid), ms = [...finText(sid).matchAll(INS_RE)].filter(m => m[1] === "表"), used = new Set();
+  const pick = cap => { let i = ts.findIndex((x, k) => !used.has(k) && x.cap === cap); if (i < 0) i = ts.findIndex((x, k) => !used.has(k)); if (i >= 0) used.add(i); return i >= 0 ? ts[i] : null; };
+  const out = ms.map(m => ({ num: (m[2] || "?").trim(), cap: (m[3] || "").trim(), t: pick((m[3] || "").trim()) })).filter(x => x.t);
+  ts.forEach((x, k) => { if (!used.has(k)) out.push({ num: "?", cap: x.cap, t: x }); });
+  return out;
+}
+const tblMd = x => [`表 ${x.num}　${x.cap}`, "", ...x.t.rows.map((r, i) => "| " + r.map(c => c.replace(/\n/g, "<br>")).join(" | ") + " |" + (i === 0 ? "\n|" + r.map(() => "---").join("|") + "|" : "")), ...(x.t.note ? ["", x.t.note] : [])].join("\n");
+function tblHtml(x, word) {   // APA 三線表：表頂、欄名下方、表底三條橫線
+  const B = w => word ? `border:none;border-${w}` : `border-${w}`, th = word ? "solid windowtext 1.5pt" : "1.5px solid #222", tn = word ? "solid windowtext .75pt" : "1px solid #222";
+  const cell = (c, st) => `<td style="padding:${word ? "2pt 6pt" : "4px 8px"};vertical-align:top;${st}">${esc(c).replace(/\n/g, "<br>")}</td>`;
+  const n = x.t.rows.length, font = word ? "font-family:'Times New Roman',新細明體,serif;font-size:12pt;" : "";
+  return `${word ? `<p style="${font}margin:0 0 4pt 0">表 ${esc(x.num)}　${esc(x.cap)}</p>` : ""}<table class="apa" style="border-collapse:collapse;${font}">` + x.t.rows.map((r, i) => `<tr>${r.map(c => cell(c, i === 0 ? `${B("top")}:${th};border-bottom:${tn};${word ? "" : "font-weight:600;"}` : i === n - 1 ? `${B("bottom")}:${th};` : (word ? "border:none;" : ""))).join("")}</tr>`).join("") + `</table>` +
+    (x.t.note ? `<p style="${font}${word ? "font-size:10pt;" : ""}margin:4pt 0 0 0">${esc(x.t.note)}</p>` : "");
+}
+function finTblBox(sid) {
+  const ls = finTblList(sid); if (!ls.length) return "";
+  return `<div class="fin-tbl"><h4>本節表格</h4><p class="hint">正文中以〔插入表…〕標出位置；按「複製表格」後直接貼到 Word，就是 APA 三線表。表號依全章順序自動編排。</p>` +
+    ls.map((x, k) => `<div class="tblbox"><p class="tbl-cap">表 ${esc(x.num)}　${esc(x.cap)}<button type="button" class="copy" data-tblcopy="${k}">複製表格（貼到 Word）</button></p>${tblHtml(x)}</div>`).join("") + `</div>`;
 }
 const setFin = (sid, t) => { (store.values.fin ||= {})[sid] = t; };
 // 重複段落：去掉空白與標點後，以兩字片段的重疊比例判斷（一段包含另一段也算）
@@ -1363,7 +1442,7 @@ function finHtml(t, ed) {   // 定稿的簡易排版：#### 小標題、段落�
   return finBlocks(t).map((b, i) => { const a = ed ? ` contenteditable="true" spellcheck="false" data-fp="${i}"` : "";
     return (/^#{1,6}\s/.test(b) || FIN_SUBHEAD.test(b)) && !b.includes("\n")
     ? `<h4${a}>${esc(b.replace(/^#+\s*/, ""))}</h4>`
-    : `<p${a}>${esc(b).replace(/\n/g, "<br>").replace(/【待補[^】]*】/g, m => `<mark>${m}</mark>`)}</p>`; }).join("");
+    : `<p${a}${/^〔插入[表圖][^〕]*〕$/.test(b) ? ` class="fin-ins"` : ""}>${esc(b).replace(/\n/g, "<br>").replace(/【待補[^】]*】/g, m => `<mark>${m}</mark>`).replace(/〔插入[表圖][^〕]*〕/g, m => `<span class="ins">${m}</span>`)}</p>`; }).join("");
 }
 function finBox() {   // 第一～五章各節：所有步驟下方的「本節論文內容」
   const s = sec(); if (!THESIS_SECS().some(x => x.id === s.id)) return "";
@@ -1373,7 +1452,7 @@ function finBox() {   // 第一～五章各節：所有步驟下方的「本節�
     ${finDupBox(t)}${finWholeNote(s, t)}${t ? `<p class="hint">直接點文字即可修改，整節連在一起，可以跨段落選取；自動存檔。按 Enter 另起一段，刪掉段落之間的分隔即合併兩段。</p>
     <div class="fin-view fin-ed" id="finview" contenteditable="true" spellcheck="false" data-fall="1">${finHtml(t)}</div>` : `<div class="fin-view" id="finview"><p class="hint">完成本節的撰寫步驟並貼上 AI 回覆後，正文會自動出現在這裡。</p></div>`}
     <p class="fin-btns">${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}${(store.values.fin_undo || {})[s.id] ? `<button type="button" data-finundo="1">復原上一次清除或取代前的內容</button>` : ""}
-    <span class="hint">論文.md 與「論文全文」只放這裡的內容</span></p>${finRefBox(s)}</details>`;
+    <span class="hint">論文.md 與「論文全文」只放這裡的內容</span></p>${t ? finTblBox(s.id) : ""}${finRefBox(s)}</details>`;
 }
 // 定稿提醒：本節內容在最近一次「整節統整」之後又改過（或從未做過），提醒先到修訂論文做整體檢查
 function finWholeNote(s, t) {
@@ -1416,11 +1495,18 @@ function thesisBody() {   // 論文全文（Markdown）：題目＋各章節定�
   const out = [`# ${zh || store.name || "論文"}`, ...(en ? ["", en] : []), ""];
   OUTLINE.filter(c => /^第[一二三四五六七八九十]章/.test(c.ch)).forEach(c => {
     out.push(`## ${c.ch}`, "");
-    secsOf(c).forEach(s => { out.push(`### ${s.no} ${s.title}`, ""); const t = normCite(tbApply(s.id, "fin", finText(s.id))); if (t) out.push(t, ""); });
+    secsOf(c).forEach(s => { out.push(`### ${s.no} ${s.title}`, ""); const t = normCite(tbApply(s.id, "fin", finText(s.id))); if (t) out.push(tblFill(s.id, t, tblMd), ""); });
   });
   const refs = refList(); if (refs.length) out.push("## 參考文獻", "", ...refs.flatMap(r => [r, ""]));
   return THESIS_SECS().some(s => finText(s.id)) ? out.join("\n") : "";
 }
+// 插入標記換成表格（md：論文.md；全文檢視：表格 HTML）
+function tblFill(sid, t, fmt) {
+  const ls = finTblList(sid); let k = 0;
+  return t.replace(/^〔插入表[^〕]*〕$/gm, m => { const x = ls[k++]; return x ? fmt(x) : m; });   // 插入標記換成表格
+}
+const ftBlock = (b, fig) => { const m = b.match(/^\u0001(.*)\u0001$/s); if (m) { const v = JSON.parse(m[1]); return v ? `<div class="ft-tbl"><p class="tbl-cap">表 ${esc(v[1].num)}　${esc(v[1].cap)}</p>${tblHtml(v[1])}</div>` : ""; }
+  return fig && /^〔插入圖[^〕]*〕$/.test(b) ? fig : finHtml(b); };   // 插入標記換成架構圖
 function fullView() {
   const zh = (store.values.tt_zh || "").trim(), en = (store.values.tt_en || "").trim();
   return `<div class="fulltext"><h2 class="ft-title">${esc(zh || store.name || "論文")}</h2>${en ? `<p class="ft-en">${esc(en)}</p>` : ""}` +
@@ -1428,7 +1514,8 @@ function fullView() {
       let fig = "";
       if (s.id === "s3-1") { try { const f = DEFS.fa31.fields[0], d = dgSeed(f, {}), v = f.source(); if (d.edges.length) { dgAutoPos(v, d.pos, false); fig = `<div class="ft-fig">${dgSvg(v, d, null, false)}<p>圖 3-1　研究架構圖</p></div>`; } } catch {} }
       const t = normCite(tbApply(s.id, "fin", finText(s.id)));
-      return `<h3>${esc(s.no + " " + s.title)}</h3>${fig}${t ? finHtml(t) : `<p class="hint">（尚未撰寫）</p>`}`;
+      if (fig && /〔插入圖[^〕]*〕/.test(t)) { const f = fig; fig = ""; return `<h3>${esc(s.no + " " + s.title)}</h3>` + tblFill(s.id, t, x => "\u0001" + JSON.stringify(x.t ? ["t", x] : 0) + "\u0001").split(/\n\s*\n/).map(b => ftBlock(b, f)).join(""); }
+      return `<h3>${esc(s.no + " " + s.title)}</h3>${fig}${t ? tblFill(s.id, t, x => "\u0001" + JSON.stringify(["t", x]) + "\u0001").split(/\n\s*\n/).map(b => ftBlock(b, "")).join("") : `<p class="hint">（尚未撰寫）</p>`}`;
     }).join("")).join("") + (refList().length ? `<h2>參考文獻</h2>` + refList().map(r => `<p class="ref-line">${esc(r)}</p>`).join("") : "") + `</div>`;
 }
 // 段落核實改寫：回覆中最新一次的「## 改寫後段落」或「## 融合後的段落」
@@ -1478,7 +1565,7 @@ function finFind(t, sel) {
 }
 const secLabel = sid => (s => s ? `${s.no} ${s.title}` : "")(ALL_SECS.find(x => x.id === sid));
 // 修訂時以研究者目前的原文為準：保留其小標題寫法、編號與段落結構，不沿用對話中較早的版本
-const drFmtNote = whole => "\n\n[以目前原文為準]\n本對話中較早出現的內容（例如撰寫本節時的 Prompt、你先前的回覆）若與我這次提供的原文不同，一律以這次的原文為準；我已自行修改過的結構、用字與編號都要保留。" +
+const drFmtNote = whole => "\n\n[以目前原文為準]\n本對話中較早出現的內容（例如撰寫本節時的 Prompt、你先前的回覆）若與我這次提供的原文不同，一律以這次的原文為準；我已自行修改過的結構、用字與編號都要保留。原文中「〔插入表…〕」「〔插入圖…〕」是圖表的插入位置，原樣保留在原段落之後，不得刪除或改寫；表號與圖號照原文。" +
   "小標題照原文的文字與編號格式輸出（例如原文寫「(一)兩種瀏覽動機」就照寫，不得改成「###」或其他格式）；" + (whole ? "若調整段落順序，小標題的編號須隨之重排。" : "段落順序與分段照原文，不得改回較早版本的結構。") + "原文中的假說敘述（例如「H1：……」）維持獨立一行，編號照原文或下方的現行假說清單。";
 // 第二章修訂時一併檢查：假說敘述寫法、與本節其他段落重複、理論放錯位置
 const drCh2Check = (whole, full = true) => !drCh2() ? "" : "\n\n[第二章修訂：以下問題一律直接改正在輸出的文字中，不要只提出建議]\n1. 假說敘述改成完整句子並以句號結尾（例如「H1：功利型瀏覽對認知型衝動購買有正向影響。」），刪除箭頭與「（正向）」等標記。" +
@@ -1989,7 +2076,7 @@ function anParts(p) { return !(p.an_methods || []).length ? [] : ruleSplit("anal
 // 3.2：題項分批的 Prompt 前面加上共用規則（放不進第 1 則時，先分則送規則，NotebookLM 只回覆「已收到」）
 function odParts(p) {
   if (blank(p.od_list)) return [];
-  const base = odBatches(p); if (!base.length) base.push(T.opdef({ list: p.od_list.trim(), scale: p.od_scale, defs: odDefsText(p) }));
+  const base = odBatches(p); if (!base.length) base.push(T.opdef({ list: ch2Order(splitLines(p.od_list)).join("\n"), scale: p.od_scale, defs: odDefsText(p) }));
   const R = ruleText("opdef", p); if (!R) return base;
   if ((base[0] + R).length <= 2800) return [base[0] + R, ...base.slice(1)];
   const blocks = R.split(/\n\n(?=\[)/).map(b => b.trim()).filter(Boolean), rs = []; let cur = "";
@@ -2006,7 +2093,7 @@ function ch2Def(name) {
     if (out.length < 2 && x.includes(core) && /本研究/.test(x) && /定義|界定/.test(x) && !out.includes(x.trim())) out.push(x.trim()); }));
   return out.join("");
 }
-const odNames = p => splitLines(p.od_list || "").map(l => l.split(/[｜|]/)[0].trim()).filter(Boolean);
+const odNames = p => ch2Order(splitLines(p.od_list || "")).map(l => l.split(/[｜|]/)[0].trim()).filter(Boolean);
 const odDefsText = p => odNames(p).map(n => (d => d ? `${n}：${d}` : "")(ch2Def(n))).filter(Boolean).join("\n");
 function odDefsView() {
   const ns = odNames(valuesOf(DEFS.opdef)); if (!ns.length) return `<p class="hint">（填入構念清單後，這裡會列出第二章對各構念提出的本研究定義）</p>`;
