@@ -1893,7 +1893,7 @@ function rebuildCh2() {
 rebuildCh2();
 // 第二章：理論基礎與各變數一節的 Prompt（規則過長時分則）
 function thParts(p) { return blank(p.cv_arch) ? [] : ruleSplit("ch2th", p, T.ch2th({ arch: p.cv_arch.trim(), theory: (p.th_theory || "").trim(), title: (s => s ? `${s.no} ${s.title}` : "理論基礎")(sec && sec()) }), "理論基礎"); }
-function cvParts(p) { return blank(p.cv_arch) || blank(p.cv_vars) ? [] : ruleSplit("ch2var", p, T.ch2var({ arch: p.cv_arch.trim(), vars: p.cv_vars.trim(), hyps: ch2SecHyps((sec && sec() || {}).id).join("\n"), scale: cvScale(p.cv_vars), title: `${(sec && sec() || {}).no || ""} ${p.cv_title || ""}`.trim() }), p.cv_title || "本節"); }
+function cvParts(p) { return blank(p.cv_arch) || blank(p.cv_vars) ? [] : ruleSplit("ch2var", p, T.ch2var({ arch: p.cv_arch.trim(), vars: p.cv_vars.trim(), hyps: ch2SecHyps((sec && sec() || {}).id).join("\n"), title: `${(sec && sec() || {}).no || ""} ${p.cv_title || ""}`.trim() }), p.cv_title || "本節"); }
 // 第二章各變數一節：本節變數在 0.4 定稿問卷中的量表（出處、題數、量尺）
 function cvScale(vars) {
   const F = finalSurvey(); if (!F) return "";
