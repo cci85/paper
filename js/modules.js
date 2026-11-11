@@ -1414,7 +1414,19 @@ function tblSplit(text) {   // { body, tables:[{ num, cap, rows, note }] }
   const r = { body: out.join("\n").replace(/\n{3,}/g, "\n\n").trim(), tables };
   if (TBL_MEMO.size > 200) TBL_MEMO.clear(); TBL_MEMO.set(key, r); return r;
 }
-const finBody = sid => tblSplit(finRaw(sid)).body;
+const tblSkip = sid => ((store.values.tbl_skip || {})[sid] || []);
+const reEsc = x => String(x).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function finBody(sid) {   // 正文（表格已換成插入標記）；「本節表格」取消勾選的表，標記與引導句一併移除
+  let t = tblSplit(finRaw(sid)).body; const sk = tblSkip(sid); if (!sk.length) return t;
+  const ms = [...t.matchAll(INS_RE)], gone = ms.filter(m => m[1] === "表" && sk.includes((m[3] || "").trim())), keep = ms.filter(m => !gone.includes(m));
+  gone.forEach(m => { const old = (m[2] || "").trim();
+    if (/彙整/.test(m[3] || "")) t = t.replace(/[^。\n]*彙整(?:如|於)表\s*[0-9.．\-－–]+[^。\n]*。/g, "");
+    t = t.replace(new RegExp(`\\n*${reEsc(m[0])}`), "");
+    if (old && !/[?？]/.test(old) && !keep.some(k => k[1] === "表" && (k[2] || "").trim() === old)) {
+      const n = old.split(/[.．\-－–]/).map(reEsc).join("\\s*[.．\\-－–]\\s*");
+      t = t.replace(new RegExp(`[^。\\n]*彙整(?:如|於)表\\s*${n}[^。\\n]*。`, "g"), "").replace(new RegExp(`[，,]?\\s*(?:如|見|詳見)表\\s*${n}\\s*所示`, "g"), ""); } });
+  return t.replace(/\n{3,}/g, "\n\n").trim();
+}
 function finTables(sid) {   // 表格來源：本節論文內容中仍有的表格；沒有時取撰寫步驟回覆中的表格
   const v = (store.values.fin || {})[sid], own = typeof v === "string" && v.trim() ? tblSplit(v).tables : [];
   return own.length ? own : tblSplit(finReply(sid)).tables;
@@ -1436,8 +1448,9 @@ function insRenum(sid, t) {   // 插入標記與正文中的「如表 3-1 所示
   const marks = []; let k = 0;
   for (const m of t.matchAll(INS_RE)) { const x = mp[k++] || { num: insNorm(m[2]) || "?" }; marks.push({ at: m.index, end: m.index + m[0].length, ty: m[1], old: insNorm(m[2]), num: x.num, txt: `〔插入${m[1]} ${x.num}　${m[3].trim()}〕` }); }
   const near = (ty, old, at) => (marks.find(m => m.ty === ty && m.old === old && m.at > at) || [...marks].reverse().find(m => m.ty === ty && m.old === old && m.at < at) || {}).num;
+  const sum = marks.find(m => m.ty === "表" && /彙整/.test(m.txt));   // 「彙整如表 X」：對應到標題含「彙整」的表（例如沒有表號的量表彙整表）
   let out = "", last = 0;
-  const refs = s => s.replace(/([表圖])\s*(\d+(?:\s*[.．\-－–]\s*\d+)*)/g, (all, ty, a, off) => { const n = near(ty, insNorm(a), last + off); return n ? `${ty} ${n}` : all; });
+  const refs = s => s.replace(/(彙整(?:如|於))?([表圖])\s*(\d+(?:\s*[.．\-－–]\s*\d+)*)/g, (all, sm, ty, a, off) => { const n = (sm && sum ? sum.num : "") || near(ty, insNorm(a), last + off); return n ? `${sm || ""}${ty} ${n}` : all; });
   marks.forEach(m => { out += refs(t.slice(last, m.at)) + m.txt; last = m.end; });
   return out + refs(t.slice(last));
 }
@@ -1464,9 +1477,11 @@ function tblHtml(x, word) {   // APA 三線表：表頂、欄名下方、表底�
     (x.t.note ? `<p style="${font}${word ? "font-size:10pt;" : ""}margin:4pt 0 0 0">${esc(x.t.note)}</p>` : "");
 }
 function finTblBox(sid) {
-  const ls = finTblList(sid); if (!ls.length) return "";
-  return `<div class="fin-tbl"><h4>本節表格</h4><p class="hint">正文中以〔插入表…〕標出位置；按「複製表格」後直接貼到 Word，就是 APA 三線表。表號依「論文整理 → 論文全文」設定的編號方式（依節、依章或全文連續）自動編排。</p>` +
-    ls.map((x, k) => `<div class="tblbox"><p class="tbl-cap">表 ${esc(x.num)}　${esc(x.cap)}<button type="button" class="copy" data-tblcopy="${k}">複製表格（貼到 Word）</button></p>${tblHtml(x)}</div>`).join("") + `</div>`;
+  const ls = finTblList(sid), sk = tblSkip(sid), off = finTables(sid).filter(x => sk.includes(x.cap));
+  if (!ls.length && !off.length) return "";
+  return `<div class="fin-tbl"><h4>本節表格</h4><p class="hint">正文中以〔插入表…〕標出位置；按「複製表格」後直接貼到 Word，就是 APA 三線表。取消「放入論文」，正文中的插入標記與引導這張表的句子會一併移除，其餘表號自動遞補。表號依「論文整理 → 論文全文」設定的編號方式自動編排。</p>` +
+    ls.map((x, k) => `<div class="tblbox"><p class="tbl-cap"><label class="tbl-on"><input type="checkbox" data-tblskip="${esc(x.cap)}" checked>放入論文</label>表 ${esc(x.num)}　${esc(x.cap)}<button type="button" class="copy" data-tblcopy="${k}">複製表格（貼到 Word）</button></p>${tblHtml(x)}</div>`).join("") +
+    off.map(x => `<div class="tblbox off"><p class="tbl-cap"><label class="tbl-on"><input type="checkbox" data-tblskip="${esc(x.cap)}">放入論文</label>${esc(x.cap)}<small>（未放入論文）</small></p></div>`).join("") + `</div>`;
 }
 const setFin = (sid, t) => { (store.values.fin ||= {})[sid] = t; };
 // 重複段落：去掉空白與標點後，以兩字片段的重疊比例判斷（一段包含另一段也算）

@@ -428,3 +428,6 @@ table.apa td { text-indent: 0; }
 .od-row:hover .od-def { -webkit-line-clamp: unset; }
 .od-row.off { background: #f6f5f1; }
 .od-row.off b, .od-row.off .od-def { color: #a8a69f; }
+.tbl-on { font-weight: 400; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; color: #555; }
+.tblbox.off .tbl-cap { color: #a8a69f; }
+.tblbox.off small { font-weight: 400; }

@@ -282,6 +282,12 @@ $("pane").addEventListener("paste", e => {   // 貼上時只保留純文字
 });
 $("pane").addEventListener("input", e => {
   const t = e.target;
+  if (t.dataset && t.dataset.tblskip != null) {   // 本節表格：取消勾選的表不放入論文（依節記住表標題）
+    const all = (store.values.tbl_skip ||= {}), sk = new Set(all[store.sec] || []); t.checked ? sk.delete(t.dataset.tblskip) : sk.add(t.dataset.tblskip);
+    all[store.sec] = [...sk]; save();
+    const fb = $("finbox"); if (fb) { const open = fb.open; fb.outerHTML = finBox(); const nb = $("finbox"); if (nb) nb.open = open; }
+    return;
+  }
   if (t.dataset && t.dataset.odskip != null) {   // 3.2：勾選要寫進論文的構念（取消勾選的記在 od_skip）
     const sk = new Set(store.values.od_skip || []); t.checked ? sk.delete(t.dataset.odskip) : sk.add(t.dataset.odskip);
     store.values.od_skip = [...sk]; save(); update(); return;
