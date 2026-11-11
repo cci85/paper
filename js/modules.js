@@ -1677,6 +1677,9 @@ function finRefBox(s) {
     <label><b>②</b> 貼上 AI 回覆<textarea data-finref="${s.id}" rows="3" placeholder="貼上 AI 列出的 APA 參考文獻（一行一筆）">${esc(pasted)}</textarea></label>
     <p><b>③</b> <button type="button" class="copy" data-finrefok="${s.id}">確認匯入參考文獻</button> <span class="hint">把對應到本節引用的書目存入參考文獻，並清空上方的回覆</span></p>` : "") + `</div>`;
 }
+// 附錄一 研究問卷：研究者版（定稿問卷原文），附註說明實際發放版的差異
+const APX_NOTE = "註：本附錄為研究者版問卷，標示各題所屬構念、量表出處與反向題；實際發放之問卷隱去構念名稱、量表出處與反向題等標註，並依作答順序全卷連續編號。";
+const apxLines = () => String(store.values.sv_final || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => l.replace(/^Q(\d+)\s*[.．、]?\s*/i, "$1. "));
 function thesisBody() {   // 論文全文（Markdown）：題目＋各章節定稿
   const zh = (store.values.tt_zh || "").trim(), en = (store.values.tt_en || "").trim();
   const out = [`# ${zh || store.name || "論文"}`, ...(en ? ["", en] : []), ""];
@@ -1685,6 +1688,7 @@ function thesisBody() {   // 論文全文（Markdown）：題目＋各章節定�
     secsOf(c).forEach(s => { out.push(`### ${s.no} ${s.title}`, ""); const t = normCite(tbApply(s.id, "fin", finText(s.id))); if (t) out.push(tblFill(s.id, t, tblMd), ""); });
   });
   const refs = refList(); if (refs.length) out.push("## 參考文獻", "", ...refs.flatMap(r => [r, ""]));
+  const ax = apxLines(); if (ax.length) out.push("## 附錄", "", "### 附錄一　研究問卷", "", APX_NOTE, "", ...ax.flatMap(l => [l, ""]));
   return THESIS_SECS().some(s => finText(s.id)) ? out.join("\n") : "";
 }
 // 插入標記換成表格（md：論文.md；全文檢視：表格 HTML）
@@ -1703,7 +1707,8 @@ function fullView() {
       const t = normCite(tbApply(s.id, "fin", finText(s.id)));
       if (fig && /〔插入圖[^〕]*〕/.test(t)) { const f = fig; fig = ""; return `<h3>${esc(s.no + " " + s.title)}</h3>` + tblFill(s.id, t, x => "\u0001" + JSON.stringify(x.t ? ["t", x] : 0) + "\u0001").split(/\n\s*\n/).map(b => ftBlock(b, f)).join(""); }
       return `<h3>${esc(s.no + " " + s.title)}</h3>${fig}${t ? tblFill(s.id, t, x => "\u0001" + JSON.stringify(["t", x]) + "\u0001").split(/\n\s*\n/).map(b => ftBlock(b, "")).join("") : `<p class="hint">（尚未撰寫）</p>`}`;
-    }).join("")).join("") + (refList().length ? `<h2>參考文獻</h2>` + refList().map(r => `<p class="ref-line">${esc(r)}</p>`).join("") : "") + `</div>`;
+    }).join("")).join("") + (refList().length ? `<h2>參考文獻</h2>` + refList().map(r => `<p class="ref-line">${esc(r)}</p>`).join("") : "") +
+      (apxLines().length ? `<h2>附錄</h2><h3>附錄一　研究問卷</h3><p class="hint">${esc(APX_NOTE)}</p>` + apxLines().map(l => `<p class="ref-line">${esc(l)}</p>`).join("") : "") + `</div>`;
 }
 // 段落核實改寫：回覆中最新一次的「## 改寫後段落」或「## 融合後的段落」
 function drLatest(text) {

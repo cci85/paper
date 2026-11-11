@@ -126,8 +126,8 @@ async function wordDownload() {
     // ── 附錄：研究問卷 ──
     const sv = String(v.sv_final || "").trim();
     if (sv) {
-      body.push(wText("附錄", { style: "Heading1", pb: true }), wText("附錄一　研究問卷", { style: "Heading2" }));
-      sv.split(/\r?\n/).map(l => l.trim()).filter(Boolean).forEach(l => body.push(wText(l.replace(/^Q(\d+)\s*[.．、]?\s*/i, "$1. "), { style: "NoIndent" })));
+      body.push(wText("附錄", { style: "Heading1", pb: true }), wText("附錄一　研究問卷", { style: "Heading2" }), wText(APX_NOTE, { style: "Source", after: 120 }));
+      apxLines().forEach(l => body.push(wText(l, { style: "NoIndent" })));
     }
     body.push(wPara("", { bm: "LastPage" }));
     const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>${body.join("")}${sectXml("decimal", true)}</w:body></w:document>`;
