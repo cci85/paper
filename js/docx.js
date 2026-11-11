@@ -127,7 +127,13 @@ async function wordDownload() {
     const sv = String(v.sv_final || "").trim();
     if (sv) {
       body.push(wText("附錄", { style: "Heading1", pb: true }), wText("附錄一　研究問卷", { style: "Heading2" }), wText(APX_NOTE, { style: "Source", after: 120 }));
-      apxLines().forEach(l => body.push(wText(l, { style: "NoIndent" })));
+      apxBlocks().forEach(b => {
+        if (b.t === "head") body.push(wText(b.text, { style: "NoIndent", keep: true, before: 120, run: { b: true } }));
+        else if (b.t === "q") body.push(wText(b.text, { style: "ApxQ", keep: b.keep }));
+        else if (b.t === "opt") { if (b.inline) body.push(wText(b.opts.map(o => "□\u00a0" + o.replace(/ /g, "\u00a0")).join("　　"), { style: "ApxOpt" }));
+          else b.opts.forEach((o, i) => body.push(wText("□\u00a0" + o, { style: "ApxOpt", keep: i < b.opts.length - 1 }))); }
+        else body.push(wText(b.text, { style: "NoIndent" }));
+      });
     }
     body.push(wPara("", { bm: "LastPage" }));
     const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>${body.join("")}${sectXml("decimal", true)}</w:body></w:document>`;
@@ -177,5 +183,7 @@ ${wdStyle("FigCaption", "FigCaption", `<w:spacing w:before="60" w:after="240"/><
 ${wdStyle("Figure", "圖", `<w:keepNext/><w:spacing w:before="120"/><w:jc w:val="center"/>`, "")}
 ${wdStyle("TableText", "表格內文", `<w:spacing w:line="240" w:lineRule="auto" w:before="40" w:after="40"/>`, `<w:sz w:val="22"/><w:szCs w:val="22"/>`)}
 ${wdStyle("Source", "資料來源與註", `<w:spacing w:before="40"/>`, `<w:sz w:val="20"/><w:szCs w:val="20"/>`)}
+${wdStyle("ApxQ", "附錄問卷題目", `<w:ind w:left="480" w:hanging="480"/><w:jc w:val="left"/>`, "")}
+${wdStyle("ApxOpt", "附錄問卷選項", `<w:ind w:left="960" w:hanging="360"/><w:spacing w:line="320" w:lineRule="auto"/><w:jc w:val="left"/>`, "")}
 ${wdStyle("Ref", "參考文獻", `<w:ind w:left="480" w:hanging="480"/><w:jc w:val="left"/>`, "")}
 </w:styles>`;
