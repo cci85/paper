@@ -275,7 +275,21 @@ function finFromView(v) {
 $("pane").addEventListener("focusout", e => {
   if (!(e.target.dataset && e.target.dataset.fall)) return;
   const v = $("finview"); if (v) v.innerHTML = finHtml(finText(store.sec));
+  finRefRefresh();
 });
+// 本節論文內容修改後：重新檢查引用，更新標題列的「尚缺參考文獻」與「查找參考文獻」（內容沒變時不動，避免打斷正要按的按鈕）
+function finRefRefresh() {
+  const fb = $("finbox"); if (!fb) return;
+  const tmp = document.createElement("div"); tmp.innerHTML = finBox();
+  const nb = tmp.firstElementChild; if (!nb) return;
+  const sOld = fb.querySelector("summary"), sNew = nb.querySelector("summary");
+  if (sOld && sNew && sOld.innerHTML !== sNew.innerHTML) sOld.innerHTML = sNew.innerHTML;
+  const rOld = fb.querySelector(".fin-ref"), rNew = nb.querySelector(".fin-ref");
+  if (rOld && rNew) { const ta = rOld.querySelector("textarea"), keep = ta ? ta.value : null;
+    if (rOld.outerHTML !== rNew.outerHTML) { rOld.replaceWith(rNew); const t2 = rNew.querySelector("textarea"); if (t2 && keep != null) t2.value = keep; } }
+  else if (rOld && !rNew) rOld.remove();
+  else if (!rOld && rNew) fb.appendChild(rNew);
+}
 $("pane").addEventListener("paste", e => {   // 貼上時只保留純文字
   if (!(e.target.closest && e.target.closest("[data-fall],[data-tc],[data-tn]"))) return;
   e.preventDefault(); document.execCommand("insertText", false, (e.clipboardData || window.clipboardData).getData("text/plain"));
