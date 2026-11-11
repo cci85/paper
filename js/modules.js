@@ -660,7 +660,7 @@ const DEFS = {
   fulltext: {
     label: "論文全文", target: "tool",
     hint: "依章節顯示各節定稿，也就是「研究名稱_論文.md」的內容；要修改某一節，到該節最下方的「本節論文內容」。",
-    fields: [{ id: "ins_mode", type: "radio", label: "圖表編號方式", hint: "全站的表號與圖號依此自動編排，正文中的「如表 3-1 所示」也會一起改", options: [["chap", "依章（圖 3-1）"], ["sec", "依節（圖 3.1-1）"], ["all", "全文連續（圖 1）"]], value: "chap" },
+    fields: [{ id: "ins_mode", type: "radio", label: "圖表編號方式", hint: "全站的表號與圖號依此自動編排，正文中的「如表 3-1 所示」也會一起改", options: [["sec", "依節（圖 3.1-1）"], ["chap", "依章（圖 3-1）"], ["all", "全文連續（圖 1）"]], value: "sec" },
       { id: "wd_student", type: "text", label: "研究生", placeholder: "例如：王大明" },
       { id: "wd_student_en", type: "text", label: "研究生英文姓名", hint: "先名後姓", placeholder: "例如：Da-Ming Wang" },
       { id: "wd_adv", type: "text", label: "指導教授", hint: "不加「博士」；兩位以上以頓號分隔", placeholder: "例如：陳靜怡" },
@@ -1419,7 +1419,7 @@ function finTables(sid) {   // 表格來源：本節論文內容中仍有的表�
   return own.length ? own : tblSplit(finReply(sid)).tables;
 }
 function insMap(sid) {   // 本節各插入標記的新編號：[{ type, old, num }]；編號方式依「論文全文」的設定（依章／依節／全文連續）
-  const mode = store.values.ins_mode || "chap", all = THESIS_SECS(), me = all.find(x => x.id === sid); if (!me) return null;
+  const mode = store.values.ins_mode || "sec", all = THESIS_SECS(), me = all.find(x => x.id === sid); if (!me) return null;
   const chOf = x => (String(x.no).match(/^(\d+)\./) || [])[1];
   const scope = mode === "all" ? all : mode === "sec" ? [me] : all.filter(x => chOf(x) === chOf(me));
   if (mode === "chap" && !chOf(me)) return null;
@@ -1465,7 +1465,7 @@ function tblHtml(x, word) {   // APA 三線表：表頂、欄名下方、表底�
 }
 function finTblBox(sid) {
   const ls = finTblList(sid); if (!ls.length) return "";
-  return `<div class="fin-tbl"><h4>本節表格</h4><p class="hint">正文中以〔插入表…〕標出位置；按「複製表格」後直接貼到 Word，就是 APA 三線表。表號依「論文整理 → 論文全文」設定的編號方式（依章、依節或全文連續）自動編排。</p>` +
+  return `<div class="fin-tbl"><h4>本節表格</h4><p class="hint">正文中以〔插入表…〕標出位置；按「複製表格」後直接貼到 Word，就是 APA 三線表。表號依「論文整理 → 論文全文」設定的編號方式（依節、依章或全文連續）自動編排。</p>` +
     ls.map((x, k) => `<div class="tblbox"><p class="tbl-cap">表 ${esc(x.num)}　${esc(x.cap)}<button type="button" class="copy" data-tblcopy="${k}">複製表格（貼到 Word）</button></p>${tblHtml(x)}</div>`).join("") + `</div>`;
 }
 const setFin = (sid, t) => { (store.values.fin ||= {})[sid] = t; };
