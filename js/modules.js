@@ -1502,6 +1502,7 @@ const setFin = (sid, t) => { (store.values.fin ||= {})[sid] = t; };
 function blockSim(a, b) {
   const n = x => x.replace(/[\s，。、；：「」（）()【】,.;:\-—]/g, ""), A = n(a), B = n(b); if (A.length < 20 || B.length < 20) return 0;
   if (A.includes(B) || B.includes(A)) return 1;
+  if (Math.min(A.length, B.length) / Math.max(A.length, B.length) < 0.6) return 0;   // 長短差很多（例如段落與其後的條列目的）不算重複
   const g = x => { const s = new Set(); for (let i = 0; i < x.length - 1; i++) s.add(x.slice(i, i + 2)); return s; }, ga = g(A), gb = g(B);
   let k = 0; ga.forEach(x => { if (gb.has(x)) k++; }); return k / Math.min(ga.size, gb.size);
 }
@@ -1521,11 +1522,11 @@ function finHtml(t, ed) {   // 定稿的簡易排版：#### 小標題、段落�
 function finBox() {   // 第一～五章各節：所有步驟下方的「本節論文內容」
   const s = sec(); if (!THESIS_SECS().some(x => x.id === s.id)) return "";
   const t = finText(s.id), own = typeof (store.values.fin || {})[s.id] === "string";
-  const missR = t ? finRefMissRows(s) : [], miss = missR.length, dup = t ? finDups(t).length : 0;
+  const missR = t ? finRefMissRows(s) : [], miss = missR.length, dupOk = (store.values.dup_ok || {})[s.id] === idOf(t), dup = t && !dupOk ? finDups(t).length : 0;
   return `<details class="fin" id="finbox"><summary>本節論文內容（定稿）${t ? "" : "：尚未撰寫"}${miss ? `<span class="fin-refhint">　📚 尚缺 ${miss} 筆參考文獻${miss <= 3 ? "：" + missR.map(r => "（" + esc(r.label) + "）").join("") : ""}，點開到最下方「查找參考文獻」</span>` : ""}${dup ? `<span class="fin-refhint">　⚠ 有 ${dup} 組重複段落</span>` : ""}</summary>
-    ${finDupBox(t)}${finWholeNote(s, t)}${t ? `<p class="hint">直接點文字即可修改，整節連在一起，可以跨段落選取；自動存檔。按 Enter 另起一段，刪掉段落之間的分隔即合併兩段。</p>
+    ${dupOk ? "" : finDupBox(t)}${finWholeNote(s, t)}${t ? `<p class="hint">直接點文字即可修改，整節連在一起，可以跨段落選取；自動存檔。按 Enter 另起一段，刪掉段落之間的分隔即合併兩段。</p>
     <div class="fin-view fin-ed" id="finview" contenteditable="true" spellcheck="false" data-fall="1">${finHtml(t)}</div>` : `<div class="fin-view" id="finview"><p class="hint">完成本節的撰寫步驟並貼上 AI 回覆後，正文會自動出現在這裡。</p></div>`}
-    <p class="fin-btns">${t ? `<button type="button" class="copy" data-finrecheck="1">確認修改並檢查引用</button>` : ""}${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}${(store.values.fin_undo || {})[s.id] ? `<button type="button" data-finundo="1">復原上一次清除或取代前的內容</button>` : ""}
+    <p class="fin-btns">${t ? `<button type="button" class="copy" data-finrecheck="1">確認定稿</button><span class="hint">存檔、重新檢查引用與重複段落，並關閉目前的提醒；之後再修改，提醒會重新出現</span><br>` : ""}${own ? `<button type="button" data-finreset="1">重新從撰寫步驟帶入</button>` : ""}${(store.values.fin_undo || {})[s.id] ? `<button type="button" data-finundo="1">復原上一次清除或取代前的內容</button>` : ""}
     <span class="hint">論文.md 與「論文全文」只放這裡的內容</span></p>${t ? finTblBox(s.id) : ""}${finRefBox(s)}</details>`;
 }
 // 定稿提醒：本節內容在最近一次「整節統整」之後又改過（或從未做過），提醒先到修訂論文做整體檢查

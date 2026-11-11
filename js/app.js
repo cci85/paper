@@ -280,8 +280,10 @@ $("pane").addEventListener("focusout", e => {
 $("pane").addEventListener("click", e => {   // 「確認修改並檢查引用」：存檔並重新檢查本節引用
   const b = e.target.closest("button[data-finrecheck]"); if (!b) return;
   const v = $("finview"); if (v && v.isContentEditable) { setFin(store.sec, finFromView(v)); save(); v.innerHTML = finHtml(finText(store.sec)); }
-  finRefRefresh();
-  const t = b.textContent; b.textContent = "已存檔並更新引用檢查"; setTimeout(() => { b.textContent = t; }, 1500);
+  const id = idOf(finText(store.sec));
+  (store.values.dr_whole_ok ||= {})[store.sec] = id; (store.values.dup_ok ||= {})[store.sec] = id; save();   // 確認後關閉整節檢查與重複段落的提醒（內容再改就會重新出現）
+  const fb = $("finbox"); if (fb) { const open = fb.open; fb.outerHTML = finBox(); const nb = $("finbox"); if (nb) nb.open = open;
+    const b2 = nb && nb.querySelector("button[data-finrecheck]"); if (b2) { b2.textContent = "已確認定稿"; setTimeout(() => { b2.textContent = "確認定稿"; }, 1500); } }
 });
 // 本節論文內容修改後：重新檢查引用，更新標題列的「尚缺參考文獻」與「查找參考文獻」（內容沒變時不動，避免打斷正要按的按鈕）
 function finRefRefresh() {
