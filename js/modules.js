@@ -393,14 +393,13 @@ const DEFS = {
       { id: "sp_size", type: "text", label: "樣本數規劃依據", hint: "以檢定力分析為主；十倍法則等經驗法則已被認為過於簡化", placeholder: "例如：G*Power，效果量 f² = .15、α = .05、檢定力 .80、預測變數 5 個，最低樣本數 92" },
       { id: "sp_collect", type: "text", label: "資料蒐集方式、管道與期間", hint: "可附選擇此期間的理由；計畫書版填預定的管道與期間", placeholder: "例如：網路問卷，透過 Facebook 社團與 PTT 發放，2026 年 3 月至 4 月" },
       { id: "sp_basis", type: "text", label: "填答依據", hint: "受訪者依據什麼經驗作答；也會帶到 3.1", placeholder: "例如：請受訪者回想最近一次在蝦皮購物的經驗作答" },
-      { id: "sp_pretest", type: "text", label: "前測", hint: "選填；尚未進行時可填預定做法。前測在論文中自成一段", placeholder: "例如：前測 40 份，各構念 α 皆大於 .80" },
       { id: "sp_screen", type: "textarea", label: "篩選與排除標準", hint: "篩選題、注意力檢查題，以及無效問卷的排除條件", rows: 2, placeholder: "例如：以「近一年是否曾在蝦皮購物」篩選；設一題注意力檢查題；剔除答錯檢查題、填答時間少於 2 分鐘或連續相同作答者" },
       { id: "sp_ethics", type: "text", label: "研究倫理", hint: "知情同意、匿名與資料保密、填答誘因", placeholder: "例如：問卷首頁說明研究目的與匿名原則，勾選同意後才開始填答；完成者可參加抽獎" },
       { id: "sp_nplan", type: "text", label: "預計回收份數", hint: "選填；可附估算依據", placeholder: "例如：最低樣本數 92 份，考量約兩成無效問卷，預計回收 120 份", when: p => p.sp_stage === "plan" },
       { id: "sp_n1", type: "text", label: "發放份數", hint: "選填", when: p => p.sp_stage !== "plan" },
       { id: "sp_n2", type: "text", label: "回收份數", hint: "選填", when: p => p.sp_stage !== "plan" },
       { id: "sp_n3", type: "text", label: "有效問卷份數", hint: "選填", when: p => p.sp_stage !== "plan" },
-      { id: "sp_nrb", type: "text", label: "未回應偏差檢驗", hint: "選填；有做才填", when: p => p.sp_stage !== "plan", placeholder: "例如：比較前 25% 與後 25% 回收者在人口統計變數上的差異，均未達顯著" },
+      { id: "sp_excl", type: "textarea", label: "排除份數與原因", hint: "選填；各類無效問卷的份數，與回收、有效份數要對得起來", rows: 2, when: p => p.sp_stage !== "plan", placeholder: "例如：未通過注意力檢查 32 份、作答時間少於 2 分鐘 5 份、連續相同作答 3 份" },
       { id: "sp_scope", type: "textarea", label: "研究範圍（由 1.3 帶入）", hint: "上方欄位留白、但這裡已寫到的項目（例如研究情境、研究對象），依此撰寫；與上方欄位不一致時以欄位為準", rows: 4 }
     ],
     seed: () => ({ sp_scope: finText("s1-3").trim() }), seedQuiet: ["sp_scope"], seedFrom: "1.3 研究範圍", seedNote: "研究範圍由 1.3 的論文內容帶入",
@@ -507,9 +506,14 @@ const DEFS = {
         placeholder: "品牌人格｜預計採用 Aaker (1997)\n自我一致性\n品牌依附" },
       { id: "od_scale", type: "text", label: "量尺形式", hint: "選填；請寫出點數與端點文字", placeholder: "例如：Likert 七點量尺，1 為非常不同意、7 為非常同意" },
       { id: "od_defs", type: "cands", label: "要寫進 3.2 的構念與第二章的界定", render: () => odDefsView() },
+      { id: "sp_pretest", type: "textarea", label: "前測", hint: "選填；有做前測（或計畫書階段預定做前測）才填，會另產生一則 Prompt，寫成本節最後一段。請寫明前測樣本是否併入正式樣本", rows: 3,
+        placeholder: "例如：2026 年 2 月以網路問卷對 40 位近一年曾於蝦皮購物的消費者進行前測，前測樣本不併入正式樣本；各構念 Cronbach's α 介於 .78 至 .91；依填答者意見修改第 5 題的用語" },
       ...[2, 3, 4, 5, 6, 7].map(k => ({ id: "od_b" + k, type: "promptbox", afterOut: true, label: `第 ${k} 則 Prompt`, when: p => odParts(p).length >= k,
         hint: "上一則的回覆完成後，在同一個對話接著送出；每則回覆都貼到下方同一個「AI 回覆」欄位，接在前一則之後，不要覆蓋",
-        copyLabel: `${"②③④⑤⑥⑦"[k - 2]} 複製第 ${k} 則 Prompt（同一個對話接著送出）`, build: p => odParts(p)[k - 1] || "" }))
+        copyLabel: `${"②③④⑤⑥⑦"[k - 2]} 複製第 ${k} 則 Prompt（同一個對話接著送出）`, build: p => odParts(p)[k - 1] || "" })),
+      { id: "od_pre", type: "promptbox", afterOut: true, label: "前測段落 Prompt（最後送出）", when: p => !blank(p.sp_pretest) && odParts(p).length > 0,
+        hint: "前面各則的回覆都完成後，在同一個對話最後送出；回覆接在「AI 回覆」欄位最後，不要覆蓋", copyLabel: "複製前測段落 Prompt（同一個對話最後送出）",
+        build: p => blank(p.sp_pretest) ? "" : T.odpre({ pre: p.sp_pretest, plan: (store.values.sp_stage || SP_STAGE0) === "plan" }) }
     ],
     seed: () => { const F = finalSurvey(); return F ? { od_list: F.cons.map(c => c.name + (c.src ? "｜預計採用 " + c.src : "")).join("\n"), od_scale: F.scale } : {}; },
     seedFrom: "0.4「定稿問卷」", seedNote: "構念清單與量尺由 0.4「定稿問卷」帶入（未填定稿時用 0.4 的問卷預覽），各構念的中文題項與第二章的界定會一併附在 Prompt 中",
@@ -529,9 +533,10 @@ const DEFS = {
       { id: "st_soft", type: "radio", label: "統計軟體", options: [["spss", "SPSS"], ["pls", "SmartPLS"], ["amos", "AMOS"], ["other", "其他"]], value: "spss" },
       { id: "st_raw", type: "textarea", label: "原始統計輸出", hint: "從軟體複製的純文字", rows: 10, mono: true },
       { id: "hy_paths", type: "textarea", label: "假說清單", hint: "選填；與第二章「第二章架構」共用同一份內容", rows: 4, placeholder: "H1：品牌人格 → 自我一致性（正向）" },
-      { id: "an_dv", type: "textarea", label: "須特別檢驗區別效度的構念配對", hint: "選填；與 3.4 資料分析方法共用，一行一組", rows: 2, when: p => p.st_part === "rel", placeholder: "例如：促銷傾向｜認知型衝動購買" }
+      { id: "an_dv", type: "textarea", label: "須特別檢驗區別效度的構念配對", hint: "選填；與 3.4 資料分析方法共用，一行一組", rows: 2, when: p => p.st_part === "rel", placeholder: "例如：促銷傾向｜認知型衝動購買" },
+      { id: "sp_nrb", type: "text", label: "未回應偏差檢驗的做法", hint: "選填；有做才填。檢定的輸出一併貼在上方「原始統計輸出」", when: p => p.st_part === "sample", placeholder: "例如：比較前 25% 與後 25% 回收者在人口統計變數與各構念上的差異" }
     ],
-    build: p => blank(p.st_raw) ? "" : T.stats({ part: p.st_part, soft: p.st_soft, raw: p.st_raw.trim(), hyps: (p.hy_paths || "").trim(), dv: p.st_part === "rel" ? (p.an_dv || "").trim() : "" }),
+    build: p => blank(p.st_raw) ? "" : T.stats({ part: p.st_part, soft: p.st_soft, raw: p.st_raw.trim(), hyps: (p.hy_paths || "").trim(), dv: p.st_part === "rel" ? (p.an_dv || "").trim() : "", nrb: p.st_part === "sample" ? (p.sp_nrb || "").trim() : "" }),
     empty: "（請貼上統計軟體的原始輸出）",
     next: "下一步：貼到一般 AI 對話。表格與段落中的每個數值，請再與原始輸出逐一核對；假說檢定彙整可直接帶到{#discuss}。"
   },
@@ -1960,16 +1965,16 @@ const OUTLINE = [
   { ch: "第三章 研究方法", secs: [
     { id: "s3-1", no: "3.1", title: "研究架構與假說", desc: "研究設計類型、研究架構圖、各變數在架構中的角色，最後列出研究假說（碩論特有，投稿期刊時可整節刪除）。", steps: [
       { mod: "fa31", rules: R3, note: "由 0.3 的研究架構帶入架構圖，微調後下載或複製圖片；再產生撰寫架構說明的 Prompt。第二章的假說會自動接在架構說明之後。" }], finish: FIN_FULL },
-    { id: "s3-3", no: "3.2", title: "操作型定義與衡量", desc: "各構念的操作型定義、量表來源與選用理由、題數與量尺、題項修改說明。", steps: [
-      { mod: "opdef", rules: [...R3, "verify"], note: "構念與題項由 0.4「定稿問卷」帶入，本研究定義由第二章各節帶入；量表原始文獻要先上傳到 NotebookLM。" }], finish: FIN_FULL },
-    { id: "s3-4", no: "3.3", title: "研究對象與抽樣", desc: "母體、抽樣方法、樣本數依據、資料蒐集、篩選與排除標準、研究倫理。", steps: [
-      { mod: "sample", rules: R3.filter(k => k !== "citation"), note: "準備母體、抽樣方法、樣本數依據、蒐集期間與份數；沒做或還沒有的項目留白，文中會標【待補】。" }], finish: FIN_FULL },
+    { id: "s3-3", no: "3.2", title: "操作型定義與衡量", desc: "各構念的操作型定義、量表來源與選用理由、題數與量尺、題項修改說明；有前測時寫在最後一段。", steps: [
+      { mod: "opdef", rules: [...R3, "verify"], note: "構念與題項由 0.4「定稿問卷」帶入，本研究定義由第二章各節帶入；量表原始文獻要先上傳到 NotebookLM。有做前測時填入前測欄位，前測寫成本節最後一段。" }], finish: FIN_FULL },
+    { id: "s3-4", no: "3.3", title: "研究對象與抽樣", desc: "母體、抽樣方法、樣本數依據、研究倫理、資料蒐集、篩選與排除標準、回收與有效樣本。", steps: [
+      { mod: "sample", rules: R3.filter(k => k !== "citation"), note: "先選撰寫版本（計畫書或完整論文），再準備母體、抽樣方法、樣本數依據、蒐集期間與份數；沒做或還沒有的項目留白，文中會標【待補】。前測寫在 3.2，未回應偏差檢驗寫在 4.1。" }], finish: FIN_FULL },
     { id: "s3-5", no: "3.4", title: "資料分析方法", desc: "依分析順序說明各方法的目的、做法、判斷準則與出處。", steps: [
       { mod: "analysis", rules: R3, note: "勾選要用的分析方法；統計方法與門檻的原始文獻（例如 Hair et al.、Henseler et al.）要先上傳到 NotebookLM。" }], finish: FIN_FULL }
   ] },
   { ch: "第四章 研究結果", secs: [
     { id: "s4-1", no: "4.1", title: "樣本描述", desc: "受訪者特性與主要變數的描述性統計。", steps: [
-      { mod: "stats", note: "貼上人口統計次數分配與描述性統計的輸出。", fixed: { st_part: "sample" } }], finish: FIN_POLISH },
+      { mod: "stats", note: "貼上人口統計次數分配與描述性統計的輸出；有做未回應偏差檢驗時，檢定輸出一併貼上。", fixed: { st_part: "sample" } }], finish: FIN_POLISH },
     { id: "s4-2", no: "4.2", title: "信效度分析", desc: "信度、收斂效度與區別效度。", steps: [
       { mod: "stats", note: "貼上信度與效度分析的輸出。", fixed: { st_part: "rel" } }], finish: FIN_POLISH },
     { id: "s4-3", no: "4.3", title: "假說檢定", desc: "路徑係數、顯著性與假說支持與否。", steps: [
