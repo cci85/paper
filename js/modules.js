@@ -502,7 +502,7 @@ const DEFS = {
       { id: "od_scale", type: "text", label: "量尺形式", hint: "選填；請寫出點數與端點文字", placeholder: "例如：Likert 七點量尺，1 為非常不同意、7 為非常同意" },
       { id: "od_defs", type: "cands", label: "第二章的本研究定義（自動帶入）", render: () => odDefsView() },
       ...[2, 3, 4, 5, 6, 7].map(k => ({ id: "od_b" + k, type: "promptbox", afterOut: true, label: `第 ${k} 則 Prompt`, when: p => odParts(p).length >= k,
-        hint: "上一則的回覆完成後，在同一個對話接著送出；各則回覆依序貼到下方「AI 回覆」",
+        hint: "上一則的回覆完成後，在同一個對話接著送出；每則回覆都貼到下方同一個「AI 回覆」欄位，接在前一則之後，不要覆蓋",
         copyLabel: `${"②③④⑤⑥⑦"[k - 2]} 複製第 ${k} 則 Prompt（同一個對話接著送出）`, build: p => odParts(p)[k - 1] || "" }))
     ],
     seed: () => { const F = finalSurvey(); return F ? { od_list: F.cons.map(c => c.name + (c.src ? "｜預計採用 " + c.src : "")).join("\n"), od_scale: F.scale } : {}; },
@@ -1358,12 +1358,16 @@ const NOT_TEXT = new Set(["bgplan", "asp", "m7a", "m7b"]);   // 分析、查資�
 const writeStep = s => { const st = stepsOf(s).filter(x => !x.finish && DEFS[x.mod].target !== "tool" && !NOT_TEXT.has(x.mod)); return st[st.length - 1]; };
 function cleanBody(text) {   // 撰寫步驟的回覆 → 論文正文：去掉開場說明、查證與待補清單類小節、角標
   let t = deLatex(String(text || "")).replace(/\r\n?/g, "\n");
-  t = t.replace(/^#{1,4}\s*(?:\d+[.、]\s*)?文獻中的寫法[^\n]*\n[\s\S]*?(?=^#{1,4}\s|(?![\s\S]))/m, "");   // 寫法分析不放進正文
-  t = /^#{1,4}\s*正文\s*$/m.test(t) ? t.replace(/^#{1,4}\s*論證架構[^\n]*\n[\s\S]*?^#{1,4}\s*正文\s*\n/m, "").replace(/^#{1,4}\s*正文\s*\n/m, "")
+  t = t.replace(/^#{1,4}\s*(?:\d+[.、]\s*)?文獻中的寫法[^\n]*\n[\s\S]*?(?=^#{1,4}\s|(?![\s\S]))/gm, "");   // 寫法分析不放進正文
+  // 分則送出時，各則回覆依序貼在一起：每則的查證清單只刪到下一則的「## 正文」為止，後面各則的正文保留
+  for (let k = 0; k < 20; k++) { const c = t.search(VERIFY_HEAD); if (c < 0) break;
+    const rest = t.slice(c + 1), nx = rest.search(/^#{1,4}\s*正文\s*$/m); t = t.slice(0, c) + (nx >= 0 ? rest.slice(nx) : ""); }
+  const hasBody = /^#{1,4}\s*正文\s*$/m.test(t);
+  if (hasBody) t = t.slice(t.search(/^#{1,4}\s*正文\s*$/m));   // 有「## 正文」時，第一個正文之前的說明文字都不要
+  t = hasBody ? t.replace(/^#{1,4}\s*論證架構[^\n]*\n[\s\S]*?(?=^#{1,4}\s*正文\s*$)/gm, "").replace(/^#{1,4}\s*正文\s*\n/gm, "")
     : t.replace(/^#{1,4}\s*論證架構[^\n]*\n[\s\S]*?(?=^#{1,4}\s|(?![\s\S]))/m, "");   // 論證架構不放進正文
-  const cut = t.search(VERIFY_HEAD); if (cut >= 0) t = t.slice(0, cut);
   const first = t.search(/^#{1,6}\s/m), lead = first > 0 ? t.slice(0, first) : "";   // 第一個標題前的文字：沒有引用且很短，才視為開場說明去掉
-  if (lead && !/[（(][^（）()\n]*\d{4}[a-z]?[）)]/.test(lead) && lead.replace(/\s/g, "").length <= 200) t = t.slice(first);
+  if (!hasBody && lead && !/[（(][^（）()\n]*\d{4}[a-z]?[）)]/.test(lead) && lead.replace(/\s/g, "").length <= 200) t = t.slice(first);
   return t.split("\n").filter(l => !/^\s*-{3,}\s*$/.test(l))
     .map(l => /^#{1,6}\s/.test(l) ? "#### " + l.replace(/^#+\s*|\*\*/g, "").trim() : l.replace(/\*\*/g, "").replace(/\s?\[\d+(?:\s*[,，–-]\s*\d+)*\]/g, ""))
     .join("\n").replace(/^(#### .*)\n(?=\S)/gm, "$1\n\n").replace(/^([(（][一二三四五六七八九十]+[)）][^\n。，；]{1,30})$/gm, "\n$1\n").replace(/\n{3,}/g, "\n\n").trim();   // 小標題（含「(一)標題」）自成一段
@@ -1399,6 +1403,10 @@ function tblSplit(text) {   // { body, tables:[{ num, cap, rows, note }] }
     if (j >= 0) { const c = out[j].trim(), m = c.match(TBL_CAP);
       if (m && (m[1] || /^\**\s*表/.test(c.replace(/^#+\s*/, "")))) { num = (m[1] || "").replace(/\s|[－–]/g, x => /\s/.test(x) ? "" : "-"); cap = m[2]; out.splice(j); }
       else if (/^#{1,6}\s/.test(c) && c.length <= 40) { cap = c.replace(/^#+\s*|\*\*/g, "").trim(); out.splice(j); } }
+    const same = tables.find(x => x.cap === (cap || "表格") && x.rows[0].join("|") === rows[0].join("|"));
+    if (same) { same.rows.push(...rows.slice(1)); if (note && !same.note) same.note = note;
+      const mk = out.findIndex(x => x.startsWith("〔插入表") && x.endsWith(`${same.cap}〕`)); if (mk >= 0) { const m = out[mk]; out.splice(mk, 1); out.push("", m, ""); }   // 合併後的表移到最後一次出現的位置
+      continue; }   // 分則回覆中同名的表（例如量表彙整表）合併成一張
     tables.push({ num, cap: cap || "表格", rows, note });
     out.push("", `〔插入表 ${num || "?"}　${cap || "表格"}〕`, "");
   }
@@ -1422,13 +1430,15 @@ function insMap(sid) {   // 本節各插入標記的新編號：[{ type, old, nu
     if (x.id === sid) mine = list; });
   return mine;
 }
-function insRenum(sid, t) {   // 插入標記與正文中的「如表 3-1 所示」改成全章編號
+function insRenum(sid, t) {   // 插入標記與正文中的「如表 3-1 所示」改成新編號；正文提到的表號對應其後最近的同號標記（分則回覆各自從 3-1 起編）
   const mp = insMap(sid); if (!mp || !mp.length) return t;
-  const ref = {}; mp.forEach(m => { if (m.old && !/[?？]/.test(m.old) && !ref[m.type + m.old]) ref[m.type + m.old] = m.num; });
-  let k = 0, keep = [];
-  t = t.replace(INS_RE, (all, ty, old, cap) => { const m = mp[k++] || { num: old || "?" }; keep.push(`〔插入${ty} ${m.num}　${cap.trim()}〕`); return `\u0000${keep.length - 1}\u0000`; });
-  t = t.replace(/([表圖])\s*(\d+(?:\s*[.．\-－–]\s*\d+)*)/g, (all, ty, a) => ref[ty + insNorm(a)] ? `${ty} ${ref[ty + insNorm(a)]}` : all);
-  return t.replace(/\u0000(\d+)\u0000/g, (a, i) => keep[+i]);
+  const marks = []; let k = 0;
+  for (const m of t.matchAll(INS_RE)) { const x = mp[k++] || { num: insNorm(m[2]) || "?" }; marks.push({ at: m.index, end: m.index + m[0].length, ty: m[1], old: insNorm(m[2]), num: x.num, txt: `〔插入${m[1]} ${x.num}　${m[3].trim()}〕` }); }
+  const near = (ty, old, at) => (marks.find(m => m.ty === ty && m.old === old && m.at > at) || [...marks].reverse().find(m => m.ty === ty && m.old === old && m.at < at) || {}).num;
+  let out = "", last = 0;
+  const refs = s => s.replace(/([表圖])\s*(\d+(?:\s*[.．\-－–]\s*\d+)*)/g, (all, ty, a, off) => { const n = near(ty, insNorm(a), last + off); return n ? `${ty} ${n}` : all; });
+  marks.forEach(m => { out += refs(t.slice(last, m.at)) + m.txt; last = m.end; });
+  return out + refs(t.slice(last));
 }
 function finText(sid) {
   let t = insRenum(sid, finBody(sid));
