@@ -495,18 +495,18 @@ const DEFS = {
   },
   opdef: {
     label: "操作型定義與衡量", target: "nlm",
-    hint: "依第二章各節的順序，逐一交代構念的操作型定義、量表來源與選用理由、題數與量尺、原研究信效度、題項修改內容與理由，並輸出題項對照與量表彙整表；本研究定義沿用第二章，不重新定義。",
+    hint: "依第二章各節的順序，逐一交代構念的定義（摘要第二章的界定，再依研究情境提出本研究的定義）、操作型定義、量表來源與選用理由、題數與量尺、原研究信效度（一句帶過）、題項修改內容與理由，並輸出題項對照與量表彙整表。",
     fields: [
       { id: "od_list", type: "textarea", label: "構念清單", hint: "一行一個；可附上預計採用的量表", rows: 6,
         placeholder: "品牌人格｜預計採用 Aaker (1997)\n自我一致性\n品牌依附" },
       { id: "od_scale", type: "text", label: "量尺形式", hint: "選填；請寫出點數與端點文字", placeholder: "例如：Likert 七點量尺，1 為非常不同意、7 為非常同意" },
-      { id: "od_defs", type: "cands", label: "第二章的本研究定義（自動帶入）", render: () => odDefsView() },
+      { id: "od_defs", type: "cands", label: "第二章的界定（自動帶入）", render: () => odDefsView() },
       ...[2, 3, 4, 5, 6, 7].map(k => ({ id: "od_b" + k, type: "promptbox", afterOut: true, label: `第 ${k} 則 Prompt`, when: p => odParts(p).length >= k,
         hint: "上一則的回覆完成後，在同一個對話接著送出；每則回覆都貼到下方同一個「AI 回覆」欄位，接在前一則之後，不要覆蓋",
         copyLabel: `${"②③④⑤⑥⑦"[k - 2]} 複製第 ${k} 則 Prompt（同一個對話接著送出）`, build: p => odParts(p)[k - 1] || "" }))
     ],
     seed: () => { const F = finalSurvey(); return F ? { od_list: F.cons.map(c => c.name + (c.src ? "｜預計採用 " + c.src : "")).join("\n"), od_scale: F.scale } : {}; },
-    seedFrom: "0.4「定稿問卷」", seedNote: "構念清單與量尺由 0.4「定稿問卷」帶入（未填定稿時用 0.4 的問卷預覽），各構念的中文題項與第二章的本研究定義會一併附在 Prompt 中",
+    seedFrom: "0.4「定稿問卷」", seedNote: "構念清單與量尺由 0.4「定稿問卷」帶入（未填定稿時用 0.4 的問卷預覽），各構念的中文題項與第二章的界定會一併附在 Prompt 中",
     rules: () => [...R3, "verify"],
     status: p => odParts(p).length > 1 ? `內容較長，Prompt 分成 ${odParts(p).length} 則依序送出（NotebookLM 單次輸入有字數上限）；共用規則較長時，會先送規則（NotebookLM 只回覆「已收到」）。` : "",
     build: p => odParts(p)[0] || "",
@@ -1111,13 +1111,14 @@ function odBatches(p) {   // 依構念清單附上定稿題項，依字數分批
     const name = line.split(/[｜|]/)[0].trim(), src = (line.split(/[｜|]/)[1] || "").replace(/^預計採用\s*/, "").trim();
     const c = F.cons.find(x => x.name === name || x.name.startsWith(name) || name.startsWith(x.name));
     const df = ch2Def(name);
-    return [`### ${name}${src ? "｜預計量表：" + src : ""}`, ...(df ? ["第二章的本研究定義：" + df] : []), ...(c ? [...(c.note ? ["說明：" + c.note] : []), ...(c.stem ? ["題幹：" + c.stem] : []), ...c.items.map(it => `${it.id.replace(/^Q/i, "")}. ${it.zh}`)] : ["（尚無題項）"])].join("\n");
+    return [`### ${name}${src ? "｜預計量表：" + src : ""}`, ...(df ? ["第二章的界定：" + df] : []), ...(c ? [...(c.note ? ["說明：" + c.note] : []), ...(c.stem ? ["題幹：" + c.stem] : []), ...c.items.map(it => `${it.id.replace(/^Q/i, "")}. ${it.zh}`)] : ["（尚無題項）"])].join("\n");
   });
   if (!F.cons.some(c => c.items.length)) return [];
   const scale = (p.od_scale || F.scale || "").trim(), LIMIT = 2700, groups = [];
   blocks.forEach(b => { const g = groups[groups.length - 1];
     if (g && T.opdef_items({ blocks: [...g, b], scale, part: groups.length, parts: 9 }).length <= LIMIT) g.push(b); else groups.push([b]); });
-  return groups.map((g, k) => T.opdef_items({ blocks: g, scale, part: k + 1, parts: groups.length }));
+  const ctx = (store.values.as_ctx || "").trim();
+  return groups.map((g, k) => T.opdef_items({ blocks: g, scale, ctx, part: k + 1, parts: groups.length }));
 }
 
 // 組合研究架構：選定架構的圖（依 cf_text 建立，保留圖上微調）
@@ -2125,7 +2126,7 @@ function anParts(p) { return !(p.an_methods || []).length ? [] : ruleSplit("anal
 // 3.2：題項分批的 Prompt 前面加上共用規則（放不進第 1 則時，先分則送規則，NotebookLM 只回覆「已收到」）
 function odParts(p) {
   if (blank(p.od_list)) return [];
-  const base = odBatches(p); if (!base.length) base.push(T.opdef({ list: ch2Order(splitLines(p.od_list)).join("\n"), scale: p.od_scale, defs: odDefsText(p) }));
+  const base = odBatches(p); if (!base.length) base.push(T.opdef({ list: ch2Order(splitLines(p.od_list)).join("\n"), scale: p.od_scale, defs: odDefsText(p), ctx: (store.values.as_ctx || "").trim() }));
   const R = ruleText("opdef", p); if (!R) return base;
   if ((base[0] + R).length <= 2800) return [base[0] + R, ...base.slice(1)];
   const blocks = R.split(/\n\n(?=\[)/).map(b => b.trim()).filter(Boolean), rs = []; let cur = "";
@@ -2134,19 +2135,24 @@ function odParts(p) {
   return [...rs.map((c, i) => `以下是本對話撰寫「操作型定義與衡量」時要遵守的共用規則（第 ${i + 1}／${rs.length} 則）。請先記住，只回覆「已收到共用規則第 ${i + 1} 則」，先不要撰寫。\n\n` + c),
     base[0] + "\n\n撰寫時請遵守前面提供的共用規則。", ...base.slice(1)];
 }
-// 第二章各節論文內容中，提出某構念「本研究定義」的句子
+// 第二章各節論文內容中，界定某構念的句子：先找「本研究……定義／界定」，否則取首次界定此構念的句子與其後的說明（最多三句）
 function ch2Def(name) {
   const core = String(name || "").replace(/\s*[（(].*$/, "").trim(); if (!core) return "";
-  const ch = OUTLINE.find(c => /^第二章/.test(c.ch)), out = [];
-  (ch ? ch.secs : []).filter(s => !s.setup).forEach(s => String(finText(s.id) || "").replace(/\n+/g, "").split(/(?<=。)/).forEach(x => {
-    if (out.length < 2 && x.includes(core) && /本研究/.test(x) && /定義|界定/.test(x) && !out.includes(x.trim())) out.push(x.trim()); }));
-  return out.join("");
+  const ch = OUTLINE.find(c => /^第二章/.test(c.ch)), sents = [];
+  (ch ? ch.secs : []).filter(s => !s.setup).forEach(s => String(finText(s.id) || "").split(/\n\s*\n/).forEach(p => {
+    const ss = p.replace(/\n+/g, "").split(/(?<=。)/).map(x => x.trim()).filter(Boolean); sents.push(ss); }));
+  for (const ss of sents) { const x = ss.find(t => t.includes(core) && /本研究/.test(t) && /定義|界定/.test(t)); if (x) return x; }
+  const CUE = /反映|是指|係指|意指|指的是|定義|界定|強調|為一種|代表/;
+  for (const ss of sents) { const i = ss.findIndex(t => t.includes(core) && CUE.test(t) && !/^H\d/.test(t)); if (i < 0) continue;
+    const out = [ss[i]]; for (let k = i + 1; k < ss.length && out.length < 3 && !/相較|相對地|另一方面|然而/.test(ss[k]); k++) out.push(ss[k]);
+    return out.join("").replace(/^(?:相較之下|相對地|另一方面|此外|然而)[，,]\s*/, ""); }
+  return "";
 }
 const odNames = p => ch2Order(splitLines(p.od_list || "")).map(l => l.split(/[｜|]/)[0].trim()).filter(Boolean);
 const odDefsText = p => odNames(p).map(n => (d => d ? `${n}：${d}` : "")(ch2Def(n))).filter(Boolean).join("\n");
 function odDefsView() {
-  const ns = odNames(valuesOf(DEFS.opdef)); if (!ns.length) return `<p class="hint">（填入構念清單後，這裡會列出第二章對各構念提出的本研究定義）</p>`;
-  return `<ul class="hlist">${ns.map(n => { const d = ch2Def(n); return `<li><b>${esc(n)}</b>：${d ? esc(d) : `<span class="hint">第二章論文內容中沒有找到「本研究……定義」的句子；Prompt 會標【待補】</span>`}</li>`; }).join("")}</ul>`;
+  const ns = odNames(valuesOf(DEFS.opdef)); if (!ns.length) return `<p class="hint">（填入構念清單後，這裡會列出第二章界定各構念的句子）</p>`;
+  return `<ul class="hlist">${ns.map(n => { const d = ch2Def(n); return `<li><b>${esc(n)}</b>：${d ? esc(d) : `<span class="hint">第二章論文內容中沒有找到界定此構念的句子；將依上傳文獻撰寫</span>`}</li>`; }).join("")}</ul>`;
 }
 // 3.1：假說清單接在架構說明之後；再按一次只更新清單
 function hlPut() {
