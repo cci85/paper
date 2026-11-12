@@ -1146,11 +1146,12 @@ const DEFS = {
     label: "資料字典與分析樣本", target: "nlm",
     hint: "接在 0.3 同一個對話。依研究模型組與資料欄位，列出每個變數的建構方式、分析樣本的納入與排除規則；研究目標含預測時，另規劃訓練期與驗證期的時間切分。",
     fields: [
-      { id: "pd_fields", type: "textarea", label: "現有資料欄位", hint: "與 0.2 共用", rows: 3 },
+      { id: "dc_conv", type: "radio", label: "對話", hint: "0.2、0.3 都在同一個對話時，不重複貼上資料欄位與變數清單，Prompt 比較短", options: [["same", "接在 0.2／0.3 的同一個對話"], ["new", "開新對話"]], value: "same" },
+      { id: "pd_fields", type: "textarea", label: "現有資料欄位", hint: "與 0.2 共用；選「開新對話」時才會放進 Prompt", rows: 3, when: p => p.dc_conv === "new" },
       { id: "dc_cut", type: "text", label: "預測時點與預測期間", hint: "選填；研究目標含預測時使用", placeholder: "例如：以 2024 年 12 月為預測時點，預測 2025 年上半年是否再次捐款", when: () => pdGoal(pdVals().goal).r }
     ],
     rules: () => ["citation"],
-    build: (p, R) => { const model = modelText(); return model ? T.pd_dict({ ...pdVals(), model, cut: (p.dc_cut || "").trim() }) + R : ""; },
+    build: (p, R) => { const model = modelText(); return model ? T.pd_dict({ ...pdVals(), model, cut: (p.dc_cut || "").trim(), same: p.dc_conv !== "new" }) + R : ""; },
     empty: "（0.2 還沒有研究模型組）",
     next: "下一步：依資料字典整理資料，再到{#mreport}規劃第四章要揭露的結果。"
   },
