@@ -306,6 +306,21 @@ function finRefRefresh() {
   else if (rOld && !rNew) rOld.remove();
   else if (!rOld && rNew) fb.appendChild(rNew);
 }
+// 貼上或改完 AI 回覆後自動帶入：步驟的 autoReply（AI 回覆欄）或欄位的 auto（例如填寫輔助的回覆）
+function runAuto(t) {
+  const m = mod(); let msg = "";
+  if (t.dataset.reply && m.autoReply) msg = m.autoReply(t.value);
+  else if (t.dataset.f) { const f = m.fields.find(x => x.id === t.dataset.f); if (f && f.auto) msg = f.auto(t.value); }
+  if (!msg) return;
+  const y = window.scrollY; save(); renderPane(); update(); window.scrollTo(0, y);
+  const st = $("status"); st.textContent = msg + (st.textContent ? "\n" + st.textContent : ""); st.className = "note" + (/沒有|請確認/.test(msg) ? " warn" : "");
+}
+$("pane").addEventListener("paste", e => { const t = e.target; if (t && t.tagName === "TEXTAREA") setTimeout(() => runAuto(t), 0); });
+$("pane").addEventListener("change", e => { const t = e.target; if (t && t.tagName === "TEXTAREA") runAuto(t); });
+$("pane").addEventListener("click", e => {   // 0.3 panel data：復原為帶入前的模型組
+  const b = e.target.closest("button[data-pmrestore]"); if (!b) return;
+  store.values.pm_final = store.values.pm_prev || ""; save(); renderPane(); update();
+});
 $("pane").addEventListener("paste", e => {   // 貼上時只保留純文字
   if (!(e.target.closest && e.target.closest("[data-fall],[data-tc],[data-tn]"))) return;
   e.preventDefault(); document.execCommand("insertText", false, (e.clipboardData || window.clipboardData).getData("text/plain"));

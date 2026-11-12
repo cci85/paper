@@ -119,6 +119,21 @@ const pmNorm = t => String(t || "").replace(/[\s\-–—－‐_・·]+/g, "").to
 // 模型名稱比對：中文名稱或括號內英文名稱相同或互相包含即視為同一模型（例如「組內－組間」與「組內組間分離」、加註 / Mundlak Specification）
 const pmEn = t => pmNorm((String(t).match(/[（(]([^（）()]*[A-Za-z][^（）()]*)[）)]/) || [, ""])[1]).split("/")[0];
 const pmZh = t => pmNorm(String(t).replace(/[（(][^（）()]*[）)]/g, "")).replace(/模型$/, "");
+function pmScore(a, b) {   // 3：中文或英文名稱相同；1：互相包含；0：不同
+  const ea = pmEn(a), eb = pmEn(b), za = pmZh(a), zb = pmZh(b);
+  if ((ea.length > 3 && ea === eb) || (za.length > 1 && za === zb)) return 3;
+  return pmSame(a, b) ? 1 : 0;
+}
+// 兩組模型一對一配對：先配名稱相同者，再配互相包含者
+function pmPair(A, B) {
+  const cand = []; A.forEach((a, i) => B.forEach((b, j) => { const sc = pmScore(a[1] || "", b[1] || ""); if (sc) cand.push([sc, i, j]); }));
+  cand.sort((x, y) => y[0] - x[0]);
+  const ua = new Map(), ub = new Set();
+  cand.forEach(([, i, j]) => { if (!ua.has(i) && !ub.has(j)) { ua.set(i, j); ub.add(j); } });
+  const out = A.map((a, i) => [a, ua.has(i) ? B[ua.get(i)] : null]);
+  B.forEach((b, j) => { if (!ub.has(j)) out.push([null, b]); });
+  return out;
+}
 function pmSame(a, b) {
   const ea = pmEn(a), eb = pmEn(b), za = pmZh(a), zb = pmZh(b);
   if (ea.length > 3 && eb.length > 3 && (ea === eb || ea.includes(eb) || eb.includes(ea))) return true;
@@ -162,7 +177,20 @@ function pmView() {
       ${m.purpose ? `<p class="hint" style="margin:6px 0 0">目的：${esc(m.purpose)}</p>` : ""}
       <details><summary>看模型說明</summary><div class="cand-reason">${esc(m.body)}</div></details></div>`; }).join("");
 }
-// 0.3 panel data：對照目前的模型組與回覆中的修正後模型組，決定要不要採用
+// 0.3 panel data：回覆貼上後，自動把 AI 建議的模型組帶入「研究模型組」（帶入前的版本保留在 pm_prev，可復原）
+function mchkLatest(text) { return pipeLines(mdSec(text, "建議的研究模型組")) || pipeLines(mdSec(text, "修正後的模型組")); }
+function mchkAuto(text) {
+  const rows = mchkLatest(text); if (!rows) return "";
+  const v = store.values, sig = pmNorm(rows);
+  if (v.pm_auto_sig === sig) return "";
+  const cur = (v.pm_final || "").trim() || pipeLines(mdSec((store.replies || {})["s0-4|pmodel"], "選定模型組"));
+  if (!(v.pm_auto_sig && v.pm_prev != null && pmNorm(cur) === v.pm_auto_sig)) v.pm_prev = cur;   // 目前是上一次自動帶入的版本時，保留更早的原始版本
+  v.pm_auto_sig = sig;
+  if (pmNorm(cur) === sig) return "AI 建議的模型組與目前相同，研究模型組維持不變。";
+  v.pm_final = rows;
+  return "已把 AI 建議的模型組帶入最上方的「研究模型組」；不同意時，按對照表下方的「復原為帶入前的模型組」。";
+}
+// 0.3 panel data：對照帶入前與 AI 建議的模型組
 function mchkView(text) {
   if (blank(text)) return "";
   const fin = pipeLines(mdSec(text, "建議的研究模型組")), sec = fin || mdSec(text, "修正後的模型組");
@@ -172,18 +200,19 @@ function mchkView(text) {
     return `<div class="needbox second"><b>第二則尚未送出</b>：回覆中還沒有「## 修正後的模型組」。請在同一個 NotebookLM 對話送出第二則，再把回覆接在上方「AI 回覆」的最後。
       <p><button type="button" class="copy" data-copytext="${esc(t2)}">② 複製第二則 Prompt</button></p></div>`;
   }
-  const cur = (store.values.pm_final || "").trim() || pipeLines(mdSec((store.replies || {})["s0-4|pmodel"], "選定模型組"));
+  const auto = store.values.pm_auto_sig === pmNorm(pipeLines(sec)) && store.values.pm_prev != null;
+  const cur = auto ? store.values.pm_prev : (store.values.pm_final || "").trim() || pipeLines(mdSec((store.replies || {})["s0-4|pmodel"], "選定模型組"));
   const rows = t => pipeLines(t).split("\n").filter(Boolean).map(l => l.split(/[｜|]/).map(x => x.trim()));
   const A = rows(cur), B = rows(sec);
   const notes = sec.split(/\r?\n/).map(l => l.trim()).filter(l => l && !/[｜|]/.test(l) && !/^(#|-{3,}|修正之處)/.test(l)).map(l => l.replace(/^[-*•\d.、\s]+/, "")).filter(Boolean);
   const none = notes.some(l => /^無需修正/.test(l));
-  const cell = (r, other) => { if (!r) return `<td class="hint">（無）</td>`; const o = other.find(x => pmSame(x[1] || "", r[1] || ""));
-    const tag = !o ? `<b class="mk-new">${other === A ? "新增" : "移除"}</b> ` : o[0] !== r[0] ? `<b class="mk-chg">角色改變</b> ` : "";
+  const cell = (r, o, add) => { if (!r) return `<td class="hint">（無）</td>`;
+    const tag = !o ? `<b class="mk-new">${add ? "新增" : "移除"}</b> ` : o[0] !== r[0] ? `<b class="mk-chg">角色改變</b> ` : "";
     return `<td>${tag}<b>${esc(r[0])}</b>｜${esc(r[1] || "")}${r[2] ? `<br><small>${esc(r[2])}</small>` : ""}</td>`; };
-  const pair = []; A.forEach(a => pair.push([a, B.find(b => pmSame(b[1] || "", a[1] || ""))])); B.forEach(b => { if (!A.some(a => pmSame(a[1] || "", b[1] || ""))) pair.push([null, b]); });
+  const pair = pmPair(A, B);
   const diff = pair.some(([a, b]) => !a || !b || a[0] !== b[0]);
   return `<div class="sview mchkv"><h3>修正前後對照</h3>${none ? `<p class="note">AI 判斷<b>無需修正</b>，不必採用。</p>` : ""}
-    <table class="mtbl"><thead><tr><th>目前的研究模型組</th><th>${lab}</th></tr></thead><tbody>${pair.map(([a, b]) => `<tr>${cell(a, B)}${cell(b, A)}</tr>`).join("")}</tbody></table>
+    <table class="mtbl"><thead><tr><th>${auto ? "帶入前的研究模型組" : "目前的研究模型組"}</th><th>${lab}</th></tr></thead><tbody>${pair.map(([a, b]) => `<tr>${cell(a, b, false)}${cell(b, a, true)}</tr>`).join("")}</tbody></table>
     ${notes.filter(l => !/^無需修正/.test(l)).length ? `<p class="f"><b>修正之處與理由</b></p><ul>${notes.filter(l => !/^無需修正/.test(l)).map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
     ${diff ? `<div class="needbox"><b>不知道該選哪一版？</b>依下列順序判斷：
       <ol><li><b>主要模型</b>：哪一個能直接回答你的研究問題（估計你要的效果）？兩版主要模型若都能回答，選假設較少、能保留較多樣本者。</li>
@@ -191,7 +220,9 @@ function mchkView(text) {
       <li><b>穩健性模型</b>：只放能回應上方檢核中具體疑慮的模型；資料條件不足（例如缺少必要的落後期）或你使用的軟體做不到的，改列為研究限制。</li></ol>
       還是無法決定時，複製下方 Prompt，在同一個 NotebookLM 對話請 AI 逐一比較兩版的差異並給建議。
       <p><button type="button" class="copy" data-copytext="${esc(T.pd_decide({ cur: A.map(r => r.join("｜")).join("\n"), rev: B.map(r => r.join("｜")).join("\n") }) + citeText())}">③ 複製「比較兩版並建議」Prompt</button></p></div>` : ""}
-    <p class="hint">同意右欄就按下方「採用 AI 建議的模型組」；不同意則不必按，後續步驟會沿用目前的研究模型組。也可以自行修改「研究模型組」欄位，混合兩版。</p></div>`;
+    ${auto ? (pmNorm(store.values.pm_final) === store.values.pm_auto_sig
+      ? `<p class="note">右欄已自動帶入最上方的「研究模型組」，後續步驟會使用它；也可以直接在那裡修改，混合兩版。${diff ? ` <button type="button" data-pmrestore="1">復原為帶入前的模型組</button>` : ""}</p>`
+      : `<p class="note">最上方的「研究模型組」目前不是右欄的版本（已復原或已自行修改），後續步驟會使用最上方的內容。</p>`) : ""}</div>`;
 }
 // 0.2 panel data 填寫輔助：把一般 AI 的回覆拆成各欄位
 function pfFill(text) {
@@ -1119,8 +1150,7 @@ const DEFS = {
       { id: "pf_prompt", type: "promptbox", label: "填寫輔助 Prompt", when: p => isOn(p.pf_on),
         hint: "在一般 AI（Claude、ChatGPT、Gemini）開新對話，先上傳資料範例（Excel 前幾十列即可）與變數說明或模型規格文件，再貼上這段 Prompt",
         copyLabel: "複製填寫輔助 Prompt（貼到一般 AI，並上傳檔案）", build: () => T.pd_fill() },
-      { id: "pf_reply", type: "textarea", label: "填寫輔助的 AI 回覆", hint: "整段貼上後按「帶入下列欄位」", rows: 6, when: p => isOn(p.pf_on) },
-      { id: "pf_go", type: "button", label: "帶入下列欄位", hint: "會取代研究情境、研究問題、觀察單位、時間、資料欄位、資料特性與研究目標", when: p => isOn(p.pf_on), run: p => pfFill(p.pf_reply) },
+      { id: "pf_reply", type: "textarea", label: "填寫輔助的 AI 回覆", hint: "整段貼上後，會自動帶入下列各欄（研究情境、研究問題、觀察單位、時間、資料欄位、資料特性、研究目標），請逐欄核對", rows: 6, when: p => isOn(p.pf_on), auto: t => pfFill(t) },
       { id: "as_ctx", type: "text", label: "研究情境（組織或產業）", placeholder: "例如：台灣非營利組織的個人捐款" },
       { id: "as_con", type: "text", label: "研究問題", hint: "選填；初稿即可，AI 會協助收斂", placeholder: "例如：勸募接觸是否提高捐款者再次捐款的機率與金額？哪些捐款者最可能再次捐款？" },
       { id: "pd_unit", type: "text", label: "觀察單位", placeholder: "例如：捐款者" },
@@ -1167,9 +1197,6 @@ const DEFS = {
       { id: "mc_second", type: "promptbox", afterOut: true, label: "第二則 Prompt：修正後的模型組、研究缺口與預期貢獻",
         hint: "第一則的回覆完成後，在同一個對話接著送出；兩則回覆依序貼到下方「AI 回覆」",
         copyLabel: "② 複製第二則 Prompt（同一個對話接著送出）", build: () => T.pd_check2() },
-      { id: "mc_take", type: "button", below: true, label: "採用 AI 建議的模型組", hint: "把上方對照表右欄的模型組，帶入本頁最上方的「研究模型組」（會取代原本的內容）",
-        run: () => { const r = (store.replies || {})["s0-5|mchk"], t = pipeLines(mdSec(r, "建議的研究模型組")) || pipeLines(mdSec(r, "修正後的模型組")); if (!t) return "回覆中沒有找到「## 修正後的模型組」一節。";
-          if (!blank(store.values.pm_final) && !confirm("「研究模型組」已有內容，要以修正後的模型組取代嗎？")) return "未變更"; store.values.pm_final = t; return "已帶入修正後的模型組。"; } }
     ],
     rules: () => ["citation"],
     build: (p, R) => {
@@ -1178,6 +1205,7 @@ const DEFS = {
       return !model || (!checks.length && !qs.length) ? "" : T.pd_check({ ...pdVals(), model, checks, qs, same: p.mc_conv !== "new" }) + R;
     },
     replyView: t => mchkView(t),
+    autoReply: t => mchkAuto(t),
     status: p => blank(p.pm_final) && modelText() ? "「研究模型組」留白，使用 0.2 回覆中的模型組。" : "",
     empty: "（0.2 還沒有研究模型組，或請至少勾選一個檢核項目、填入一個問題）",
     next: "下一步：回覆貼到下方「AI 回覆」；同意對照表右欄時按「採用 AI 建議的模型組」。還有疑問時，用{#archq}在同一個對話接著問。"
