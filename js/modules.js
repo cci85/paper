@@ -115,7 +115,16 @@ function modelText() {
 const pipeLines = t => String(t || "").split(/\r?\n/).map(l => l.replace(/^[\s\-*•]+/, "").trim()).filter(l => /｜|\|/.test(l) && !/^[-|｜:\s]+$/.test(l)).join("\n");
 // panel data：0.2 步驟 2 回覆中的候選模型（### 模型 A：名稱），以及 AI 建議的角色與目的
 const PM_ROLES = ["主要模型", "比較模型", "穩健性模型"];
-const pmNorm = t => String(t || "").replace(/\s+/g, "").toLowerCase();
+const pmNorm = t => String(t || "").replace(/[\s\-–—－‐_・·]+/g, "").toLowerCase();
+// 模型名稱比對：中文名稱或括號內英文名稱相同或互相包含即視為同一模型（例如「組內－組間」與「組內組間分離」、加註 / Mundlak Specification）
+const pmEn = t => pmNorm((String(t).match(/[（(]([^（）()]*[A-Za-z][^（）()]*)[）)]/) || [, ""])[1]).split("/")[0];
+const pmZh = t => pmNorm(String(t).replace(/[（(][^（）()]*[）)]/g, "")).replace(/模型$/, "");
+function pmSame(a, b) {
+  const ea = pmEn(a), eb = pmEn(b), za = pmZh(a), zb = pmZh(b);
+  if (ea.length > 3 && eb.length > 3 && (ea === eb || ea.includes(eb) || eb.includes(ea))) return true;
+  if (za.length > 1 && (za === zb || (za.length > 3 && zb.includes(za)) || (zb.length > 3 && za.includes(zb)))) return true;
+  return false;
+}
 function pmParse() {
   const r = String(((typeof store !== "undefined" && store.replies) || {})["s0-4|pmodel"] || "").replace(/\*\*/g, "");
   const L = r.split(/\r?\n/), models = [];
@@ -127,10 +136,7 @@ function pmParse() {
     if (cur) cur.body.push(l);
   });
   const sug = pipeLines(mdSec(r, "選定模型組")).split("\n").filter(Boolean).map(l => l.split(/[｜|]/).map(x => x.trim()));
-  const en = t => (String(t).match(/[（(]([^（）()]*[A-Za-z][^（）()]*)[）)]/) || [, ""])[1];
-  const zh = t => pmNorm(String(t).replace(/[（(][^（）()]*[）)]/g, ""));
-  const same = (a, b) => { const x = pmNorm(a), y = pmNorm(b), ex = pmNorm(en(a)), ey = pmNorm(en(b)), za = zh(a), zb = zh(b);
-    return x === y || (za.length > 1 && za === zb) || (ex.length > 3 && ey.length > 3 && (ex.includes(ey) || ey.includes(ex))) || (x.length > 3 && y.includes(x)) || (y.length > 3 && x.includes(y)); };
+  const same = pmSame;
   models.forEach(m => {
     m.body = m.body.join("\n").trim();
     const s = sug.find(x => x[1] && same(x[1], m.name));
@@ -159,7 +165,8 @@ function pmView() {
 // 0.3 panel data：對照目前的模型組與回覆中的修正後模型組，決定要不要採用
 function mchkView(text) {
   if (blank(text)) return "";
-  const sec = mdSec(text, "修正後的模型組");
+  const fin = pipeLines(mdSec(text, "建議的研究模型組")), sec = fin || mdSec(text, "修正後的模型組");
+  const lab = fin ? "③ 比較兩版後建議的模型組" : "回覆中的修正後模型組";
   if (!sec) {
     const t2 = T.pd_check2();
     return `<div class="needbox second"><b>第二則尚未送出</b>：回覆中還沒有「## 修正後的模型組」。請在同一個 NotebookLM 對話送出第二則，再把回覆接在上方「AI 回覆」的最後。
@@ -167,17 +174,24 @@ function mchkView(text) {
   }
   const cur = (store.values.pm_final || "").trim() || pipeLines(mdSec((store.replies || {})["s0-4|pmodel"], "選定模型組"));
   const rows = t => pipeLines(t).split("\n").filter(Boolean).map(l => l.split(/[｜|]/).map(x => x.trim()));
-  const A = rows(cur), B = rows(sec), key = r => pmNorm((r[1] || "").replace(/[（(][^（）()]*[）)]/g, "")) || pmNorm(r[1]);
+  const A = rows(cur), B = rows(sec);
   const notes = sec.split(/\r?\n/).map(l => l.trim()).filter(l => l && !/[｜|]/.test(l) && !/^(#|-{3,}|修正之處)/.test(l)).map(l => l.replace(/^[-*•\d.、\s]+/, "")).filter(Boolean);
   const none = notes.some(l => /^無需修正/.test(l));
-  const cell = (r, other) => { if (!r) return `<td class="hint">（無）</td>`; const o = other.find(x => key(x) === key(r));
+  const cell = (r, other) => { if (!r) return `<td class="hint">（無）</td>`; const o = other.find(x => pmSame(x[1] || "", r[1] || ""));
     const tag = !o ? `<b class="mk-new">${other === A ? "新增" : "移除"}</b> ` : o[0] !== r[0] ? `<b class="mk-chg">角色改變</b> ` : "";
     return `<td>${tag}<b>${esc(r[0])}</b>｜${esc(r[1] || "")}${r[2] ? `<br><small>${esc(r[2])}</small>` : ""}</td>`; };
-  const pair = []; A.forEach(a => pair.push([a, B.find(b => key(b) === key(a))])); B.forEach(b => { if (!A.some(a => key(a) === key(b))) pair.push([null, b]); });
+  const pair = []; A.forEach(a => pair.push([a, B.find(b => pmSame(b[1] || "", a[1] || ""))])); B.forEach(b => { if (!A.some(a => pmSame(a[1] || "", b[1] || ""))) pair.push([null, b]); });
+  const diff = pair.some(([a, b]) => !a || !b || a[0] !== b[0]);
   return `<div class="sview mchkv"><h3>修正前後對照</h3>${none ? `<p class="note">AI 判斷<b>無需修正</b>，不必採用。</p>` : ""}
-    <table class="mtbl"><thead><tr><th>目前的研究模型組</th><th>回覆中的修正後模型組</th></tr></thead><tbody>${pair.map(([a, b]) => `<tr>${cell(a, B)}${cell(b, A)}</tr>`).join("")}</tbody></table>
+    <table class="mtbl"><thead><tr><th>目前的研究模型組</th><th>${lab}</th></tr></thead><tbody>${pair.map(([a, b]) => `<tr>${cell(a, B)}${cell(b, A)}</tr>`).join("")}</tbody></table>
     ${notes.filter(l => !/^無需修正/.test(l)).length ? `<p class="f"><b>修正之處與理由</b></p><ul>${notes.filter(l => !/^無需修正/.test(l)).map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
-    <p class="hint">同意修正就按下方「採用回覆中的修正後的模型組」；不同意則不必按，後續步驟會沿用目前的研究模型組。</p></div>`;
+    ${diff ? `<div class="needbox"><b>不知道該選哪一版？</b>依下列順序判斷：
+      <ol><li><b>主要模型</b>：哪一個能直接回答你的研究問題（估計你要的效果）？兩版主要模型若都能回答，選假設較少、能保留較多樣本者。</li>
+      <li><b>比較模型</b>：只保留「和主要模型只差一項設定、而且這個差異能證明某個設定有必要」的模型；比較後說不出意義的就不要放。</li>
+      <li><b>穩健性模型</b>：只放能回應上方檢核中具體疑慮的模型；資料條件不足（例如缺少必要的落後期）或你使用的軟體做不到的，改列為研究限制。</li></ol>
+      還是無法決定時，複製下方 Prompt，在同一個 NotebookLM 對話請 AI 逐一比較兩版的差異並給建議。
+      <p><button type="button" class="copy" data-copytext="${esc(T.pd_decide({ cur: A.map(r => r.join("｜")).join("\n"), rev: B.map(r => r.join("｜")).join("\n") }) + citeText())}">③ 複製「比較兩版並建議」Prompt</button></p></div>` : ""}
+    <p class="hint">同意修正就按下方「採用回覆中的修正後的模型組」；不同意則不必按，後續步驟會沿用目前的研究模型組。也可以自行修改「研究模型組」欄位，混合兩版。</p></div>`;
 }
 // 0.2 panel data 填寫輔助：把一般 AI 的回覆拆成各欄位
 function pfFill(text) {
@@ -1153,8 +1167,8 @@ const DEFS = {
       { id: "mc_second", type: "promptbox", afterOut: true, label: "第二則 Prompt：修正後的模型組、研究缺口與預期貢獻",
         hint: "第一則的回覆完成後，在同一個對話接著送出；兩則回覆依序貼到下方「AI 回覆」",
         copyLabel: "② 複製第二則 Prompt（同一個對話接著送出）", build: () => T.pd_check2() },
-      { id: "mc_take", type: "button", below: true, label: "採用回覆中的「修正後的模型組」", hint: "把下方 AI 回覆的修正後模型組帶入「研究模型組」",
-        run: () => { const t = pipeLines(mdSec((store.replies || {})["s0-5|mchk"], "修正後的模型組")); if (!t) return "回覆中沒有找到「## 修正後的模型組」一節。";
+      { id: "mc_take", type: "button", below: true, label: "採用回覆中的「修正後的模型組」", hint: "把下方 AI 回覆的修正後模型組帶入「研究模型組」；有「③ 比較兩版並建議」的回覆時，改帶入其中的建議模型組",
+        run: () => { const r = (store.replies || {})["s0-5|mchk"], t = pipeLines(mdSec(r, "建議的研究模型組")) || pipeLines(mdSec(r, "修正後的模型組")); if (!t) return "回覆中沒有找到「## 修正後的模型組」一節。";
           if (!blank(store.values.pm_final) && !confirm("「研究模型組」已有內容，要以修正後的模型組取代嗎？")) return "未變更"; store.values.pm_final = t; return "已帶入修正後的模型組。"; } }
     ],
     rules: () => ["citation"],
