@@ -1173,6 +1173,7 @@ const DEFS = {
     fields: [
       { id: "pm_dv", type: "text", label: "選定的依變數定義", hint: "選填；從上一步回覆的「依變數的定義選項」挑一種，可寫兩種", placeholder: "例如：下一個月是否捐款（是／否），以及捐款時的金額" },
       { id: "pm_must", type: "text", label: "必須納入的模型或設定", hint: "選填；例如指導教授指定的模型", placeholder: "例如：兩階段模型（hurdle model）；固定效果模型" },
+      { id: "pd_goal", type: "checks", label: "研究目標", hint: "與步驟 1 共用；會影響比較策略，以及 0.3、0.4 是否處理預測", options: PD_GOAL, value: ["exp", "pred"] },
       { id: "pm_n", type: "radio", label: "候選模型數量", options: [["3", "3 個"], ["4", "4 個"], ["5", "5 個"]], value: "4" },
       { id: "pm_view", type: "cands", below: true, label: "選擇模型", hint: "貼上回覆後，這裡會列出每個候選模型；為每個模型選一個角色，下方「選定的研究模型組」會自動更新。預設依 AI 的建議；不需要的模型選「不採用」",
         render: () => pmView() },
@@ -1190,6 +1191,7 @@ const DEFS = {
     fields: [
       { id: "pm_final", type: "textarea", label: "研究模型組", hint: "與 0.2「選定的研究模型組」共用；留白時自動使用 0.2 回覆的「選定模型組」", rows: 4, mono: true },
       { id: "mc_conv", type: "radio", label: "對話", hint: "接在 0.2 的同一個對話時，不重複貼上資料描述與變數清單，Prompt 比較短", options: [["same", "接在 0.2 的同一個對話"], ["new", "開新對話"]], value: "same" },
+      { id: "pd_goal", type: "checks", label: "研究目標", hint: "與 0.2 步驟 1 共用；取消「預測」後，本步驟不再檢核資料洩漏，0.4 也不再規劃預測的時間切分", options: PD_GOAL, value: ["exp", "pred"] },
       { id: "mc_checks", type: "checks", label: "檢核項目", hint: "可全部取消，只問自己的問題；「資料洩漏」只在研究目標含預測時送出",
         options: PD_CHECKS.map(c => [c.key, c.label]), value: PD_CHECKS.map(c => c.key) },
       { id: "mc_qs", type: "textarea", label: "我的問題", hint: "選填；每行一題，會與檢核項目一起送出", rows: 3,
@@ -1214,6 +1216,7 @@ const DEFS = {
     label: "資料字典與分析樣本", target: "nlm",
     hint: "接在 0.3 同一個對話。依研究模型組與資料欄位，列出每個變數的建構方式、分析樣本的納入與排除規則；研究目標含預測時，另規劃訓練期與驗證期的時間切分。",
     fields: [
+      { id: "pd_goal", type: "checks", label: "研究目標", hint: "與 0.2、0.3 共用；含「預測」時才規劃預測的時間切分", options: PD_GOAL, value: ["exp", "pred"] },
       { id: "dc_conv", type: "radio", label: "對話", hint: "0.2、0.3 都在同一個對話時，不重複貼上資料欄位與變數清單，Prompt 比較短", options: [["same", "接在 0.2／0.3 的同一個對話"], ["new", "開新對話"]], value: "same" },
       { id: "pd_fields", type: "textarea", label: "現有資料欄位", hint: "與 0.2 共用；選「開新對話」時才會放進 Prompt", rows: 3, when: p => p.dc_conv === "new" },
       { id: "dc_cut", type: "text", label: "預測時點與預測期間", hint: "選填；研究目標含預測時使用", placeholder: "例如：以 2024 年 12 月為預測時點，預測 2025 年上半年是否再次捐款", when: () => pdGoal(pdVals().goal).r }
