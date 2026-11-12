@@ -96,6 +96,27 @@ const inCh1 = () => /^s1-/.test(store.sec || "");
 // 共用規則中的引用格式（欄位內第二個 Prompt 使用）
 const citeText = () => { const r = RULES.find(x => x.key === "citation"); return typeof r.text === "function" ? r.text({}) : r.text; };
 const isOn = v => Array.isArray(v) && v.includes("on");
+// 研究類型（全站開關，左側目錄上方）：construct＝構念導向（問卷調查、實驗設計）；model＝模型導向（panel data）
+const RT = () => (typeof store !== "undefined" && store.values && store.values.rtype === "model") ? "model" : "construct";
+// 取回覆中某個「## 標題」到下一個一、二級標題之間的內容
+function mdSec(text, head) {
+  const L = String(text || "").replace(/\*\*/g, "").split(/\r?\n/), i = L.findIndex(l => new RegExp("^#{2,3}\\s*" + head).test(l.trim()));
+  if (i < 0) return "";
+  const out = []; for (let k = i + 1; k < L.length && !/^#{1,2}\s/.test(L[k].trim()); k++) out.push(L[k]);
+  return out.join("\n").trim();
+}
+// panel data：研究模型組（0.2 定稿 → 0.3 修正後 → 0.2 回覆的建議）
+function modelText() {
+  const v = ((typeof store !== "undefined" && store.values.pm_final) || "").trim(); if (v) return v;
+  const r = (typeof store !== "undefined" && store.replies) || {};
+  return pipeLines(mdSec(r["s0-5|mchk"], "修正後的模型組")) || pipeLines(mdSec(r["s0-4|pmodel"], "選定模型組"));
+}
+// 只保留「角色｜名稱｜…」的行，避免帶入回覆中其他段落
+const pipeLines = t => String(t || "").split(/\r?\n/).map(l => l.replace(/^[\s\-*•]+/, "").trim()).filter(l => /｜|\|/.test(l) && !/^[-|｜:\s]+$/.test(l)).join("\n");
+// panel data：0.2 步驟 1 回覆中的變數清單
+const pdVarText = () => pipeLines(mdSec(((typeof store !== "undefined" && store.replies) || {})["s0-4|pdata"], "變數清單"));
+const pdVals = () => { const v = store.values; return { ctx: (v.as_ctx || "").trim(), con: (v.as_con || "").trim(), unit: (v.pd_unit || "").trim(), time: (v.pd_time || "").trim(),
+  fields: (v.pd_fields || "").trim(), feat: v.pd_feat || [], goal: v.pd_goal || ["exp", "pred"], vars: pdVarText() }; };
 
 // 貼到哪裡
 const TARGETS = {
@@ -124,7 +145,8 @@ const DEFS = {
     label: "建立文獻比較表", target: "table",
     hint: "把筆記本中每一篇文獻整理成一列，作為後續分析的底稿。內容量大，請放在 NotebookLM 的「資料表」功能，不要貼在對話框，以免輸出被截斷。",
     fields: [{ id: "mx_cols", type: "checks", label: "要整理的欄位", hint: "「文獻」欄固定保留",
-      options: MATRIX_COLS.map(c => [c.key, c.label, c.locked]), value: MATRIX_COLS.map(c => c.key) }],
+      get options() { return MATRIX_COLS.filter(c => !c.rt || RT() === "model").map(c => [c.key, c.label, c.locked || !!c.rt]); },
+      value: MATRIX_COLS.filter(c => !c.rt).map(c => c.key) }],
     build: p => buildMatrix(p.mx_cols),
     next: "下一步：在已上傳文獻的 NotebookLM 開啟「資料表」，把這段 Prompt 貼進自訂指示（不是對話框）。完成後匯出成試算表，全選複製，貼到下方「AI 回覆」保存。"
   },
@@ -715,7 +737,7 @@ const DEFS = {
   // ─── 兩頁共用：小工具 ───
   ttl: {
     label: "論文題目", target: "nlm",
-    hint: "依 0.3 檢核後的研究架構，請 NotebookLM 參考上傳文獻的題目寫法，提出數個中英文題目候選並比較優缺點；選定或修改後，把定稿題目填在最下方。",
+    get hint() { return `依${RT() === "model" ? "研究模型組" : " 0.3 檢核後的研究架構"}，請 NotebookLM 參考上傳文獻的題目寫法，提出數個中英文題目候選並比較優缺點；選定或修改後，把定稿題目填在最下方。`; },
     fields: [
       { id: "tt_n", type: "radio", label: "候選題目數", options: [["3", "3 個"], ["5", "5 個"]], value: "5" },
       { id: "tt_pref", type: "textarea", label: "題目偏好", hint: "選填；例如要不要包含研究情境、以哪個機制為主軸、字數限制", rows: 2, placeholder: "例如：要包含「蝦皮」；以雙路徑瀏覽為主軸；中文 30 字以內" },
@@ -723,8 +745,8 @@ const DEFS = {
       { id: "tt_en", type: "text", below: true, label: "定稿題目（英文）", hint: "選填", placeholder: "例如：The Effects of Deal Proneness and Social Influence on Online Impulse Buying" }
     ],
     rules: () => ["citation"],
-    build: (p, R) => { const t = f31Text() || ttlArch(); return t ? T.title({ arch: t, ctx: (store.values.as_ctx || "").trim(), n: p.tt_n, pref: (p.tt_pref || "").trim() }) + R : ""; },
-    empty: "（0.3 還沒有研究架構）",
+    build: (p, R) => { const md = RT() === "model", t = md ? (modelText() && [modelText(), ...(pdVarText() ? ["", "研究變數：", pdVarText()] : [])].join("\n")) : f31Text() || ttlArch(); return t ? T.title({ arch: t, model: md, ctx: (store.values.as_ctx || "").trim(), n: p.tt_n, pref: (p.tt_pref || "").trim() }) + R : ""; },
+    get empty() { return RT() === "model" ? "（0.2 還沒有研究模型組）" : "（0.3 還沒有研究架構）"; },
     next: "下一步：題目定稿後，到{#asp}開始撰寫第一章。"
   },
   fa31: {
@@ -983,9 +1005,92 @@ const DEFS = {
     ],
     replyView: t => qaView(t, splitLines(store.values.aq_qs)),
     rules: () => ["citation"],
-    build: (p, R) => { const qs = splitLines(p.aq_qs); return qs.length ? T.arch_followup({ qs }) + R : ""; },
+    build: (p, R) => { const qs = splitLines(p.aq_qs); return qs.length ? T.arch_followup({ qs, model: RT() === "model" }) + R : ""; },
     empty: "（請填入至少一個問題）",
     next: "下一步：貼到同一個 NotebookLM 對話接續提問；要換問題時，清空欄位重新填寫即可。"
+  },
+
+  // ─── 研究類型為 panel data：第零章 0.2–0.4 ───
+  pdata: {
+    label: "資料結構與估計目標", target: "nlm",
+    hint: "在已上傳文獻的 NotebookLM 開新對話。描述手上的追蹤資料，請 AI 整理相近研究如何定義依變數與建構變數，並把研究問題收斂成解釋目標與預測目標，最後列出可由資料建構的變數清單。",
+    fields: [
+      { id: "as_ctx", type: "text", label: "研究情境（組織或產業）", placeholder: "例如：台灣非營利組織的個人捐款" },
+      { id: "as_con", type: "text", label: "研究問題", hint: "選填；初稿即可，AI 會協助收斂", placeholder: "例如：勸募接觸是否提高捐款者再次捐款的機率與金額？哪些捐款者最可能再次捐款？" },
+      { id: "pd_unit", type: "text", label: "觀察單位", placeholder: "例如：捐款者" },
+      { id: "pd_time", type: "text", label: "時間單位與觀察期間", placeholder: "例如：以月為單位；2019 年 1 月至 2025 年 12 月" },
+      { id: "pd_fields", type: "textarea", label: "現有資料欄位", hint: "每行一個或以頓號分隔；可附簡短說明", rows: 4,
+        placeholder: "捐款者編號、捐款日期、捐款金額、捐款管道、勸募信寄送日期、性別、居住縣市、首次捐款日期" },
+      { id: "pd_feat", type: "checks", label: "資料特性", hint: "可複選；不確定時可先不勾，AI 會依欄位判斷", options: PD_FEAT, value: [] },
+      { id: "pd_goal", type: "checks", label: "研究目標", hint: "可複選；兩者並用時，解釋與預測分別以不同準則比較模型", options: PD_GOAL, value: ["exp", "pred"] }
+    ],
+    rules: () => ["citation"],
+    seed: () => { const s = seedFrom01(); return { as_ctx: s.as_ctx, as_con: s.as_con }; }, seedFrom: "0.1「研究方向聚焦」",
+    seedNote: "研究情境與研究問題由 0.1「研究方向聚焦」的 AI 回覆帶入，可自行修改",
+    build: (p, R) => blank(p.as_ctx) || blank(p.pd_unit) ? "" : T.pd_data({ ...pdVals(), ...{ ctx: p.as_ctx.trim(), con: (p.as_con || "").trim(), unit: p.pd_unit.trim(), time: (p.pd_time || "").trim(), fields: (p.pd_fields || "").trim(), feat: p.pd_feat, goal: p.pd_goal } }) + R,
+    empty: "（請填入研究情境與觀察單位）",
+    next: "下一步：回覆貼到下方「AI 回覆」，從「依變數的定義選項」選定一種，接著到{#pmodel}（同一個對話）。"
+  },
+  pmodel: {
+    label: "候選模型與比較策略", target: "nlm",
+    hint: "接在{#pdata}同一個對話。AI 提出幾個彼此只差一項關鍵設定的候選模型，說明比較的檢定或準則，以及不同比較結果代表的行為機制與策略意涵；最後建議本研究的模型組。",
+    fields: [
+      { id: "pm_dv", type: "text", label: "選定的依變數定義", hint: "選填；從上一步回覆的「依變數的定義選項」挑一種，可寫兩種", placeholder: "例如：下一個月是否捐款（是／否），以及捐款時的金額" },
+      { id: "pm_must", type: "text", label: "必須納入的模型或設定", hint: "選填；例如指導教授指定的模型", placeholder: "例如：兩階段模型（hurdle model）；固定效果模型" },
+      { id: "pm_n", type: "radio", label: "候選模型數量", options: [["3", "3 個"], ["4", "4 個"], ["5", "5 個"]], value: "4" },
+      { id: "pm_final", type: "textarea", below: true, label: "選定的研究模型組", hint: "每行一個：角色｜模型名稱（英文原文）｜目的。留白時自動使用 0.3 回覆的「修正後的模型組」，沒有時使用上方回覆的「選定模型組」；會帶到 0.3、0.4 與 0.5", rows: 4, mono: true,
+        placeholder: "主要模型｜兩階段模型（Hurdle Model）｜分別估計勸募接觸對是否捐款與捐款金額的效果\n比較模型｜固定效果線性機率模型（Fixed-Effects Linear Probability Model）｜檢驗效果是否來自捐款者本身的變化" }
+    ],
+    rules: () => ["citation"],
+    build: (p, R) => T.pd_model({ ...pdVals(), n: p.pm_n, dv: (p.pm_dv || "").trim(), must: (p.pm_must || "").trim() }) + R,
+    status: () => blank(store.values.pd_unit) ? "上一步「資料結構與估計目標」還沒有填觀察單位；這一步要接在同一個對話，請先完成上一步。" : "",
+    next: "下一步：回覆貼到下方「AI 回覆」，確認或修改「選定的研究模型組」，再到 0.3 檢核模型設定。"
+  },
+  mchk: {
+    label: "依文獻檢核模型設定", target: "nlm",
+    hint: "依上傳文獻逐項檢核研究模型組：內生性、未觀察異質性、樣本選擇、時間結構、代理變數、模型比較的公平性與策略意涵的推論範圍；最後提出修正後的模型組，並整理研究缺口與預期貢獻。可接在 0.2 的同一個對話，也可開新對話。",
+    fields: [
+      { id: "pm_final", type: "textarea", label: "研究模型組", hint: "與 0.2「選定的研究模型組」共用；留白時自動使用 0.2 回覆的「選定模型組」", rows: 4, mono: true },
+      { id: "mc_checks", type: "checks", label: "檢核項目", hint: "可全部取消，只問自己的問題；「資料洩漏」只在研究目標含預測時送出",
+        options: PD_CHECKS.map(c => [c.key, c.label]), value: PD_CHECKS.map(c => c.key) },
+      { id: "mc_qs", type: "textarea", label: "我的問題", hint: "選填；每行一題，會與檢核項目一起送出", rows: 3,
+        placeholder: "大多數捐款者只捐過一次，固定效果模型還適用嗎？\n請扮演口試委員，針對主要模型提出三個最可能被質疑的問題，每題附文獻依據。" },
+      { id: "mc_take", type: "button", below: true, label: "採用回覆中的「修正後的模型組」", hint: "把下方 AI 回覆的修正後模型組帶入「研究模型組」",
+        run: () => { const t = pipeLines(mdSec((store.replies || {})["s0-5|mchk"], "修正後的模型組")); if (!t) return "回覆中沒有找到「## 修正後的模型組」一節。";
+          if (!blank(store.values.pm_final) && !confirm("「研究模型組」已有內容，要以修正後的模型組取代嗎？")) return "未變更"; store.values.pm_final = t; return "已帶入修正後的模型組。"; } }
+    ],
+    rules: () => ["citation"],
+    build: (p, R) => {
+      const model = modelText(), qs = splitLines(p.mc_qs), pr = pdGoal(pdVals().goal).r;
+      const checks = PD_CHECKS.filter(c => p.mc_checks.includes(c.key) && (!c.pred || pr)).map(c => c.text);
+      return !model || (!checks.length && !qs.length) ? "" : T.pd_check({ ...pdVals(), model, checks, qs }) + R;
+    },
+    status: p => blank(p.pm_final) && modelText() ? "「研究模型組」留白，使用 0.2 回覆中的模型組。" : "",
+    empty: "（0.2 還沒有研究模型組，或請至少勾選一個檢核項目、填入一個問題）",
+    next: "下一步：回覆貼到下方「AI 回覆」；同意修正時按「採用回覆中的修正後的模型組」。還有疑問時，用{#archq}在同一個對話接著問。"
+  },
+  pdict: {
+    label: "資料字典與分析樣本", target: "nlm",
+    hint: "接在 0.3 同一個對話。依研究模型組與資料欄位，列出每個變數的建構方式、分析樣本的納入與排除規則；研究目標含預測時，另規劃訓練期與驗證期的時間切分。",
+    fields: [
+      { id: "pd_fields", type: "textarea", label: "現有資料欄位", hint: "與 0.2 共用", rows: 3 },
+      { id: "dc_cut", type: "text", label: "預測時點與預測期間", hint: "選填；研究目標含預測時使用", placeholder: "例如：以 2024 年 12 月為預測時點，預測 2025 年上半年是否再次捐款", when: () => pdGoal(pdVals().goal).r }
+    ],
+    rules: () => ["citation"],
+    build: (p, R) => { const model = modelText(); return model ? T.pd_dict({ ...pdVals(), model, cut: (p.dc_cut || "").trim() }) + R : ""; },
+    empty: "（0.2 還沒有研究模型組）",
+    next: "下一步：依資料字典整理資料，再到{#mreport}規劃第四章要揭露的結果。"
+  },
+  mreport: {
+    label: "實證結果揭露規劃", target: "nlm",
+    hint: "接在同一個對話。規劃第四章的安排、並列各模型結果的模型比較表，以及應揭露的統計量；一般應報告但上傳文獻未報告者標示【待補文獻】。",
+    fields: [
+      { id: "mr_extra", type: "text", label: "補充要求", hint: "選填", placeholder: "例如：係數以平均邊際效果呈現；預測結果另做名單前 10% 的增益圖" }
+    ],
+    rules: () => ["citation"],
+    build: (p, R) => { const model = modelText(); return model ? T.pd_report({ model, goal: pdVals().goal, extra: (p.mr_extra || "").trim() }) + R : ""; },
+    empty: "（0.2 還沒有研究模型組）",
+    next: "下一步：到 0.5 擬定論文題目。"
   }
 };
 
@@ -2056,13 +2161,25 @@ const OUTLINE = [
       { mod: "m5a", note: "選用（整批文獻全貌）：開新對話，盤點主題、理論與研究方法。", go: [{ to: "s0-1", step: 3, when: "同一個對話接續" }] },
       { mod: "m5b", note: "選用（整批文獻全貌）：同一個對話接續，以文字說明各變數的定義、測量與角色，並畫關係圖；用來理解變數，挑選變數請用 0.2。", go: [{ to: "s0-1", step: 4, when: "同一個對話接續" }] },
       { mod: "m5c", note: "選用（整批文獻全貌）：同一個對話接續，從變數、理論、情境與方法四個面向，找出整個領域的研究缺口與研究主題建議。", go: [{ to: "s0-4", step: 0, when: "看完全貌、選定研究方向後" }] }] },
-    { id: "s0-4", no: "0.2", title: "形成研究架構", desc: "兩種做法：有研究主題與情境時，先由 AI 提出候選架構（步驟 1），再到步驟 2 勾選變數、畫出路徑；自變數與依變數已確定時，直接到步驟 2，勾選「自變數與依變數已確定」。組合好的架構到 0.3 檢核；已有自己的架構或只有架構圖圖片，直接到 0.3 選「自行設計或匯入」。", steps: [
+    { id: "s0-4", no: "0.2", title: "形成研究架構",
+      mtitle: "形成研究模型", mdesc: "追蹤資料研究的重點在於估計目標與模型設定：先描述資料、收斂解釋與預測目標（步驟 1），再請 AI 提出彼此競爭的候選模型、比較策略與各種比較結果的策略意涵（步驟 2），選定研究模型組。",
+      msteps: [
+      { mod: "pdata", note: "在已上傳文獻的 NotebookLM 開新對話。文獻以使用追蹤資料或紀錄資料、研究相同或相近依變數的實證研究為主。", go: [{ to: "s0-4", step: 1, when: "回覆貼上、選定依變數定義後" }] },
+      { mod: "pmodel", note: "接在步驟 1 的同一個對話。", go: [{ to: "s0-5", step: 0, when: "選定研究模型組後" }] }], desc: "兩種做法：有研究主題與情境時，先由 AI 提出候選架構（步驟 1），再到步驟 2 勾選變數、畫出路徑；自變數與依變數已確定時，直接到步驟 2，勾選「自變數與依變數已確定」。組合好的架構到 0.3 檢核；已有自己的架構或只有架構圖圖片，直接到 0.3 選「自行設計或匯入」。", steps: [
       { mod: "asf", note: "由 AI 提出幾個合理的研究架構，再由你挑選；已確定依變數時可填入。需要更完整的變數時，勾選最下方的「補充變數清單」。", go: [{ to: "s0-4", step: 1, when: "回覆貼到「AI 回覆」後，勾選變數、請 AI 提出候選架構" }] },
       { mod: "asmix", note: "勾選變數（同一角色可勾多個候選）→ 請 AI 提出候選架構 → 網頁畫出各候選，選定最適合者 → 到 0.3 檢核。自變數與依變數已確定時，先勾選上方的「已確定」，請 AI 建議中介與調節變數。", go: [{ to: "s0-5", step: 0, when: "選定架構後，檢核合理性並產生研究缺口與學術貢獻" }] }] },
-    { id: "s0-5", no: "0.3", title: "研究架構合理性檢核", desc: "依已上傳的文獻檢核研究架構的合理性，並提出文獻支持更充分的修正架構：0.2 各路線產出的架構都在這裡檢核，也可單獨使用（例如只有一張架構圖）。NotebookLM 依制式項目與你的問題檢核 → 同一對話追問。", steps: [
+    { id: "s0-5", no: "0.3", title: "研究架構合理性檢核",
+      mtitle: "模型設定合理性檢核", mdesc: "依已上傳的文獻檢核研究模型組的設定：內生性、未觀察異質性、樣本選擇、時間結構、代理變數、模型比較的公平性與策略意涵的推論範圍；提出修正後的模型組，並整理研究缺口與預期貢獻。",
+      msteps: [
+      { mod: "mchk", note: "研究模型組由 0.2 帶入。可接在 0.2 的同一個 NotebookLM 對話；文獻不足時，先補上方法論文獻（例如追蹤資料計量方法的教科書章節或方法論文）。", go: [{ to: "s0-5", step: 1, when: "還有疑問時" }, { to: "s0-6", step: 0, when: "模型組確定後" }] },
+      { mod: "archq", note: "接在步驟 1 的同一個對話；可重複使用。", go: [{ to: "s0-6", step: 0, when: "疑問釐清、模型組確定後" }] }], desc: "依已上傳的文獻檢核研究架構的合理性，並提出文獻支持更充分的修正架構：0.2 各路線產出的架構都在這裡檢核，也可單獨使用（例如只有一張架構圖）。NotebookLM 依制式項目與你的問題檢核 → 同一對話追問。", steps: [
       { mod: "archchk", note: "選擇研究架構來源：在 0.2 組合的架構選「0.2 組合研究架構」，會自動帶入；已有自己的架構或只有架構圖圖片，選「自行設計或匯入」。NotebookLM 需先上傳與架構相關的文獻；文獻愈完整，檢核愈有意義。", go: [{ to: "s0-5", step: 1, when: "對檢核結果還有疑問" }, { to: "s0-6", step: 0, when: "架構確定後（維持原架構或已採用修正架構並再檢核）" }] },
       { mod: "archq", note: "接在步驟 1 的同一個對話；可重複使用。", go: [{ to: "s0-6", step: 0, when: "疑問釐清、架構確定後" }] }] },
-    { id: "s0-6", no: "0.4", title: "研究設計", desc: "研究架構確定之後：確認文獻用過的統計方法、本研究適用的方法與應揭露的實證結果；研究方法為問卷調查法或實驗設計法時，再產出問卷草稿。", steps: [
+    { id: "s0-6", no: "0.4", title: "研究設計",
+      mdesc: "研究模型組確定之後：建立資料字典與分析樣本規則（預測時另規劃時間切分），再規劃第四章要揭露的模型比較結果與統計量。",
+      msteps: [
+      { mod: "pdict", note: "接在 0.3 的同一個 NotebookLM 對話。", go: [{ to: "s0-6", step: 1, when: "資料字典完成後" }] },
+      { mod: "mreport", note: "接在同一個對話。", go: [{ to: "s0-7", step: 0, when: "研究設計完成，擬定論文題目" }] }], desc: "研究架構確定之後：確認文獻用過的統計方法、本研究適用的方法與應揭露的實證結果；研究方法為問卷調查法或實驗設計法時，再產出問卷草稿。", steps: [
       { mod: "astat", note: "選定變數與資料之後：確認統計方法，以及實證結果應揭露哪些項目。可接在 0.3 檢核的同一個對話。", go: [{ to: "s0-6", step: 1, when: "研究方法為問卷調查法或實驗設計法" }, { to: "s1-1", step: 0, when: "panel data，或統計方法已確定，開始撰寫第一章" }] },
       { mod: "asq", note: "研究方法為問卷調查法或實驗設計法時使用：產出問卷草稿，並評估題數、樣本數、量表與施測風險；panel data 可跳過。", go: [{ to: "s0-7", step: 0, when: "研究設計完成，擬定論文題目" }, { to: "s3-3", step: 0, when: "正式撰寫量表與操作型定義時" }] }] },
     { id: "s0-7", no: "0.5", title: "論文題目", desc: "依確定的研究架構擬定中英文論文題目：AI 提出候選題目並比較優缺點，再由你定稿；定稿題目會成為論文草稿檔的標題。", steps: [
@@ -2347,7 +2464,10 @@ function hlItems() {
 }
 function hlText() { const it = hlItems(); return it.length ? "依據第二章的推導，本研究提出以下假說：\n\n" + it.join("\n") : ""; }
 function hlView() { const it = hlItems(); return it.length ? `<ol class="hlist">${it.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : `<p class="hint">第二章各變數一節還沒有出現「H1：……」形式的假說敘述。</p>`; }
-const stepsOf = sec => [...sec.steps, ...(sec.finish || []).map(m => ({ mod: m, note: FINISH_NOTE[m], finish: true }))];
+const stepsOf = sec => [...((RT() === "model" && sec.msteps) || sec.steps), ...(sec.finish || []).map(m => ({ mod: m, note: FINISH_NOTE[m], finish: true }))];
+// 研究類型為 panel data 時，第零章部分節改用模型導向的標題與說明
+const secTitle = s => (RT() === "model" && s.mtitle) || s.title;
+const secDesc = s => (RT() === "model" && s.mdesc) || s.desc;
 
 // 說明文字中的{#id}：本節有此模組時寫成「步驟 n」，否則指出它在目錄中的位置
 function fillRefs(text, sec) {
@@ -2355,7 +2475,7 @@ function fillRefs(text, sec) {
     const label = `「${DEFS[id].label}」`;
     const i = stepsOf(sec).findIndex(s => s.mod === id);
     if (i >= 0) return `步驟 ${i + 1}${label}`;
-    const home = ALL_SECS.find(s => s.steps.some(st => st.mod === id));
-    return home ? `${label}（${home.no ? "目錄 " + home.no + " " + home.title : "常用：" + home.title}）` : label;
+    const home = ALL_SECS.find(s => stepsOf(s).some(st => st.mod === id)) || ALL_SECS.find(s => [...s.steps, ...(s.msteps || [])].some(st => st.mod === id));
+    return home ? `${label}（${home.no ? "目錄 " + home.no + " " + secTitle(home) : "常用：" + home.title}）` : label;
   });
 }

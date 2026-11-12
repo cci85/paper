@@ -161,7 +161,7 @@ function readable(pngs) {
       if (!blank(r)) lines.push(`**AI 回覆**\n\n${mdText(fenceMermaid(deLatex(r)))}`);
       if (lines.length) blocks.push(`### ${s.no ? `步驟 ${i + 1}　` : ""}${m.label}\n\n${lines.join("\n\n")}`);
     });
-    if (blocks.length) out.push(`## ${s.no ? s.no + " " : ""}${s.title}\n\n${blocks.join("\n\n")}`);
+    if (blocks.length) out.push(`## ${s.no ? s.no + " " : ""}${secTitle(s)}\n\n${blocks.join("\n\n")}`);
   });
   return out.join("\n\n");
 }

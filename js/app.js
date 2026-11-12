@@ -92,10 +92,14 @@ const activeRules = (m, p) => store.rules[ruleKey(m, p)] ?? step().rules ?? m.ru
 
 // 左側目錄
 function renderToc() {
-  $("toc").innerHTML = OUTLINE.map(c => {
+  const rt = RT();
+  $("toc").innerHTML = `<div class="rtype"><small>研究類型</small><div class="chips">` +
+    [["construct", "問卷／實驗"], ["model", "panel data"]].map(([v, t]) =>
+      `<label class="chip"><input type="radio" name="rtype" data-rtype="${v}" ${rt === v ? "checked" : ""}>${t}</label>`).join("") +
+    `</div><small class="hint">${rt === "model" ? "模型導向：第零章 0.2–0.4 改為資料結構、候選模型與模型比較" : "構念導向：變數、路徑與量表"}</small></div>` + OUTLINE.map(c => {
     const open = c.quick || c.secs.some(s => s.id === store.sec);
     return `<details class="${c.quick ? "quick" : ""}" ${open ? "open" : ""}><summary>${esc(c.ch)}</summary>` +
-      c.secs.map(s => `<button data-sec="${s.id}" class="${s.id === store.sec ? "on" : ""}"><b>${s.no}</b>${esc(s.title)}</button>`).join("") +
+      c.secs.map(s => `<button data-sec="${s.id}" class="${s.id === store.sec ? "on" : ""}"><b>${s.no}</b>${esc(secTitle(s))}</button>`).join("") +
       `</details>`;
   }).join("");
 }
@@ -104,7 +108,7 @@ function renderToc() {
 function renderSection() {
   const s = sec(), i = stepIdx();
   const single = steps().length === 1 && !s.no;
-  $("sechead").innerHTML = `<h2>${s.no ? `<span class="no">${s.no}</span>` : ""}${esc(s.title)}</h2><p class="hint">${esc(s.desc)}</p>
+  $("sechead").innerHTML = `<h2>${s.no ? `<span class="no">${s.no}</span>` : ""}${esc(secTitle(s))}</h2><p class="hint">${esc(secDesc(s))}</p>
     <ol class="steps" ${single ? "hidden" : ""}>${steps().map((st, k) =>
       `<li><button data-step="${k}" class="${k === i ? "on" : ""}${st.finish ? " fin" : ""}"><b>${k + 1}</b>${esc(DEFS[st.mod].label)}</button></li>`).join("")}</ol>`;
 }
@@ -242,7 +246,7 @@ function goNext() {
   const go = step().go; if (!go || !go.length) return "";
   return `<div class="gonext"><b>建議下一步</b>` + go.map(g => {
     const s = ALL_SECS.find(x => x.id === g.to); if (!s) return "";
-    const st = stepsOf(s)[g.step || 0], label = `${s.no ? s.no + " " : ""}${s.title}${stepsOf(s).length > 1 ? `・步驟 ${(g.step || 0) + 1}「${DEFS[st.mod].label}」` : ""}`;
+    const st = stepsOf(s)[g.step || 0], label = `${s.no ? s.no + " " : ""}${secTitle(s)}${stepsOf(s).length > 1 ? `・步驟 ${(g.step || 0) + 1}「${DEFS[st.mod].label}」` : ""}`;
     return `<div class="go"><button type="button" data-go="${g.to}" data-gostep="${g.step || 0}">前往 ${esc(label)} →</button>${g.when ? `<small>${esc(g.when)}</small>` : ""}</div>`;
   }).join("") + `</div>`;
 }
@@ -252,6 +256,10 @@ $("pane").addEventListener("click", e => {
   $("sechead").scrollIntoView({ behavior: "smooth" });
 });
 
+$("toc").addEventListener("change", e => {   // 研究類型開關：只換第零章的步驟，已填的內容都保留
+  const r = e.target.closest("input[data-rtype]"); if (!r) return;
+  store.values.rtype = r.dataset.rtype; save(); showAll();
+});
 $("toc").addEventListener("click", e => {
   const b = e.target.closest("button[data-sec]"); if (!b) return;
   store.sec = b.dataset.sec; showAll();

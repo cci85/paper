@@ -118,6 +118,11 @@ p.target { margin: 2px 0 10px; }
 .layout { max-width: 1440px; margin: 0 auto; padding: 4px 16px 40px; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; align-items: start; }
 #toc { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px; }
 #toc details { margin: 2px 0; }
+#toc .rtype { padding: 6px 8px 10px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+#toc .rtype > small:first-child { font-weight: 700; color: var(--muted); }
+#toc .rtype .chips { margin: 4px 0; }
+#toc .rtype .chip { font-size: 13px; padding: 3px 10px; }
+#toc .rtype .hint { display: block; font-size: 12px; line-height: 1.5; color: var(--muted); }
 #toc summary { cursor: pointer; font-weight: 700; font-size: 14.5px; padding: 6px 8px; border-radius: 8px; list-style-position: inside; }
 #toc summary:hover { background: var(--bg); }
 #toc button { display: flex; gap: 8px; width: 100%; text-align: left; border: 0; background: none; color: var(--text); font: inherit; font-size: 14px; padding: 6px 8px 6px 22px; border-radius: 8px; cursor: pointer; }
