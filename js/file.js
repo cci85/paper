@@ -297,14 +297,19 @@ async function chooseDir() {
 }
 
 async function listFiles(dir) {
-  const items = [];
+  const items = [], bad = [];   // bad：.md 但讀不到研究資料（未同步完成、空檔或內容不完整），列出來方便排查
   for await (const [n, h] of dir.entries()) {
     if (h.kind !== "file" || !/\.md$/i.test(n)) continue;
-    const f = await h.getFile();
-    if (!f.size || f.size > 3e7) continue;
-    const d = parseFile(await f.text());
+    let f, d = null;
+    try { f = await h.getFile(); } catch { bad.push({ n, why: "無法讀取（可能還沒從雲端下載到這台電腦）" }); continue; }
+    if (/_論文\.md$/i.test(n)) continue;   // 論文草稿檔，本來就沒有研究資料
+    if (!f.size) { bad.push({ n, why: "檔案是空的（可能還在同步）" }); continue; }
+    if (f.size > 3e7) continue;
+    try { d = parseFile(await f.text()); } catch {}
     if (d) items.push({ n, t: f.lastModified, name: d.name || "", bak: /_備份_\d{8}-\d{6}\.md$/i.test(n) });
+    else bad.push({ n, why: "找不到網頁的研究資料區塊（檔案可能不完整，或不是本網頁建立的）" });
   }
+  items.bad = bad;
   return items.sort((a, b) => a.bak - b.bak || b.t - a.t);
 }
 
@@ -318,8 +323,9 @@ async function openResearch() {
   const btn = x => `<button type="button" data-open="${esc(x.n)}"><b>${esc(x.n.replace(/\.md$/i, ""))}</b><small>${x.name && x.name + ".md" !== x.n ? "研究名稱：" + esc(x.name) + "｜" : ""}${new Date(x.t).toLocaleString("zh-TW", { hour12: false })}</small></button>`;
   const main = items.filter(x => !x.bak), bak = items.filter(x => x.bak);
   box.innerHTML = `<p class="hint">資料夾「${esc(dir.name)}」：點選要開啟的研究　<button type="button" data-act="closelist">取消</button></p>` +
-    (main.length ? main.map(btn).join("") : `<p class="hint">這個資料夾沒有研究存檔。要在這裡開始新的研究，請按「新研究」。</p>`) +
-    (bak.length ? `<details><summary>備份檔（${bak.length}）</summary>${bak.map(btn).join("")}</details>` : "");
+    (main.length ? main.map(btn).join("") : `<p class="hint">這個資料夾沒有研究存檔。若另一台電腦已在這裡建立研究，請確認 Google 雲端硬碟已同步到這台電腦（在檔案總管打開這個資料夾，看得到該 .md 檔才算同步完成）；要在這裡開始新的研究，請按「新研究」。</p>`) +
+    (bak.length ? `<details><summary>備份檔（${bak.length}）</summary>${bak.map(btn).join("")}</details>` : "") +
+    ((items.bad || []).length ? `<p class="hint warn">下列檔案無法當成研究開啟：<br>${items.bad.map(x => `${esc(x.n)}：${esc(x.why)}`).join("<br>")}</p>` : "");
   box.hidden = false;
 }
 async function openFromDir(name) {
