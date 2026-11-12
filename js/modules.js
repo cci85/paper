@@ -166,7 +166,7 @@ const pmRole = m => { const r = (store.values.pm_roles || {})[m.key]; return r =
 function pmApply() {   // 依各模型的角色重寫「選定的研究模型組」
   const ms = pmParse(), rows = [];
   PM_ROLES.forEach(r => ms.filter(m => pmRole(m) === r).forEach(m => rows.push(`${r}｜${m.name}｜${m.purpose}`)));
-  store.values.pm_final = rows.join("\n");
+  store.values.pm_final = rows.join("\n"); store.values.pm_src = "0.2 選擇模型";
 }
 function pmView() {
   const ms = pmParse();
@@ -186,9 +186,19 @@ function mchkAuto(text) {
   const cur = (v.pm_final || "").trim() || pipeLines(mdSec((store.replies || {})["s0-4|pmodel"], "選定模型組"));
   if (!(v.pm_auto_sig && v.pm_prev != null && pmNorm(cur) === v.pm_auto_sig)) v.pm_prev = cur;   // 目前是上一次自動帶入的版本時，保留更早的原始版本
   v.pm_auto_sig = sig;
+  const src = pipeLines(mdSec(text, "建議的研究模型組")) ? "0.3「比較兩版並建議」回覆中的建議模型組" : "0.3 檢核回覆中的修正後模型組";
   if (pmNorm(cur) === sig) return "AI 建議的模型組與目前相同，研究模型組維持不變。";
-  v.pm_final = rows;
+  v.pm_final = rows; v.pm_src = src;
   return "已把 AI 建議的模型組帶入最上方的「研究模型組」；不同意時，按對照表下方的「復原為帶入前的模型組」。";
+}
+// 「研究模型組」目前內容的來源（顯示在 0.3 狀態列）
+function pmSrc() {
+  const v = store.values, cur = pmNorm(v.pm_final);
+  if (v.pm_prev != null && cur === pmNorm(v.pm_prev) && v.pm_auto_sig && cur !== v.pm_auto_sig) return "帶入 AI 建議之前的版本（已復原）";
+  if (v.pm_src && v.pm_src !== "0.2 選擇模型" && cur === v.pm_auto_sig) return v.pm_src;
+  if (v.pm_src === "0.2 選擇模型") { const ms = pmParse(), rows = []; PM_ROLES.forEach(r => ms.filter(m => pmRole(m) === r).forEach(m => rows.push(`${r}｜${m.name}｜${m.purpose}`)));
+    if (pmNorm(rows.join("\n")) === cur) return "0.2 步驟 2 選擇模型的結果（尚未經 0.3 檢核）"; }
+  return "自行填寫或修改的版本";
 }
 // 0.3 panel data：對照帶入前與 AI 建議的模型組
 function mchkView(text) {
@@ -218,7 +228,7 @@ function mchkView(text) {
       <ol><li><b>主要模型</b>：哪一個能直接回答你的研究問題（估計你要的效果）？兩版主要模型若都能回答，選假設較少、能保留較多樣本者。</li>
       <li><b>比較模型</b>：只保留「和主要模型只差一項設定、而且這個差異能證明某個設定有必要」的模型；比較後說不出意義的就不要放。</li>
       <li><b>穩健性模型</b>：只放能回應上方檢核中具體疑慮的模型；資料條件不足（例如缺少必要的落後期）或你使用的軟體做不到的，改列為研究限制。</li></ol>
-      還是無法決定時，複製下方 Prompt，在同一個 NotebookLM 對話請 AI 逐一比較兩版的差異並給建議。
+      還是無法決定時，複製下方 Prompt，在同一個 NotebookLM 對話請 AI 逐一比較兩版的差異並給建議；回覆接在上方「AI 回覆」的最後，其中的「建議的研究模型組」會自動帶入最上方的「研究模型組」。
       <p><button type="button" class="copy" data-copytext="${esc(T.pd_decide({ cur: A.map(r => r.join("｜")).join("\n"), rev: B.map(r => r.join("｜")).join("\n") }) + citeText())}">③ 複製「比較兩版並建議」Prompt</button></p></div>` : ""}
     ${auto ? (pmNorm(store.values.pm_final) === store.values.pm_auto_sig
       ? `<p class="note">右欄已自動帶入最上方的「研究模型組」，後續步驟會使用它；也可以直接在那裡修改，混合兩版。${diff ? ` <button type="button" data-pmrestore="1">復原為帶入前的模型組</button>` : ""}</p>`
@@ -1208,7 +1218,7 @@ const DEFS = {
     },
     replyView: t => mchkView(t),
     autoReply: t => mchkAuto(t),
-    status: p => blank(p.pm_final) && modelText() ? "「研究模型組」留白，使用 0.2 回覆中的模型組。" : "",
+    status: p => blank(p.pm_final) ? (modelText() ? "「研究模型組」留白，使用 0.2 回覆中 AI 建議的模型組。" : "") : `「研究模型組」目前的內容：${pmSrc()}。`,
     empty: "（0.2 還沒有研究模型組，或請至少勾選一個檢核項目、填入一個問題）",
     next: "下一步：回覆貼到下方「AI 回覆」；同意對照表右欄時按「採用 AI 建議的模型組」。還有疑問時，用{#archq}在同一個對話接著問。"
   },
