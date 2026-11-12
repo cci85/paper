@@ -226,6 +226,7 @@ pre.pboxpre { margin: 8px 0 0; white-space: pre-wrap; word-break: break-word; fo
 .cand.on { border: 2px solid var(--accent); background: var(--accent-soft); }
 .cand-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .cand-head b { font-size: 14px; }
+.cand-head small { white-space: nowrap; }
 .cand-head .copy { padding: 5px 12px; font-size: 13px; white-space: nowrap; }
 .cand-svg svg { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; margin-top: 8px; background: #fff; }
 .cand summary { cursor: pointer; color: var(--accent); font-size: 13px; margin-top: 6px; }

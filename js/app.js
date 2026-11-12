@@ -312,6 +312,9 @@ $("pane").addEventListener("paste", e => {   // 貼上時只保留純文字
 });
 $("pane").addEventListener("input", e => {
   const t = e.target;
+  if (t.dataset && t.dataset.pmrole != null) {   // 0.2 panel data：為候選模型選角色，重寫選定的研究模型組
+    (store.values.pm_roles ||= {})[t.dataset.pmrole] = t.value; pmApply(); save(); renderPane(); update(); return;
+  }
   if (t.dataset && t.dataset.tblskip != null) {   // 本節表格：取消勾選的表不放入論文（依節記住表標題）
     const all = (store.values.tbl_skip ||= {}), sk = new Set(all[store.sec] || []); t.checked ? sk.delete(t.dataset.tblskip) : sk.add(t.dataset.tblskip);
     all[store.sec] = [...sk]; save();
@@ -383,6 +386,7 @@ $("pane").addEventListener("input", e => {
   }
   if (t.dataset.reply) {
     (store.replies ||= {})[replyKey()] = t.value; save(); renderReplyView();
+    mod().fields.filter(f => f.type === "cands" && f.id === "pm_view").forEach(f => { const el = $("cands-" + f.id); if (el) el.innerHTML = f.render(); });   // 0.2 panel data：回覆貼上後立即列出候選模型
     const fb = $("finbox"); if (fb) { const open = fb.open; fb.outerHTML = finBox(); const nb = $("finbox"); if (nb) nb.open = open; }   // 撰寫步驟貼上回覆後，定稿立即更新
     return;
   }

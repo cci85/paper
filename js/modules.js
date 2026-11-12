@@ -113,6 +113,49 @@ function modelText() {
 }
 // 只保留「角色｜名稱｜…」的行，避免帶入回覆中其他段落
 const pipeLines = t => String(t || "").split(/\r?\n/).map(l => l.replace(/^[\s\-*•]+/, "").trim()).filter(l => /｜|\|/.test(l) && !/^[-|｜:\s]+$/.test(l)).join("\n");
+// panel data：0.2 步驟 2 回覆中的候選模型（### 模型 A：名稱），以及 AI 建議的角色與目的
+const PM_ROLES = ["主要模型", "比較模型", "穩健性模型"];
+const pmNorm = t => String(t || "").replace(/\s+/g, "").toLowerCase();
+function pmParse() {
+  const r = String(((typeof store !== "undefined" && store.replies) || {})["s0-4|pmodel"] || "").replace(/\*\*/g, "");
+  const L = r.split(/\r?\n/), models = [];
+  let cur = null;
+  L.forEach(l => {
+    const m = l.trim().match(/^#{2,4}\s*模型\s*([A-Za-zＡ-Ｚ0-9０-９一二三四五六七八九十]+)\s*[：:]\s*(.+)$/);
+    if (m) { cur = { id: m[1], name: m[2].trim(), body: [] }; models.push(cur); return; }
+    if (/^#{1,3}\s/.test(l.trim()) && !/^#{4}/.test(l.trim())) { cur = null; return; }   // 下一個大節（比較策略等）
+    if (cur) cur.body.push(l);
+  });
+  const sug = pipeLines(mdSec(r, "選定模型組")).split("\n").filter(Boolean).map(l => l.split(/[｜|]/).map(x => x.trim()));
+  const en = t => (String(t).match(/[（(]([^（）()]*[A-Za-z][^（）()]*)[）)]/) || [, ""])[1];
+  const zh = t => pmNorm(String(t).replace(/[（(][^（）()]*[）)]/g, ""));
+  const same = (a, b) => { const x = pmNorm(a), y = pmNorm(b), ex = pmNorm(en(a)), ey = pmNorm(en(b)), za = zh(a), zb = zh(b);
+    return x === y || (za.length > 1 && za === zb) || (ex.length > 3 && ey.length > 3 && (ex.includes(ey) || ey.includes(ex))) || (x.length > 3 && y.includes(x)) || (y.length > 3 && x.includes(y)); };
+  models.forEach(m => {
+    m.body = m.body.join("\n").trim();
+    const s = sug.find(x => x[1] && same(x[1], m.name));
+    m.sugRole = s && PM_ROLES.includes(s[0]) ? s[0] : "";
+    const q = (m.body.match(/回答的問題[：:]\s*(.+)/) || [, ""])[1];
+    m.purpose = (s && s[2]) || q.replace(/[。；].*$/, "").slice(0, 60);
+    m.key = pmNorm(m.name);
+  });
+  return models;
+}
+const pmRole = m => { const r = (store.values.pm_roles || {})[m.key]; return r === undefined ? m.sugRole : r; };
+function pmApply() {   // 依各模型的角色重寫「選定的研究模型組」
+  const ms = pmParse(), rows = [];
+  PM_ROLES.forEach(r => ms.filter(m => pmRole(m) === r).forEach(m => rows.push(`${r}｜${m.name}｜${m.purpose}`)));
+  store.values.pm_final = rows.join("\n");
+}
+function pmView() {
+  const ms = pmParse();
+  if (!ms.length) return `<p class="hint">（上方「AI 回覆」貼上後，這裡會列出「### 模型 A：……」形式的候選模型）</p>`;
+  return ms.map((m, i) => { const r = pmRole(m);
+    return `<div class="cand${r ? " on" : ""}"><div class="cand-head"><b>模型 ${esc(m.id)}：${esc(m.name)}</b>${m.sugRole ? `<small class="hint">AI 建議：${esc(m.sugRole)}</small>` : ""}</div>
+      <div class="chips">${[...PM_ROLES, ""].map(v => `<label class="chip"><input type="radio" name="pmr${i}" data-pmrole="${esc(m.key)}" value="${esc(v)}" ${r === v ? "checked" : ""}>${v || "不採用"}</label>`).join("")}</div>
+      ${m.purpose ? `<p class="hint" style="margin:6px 0 0">目的：${esc(m.purpose)}</p>` : ""}
+      <details><summary>看模型說明</summary><div class="cand-reason">${esc(m.body)}</div></details></div>`; }).join("");
+}
 // panel data：0.2 步驟 1 回覆中的變數清單
 const pdVarText = () => pipeLines(mdSec(((typeof store !== "undefined" && store.replies) || {})["s0-4|pdata"], "變數清單"));
 const pdVals = () => { const v = store.values; return { ctx: (v.as_ctx || "").trim(), con: (v.as_con || "").trim(), unit: (v.pd_unit || "").trim(), time: (v.pd_time || "").trim(),
@@ -1038,6 +1081,8 @@ const DEFS = {
       { id: "pm_dv", type: "text", label: "選定的依變數定義", hint: "選填；從上一步回覆的「依變數的定義選項」挑一種，可寫兩種", placeholder: "例如：下一個月是否捐款（是／否），以及捐款時的金額" },
       { id: "pm_must", type: "text", label: "必須納入的模型或設定", hint: "選填；例如指導教授指定的模型", placeholder: "例如：兩階段模型（hurdle model）；固定效果模型" },
       { id: "pm_n", type: "radio", label: "候選模型數量", options: [["3", "3 個"], ["4", "4 個"], ["5", "5 個"]], value: "4" },
+      { id: "pm_view", type: "cands", below: true, label: "選擇模型", hint: "貼上回覆後，這裡會列出每個候選模型；為每個模型選一個角色，下方「選定的研究模型組」會自動更新。預設依 AI 的建議；不需要的模型選「不採用」",
+        render: () => pmView() },
       { id: "pm_final", type: "textarea", below: true, label: "選定的研究模型組", hint: "每行一個：角色｜模型名稱（英文原文）｜目的。留白時自動使用 0.3 回覆的「修正後的模型組」，沒有時使用上方回覆的「選定模型組」；會帶到 0.3、0.4 與 0.5", rows: 4, mono: true,
         placeholder: "主要模型｜兩階段模型（Hurdle Model）｜分別估計勸募接觸對是否捐款與捐款金額的效果\n比較模型｜固定效果線性機率模型（Fixed-Effects Linear Probability Model）｜檢驗效果是否來自捐款者本身的變化" }
     ],
