@@ -1096,10 +1096,14 @@ const DEFS = {
     hint: "依上傳文獻逐項檢核研究模型組：內生性、未觀察異質性、樣本選擇、時間結構、代理變數、模型比較的公平性與策略意涵的推論範圍；最後提出修正後的模型組，並整理研究缺口與預期貢獻。可接在 0.2 的同一個對話，也可開新對話。",
     fields: [
       { id: "pm_final", type: "textarea", label: "研究模型組", hint: "與 0.2「選定的研究模型組」共用；留白時自動使用 0.2 回覆的「選定模型組」", rows: 4, mono: true },
+      { id: "mc_conv", type: "radio", label: "對話", hint: "接在 0.2 的同一個對話時，不重複貼上資料描述與變數清單，Prompt 比較短", options: [["same", "接在 0.2 的同一個對話"], ["new", "開新對話"]], value: "same" },
       { id: "mc_checks", type: "checks", label: "檢核項目", hint: "可全部取消，只問自己的問題；「資料洩漏」只在研究目標含預測時送出",
         options: PD_CHECKS.map(c => [c.key, c.label]), value: PD_CHECKS.map(c => c.key) },
       { id: "mc_qs", type: "textarea", label: "我的問題", hint: "選填；每行一題，會與檢核項目一起送出", rows: 3,
         placeholder: "大多數捐款者只捐過一次，固定效果模型還適用嗎？\n請扮演口試委員，針對主要模型提出三個最可能被質疑的問題，每題附文獻依據。" },
+      { id: "mc_second", type: "promptbox", afterOut: true, label: "第二則 Prompt：修正後的模型組、研究缺口與預期貢獻",
+        hint: "第一則的回覆完成後，在同一個對話接著送出；兩則回覆依序貼到下方「AI 回覆」",
+        copyLabel: "② 複製第二則 Prompt（同一個對話接著送出）", build: () => T.pd_check2() },
       { id: "mc_take", type: "button", below: true, label: "採用回覆中的「修正後的模型組」", hint: "把下方 AI 回覆的修正後模型組帶入「研究模型組」",
         run: () => { const t = pipeLines(mdSec((store.replies || {})["s0-5|mchk"], "修正後的模型組")); if (!t) return "回覆中沒有找到「## 修正後的模型組」一節。";
           if (!blank(store.values.pm_final) && !confirm("「研究模型組」已有內容，要以修正後的模型組取代嗎？")) return "未變更"; store.values.pm_final = t; return "已帶入修正後的模型組。"; } }
@@ -1108,7 +1112,7 @@ const DEFS = {
     build: (p, R) => {
       const model = modelText(), qs = splitLines(p.mc_qs), pr = pdGoal(pdVals().goal).r;
       const checks = PD_CHECKS.filter(c => p.mc_checks.includes(c.key) && (!c.pred || pr)).map(c => c.text);
-      return !model || (!checks.length && !qs.length) ? "" : T.pd_check({ ...pdVals(), model, checks, qs }) + R;
+      return !model || (!checks.length && !qs.length) ? "" : T.pd_check({ ...pdVals(), model, checks, qs, same: p.mc_conv !== "new" }) + R;
     },
     status: p => blank(p.pm_final) && modelText() ? "「研究模型組」留白，使用 0.2 回覆中的模型組。" : "",
     empty: "（0.2 還沒有研究模型組，或請至少勾選一個檢核項目、填入一個問題）",
