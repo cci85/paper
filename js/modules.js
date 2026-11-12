@@ -168,7 +168,7 @@ function mchkView(text) {
   const cur = (store.values.pm_final || "").trim() || pipeLines(mdSec((store.replies || {})["s0-4|pmodel"], "選定模型組"));
   const rows = t => pipeLines(t).split("\n").filter(Boolean).map(l => l.split(/[｜|]/).map(x => x.trim()));
   const A = rows(cur), B = rows(sec), key = r => pmNorm((r[1] || "").replace(/[（(][^（）()]*[）)]/g, "")) || pmNorm(r[1]);
-  const notes = sec.split(/\r?\n/).map(l => l.trim()).filter(l => l && !/[｜|]/.test(l)).map(l => l.replace(/^[-*•\d.、\s]+/, ""));
+  const notes = sec.split(/\r?\n/).map(l => l.trim()).filter(l => l && !/[｜|]/.test(l) && !/^(#|-{3,}|修正之處)/.test(l)).map(l => l.replace(/^[-*•\d.、\s]+/, "")).filter(Boolean);
   const none = notes.some(l => /^無需修正/.test(l));
   const cell = (r, other) => { if (!r) return `<td class="hint">（無）</td>`; const o = other.find(x => key(x) === key(r));
     const tag = !o ? `<b class="mk-new">${other === A ? "新增" : "移除"}</b> ` : o[0] !== r[0] ? `<b class="mk-chg">角色改變</b> ` : "";
