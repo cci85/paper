@@ -179,6 +179,26 @@ function mchkView(text) {
     ${notes.filter(l => !/^無需修正/.test(l)).length ? `<p class="f"><b>修正之處與理由</b></p><ul>${notes.filter(l => !/^無需修正/.test(l)).map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
     <p class="hint">同意修正就按下方「採用回覆中的修正後的模型組」；不同意則不必按，後續步驟會沿用目前的研究模型組。</p></div>`;
 }
+// 0.2 panel data 填寫輔助：把一般 AI 的回覆拆成各欄位
+function pfFill(text) {
+  const t = String(text || "").replace(/\*\*/g, ""); if (blank(t)) return "沒有內容可帶入，請先貼上 AI 回覆。";
+  const KEYS = [["as_ctx", "研究情境"], ["as_con", "研究問題"], ["pd_unit", "觀察單位"], ["pd_time", "時間單位與觀察期間"], ["pd_fields", "現有資料欄位"], ["feat", "資料特性"], ["goal", "研究目標"]];
+  const got = {}; let cur = null;
+  t.split(/\r?\n/).forEach(l => {
+    if (/^#{1,3}\s/.test(l.trim())) { cur = null; return; }
+    const k = KEYS.find(([, n]) => new RegExp("^\\s*" + n + "\\s*[：:]").test(l));
+    if (k) { cur = k[0]; got[cur] = l.replace(/^[^：:]*[：:]\s*/, "").trim(); return; }
+    if (cur === "pd_fields" && l.trim()) got.pd_fields += (got.pd_fields ? "\n" : "") + l.trim();
+  });
+  const ok = v => v && !/^無法判斷/.test(v);
+  const v = store.values, done = [];
+  KEYS.slice(0, 5).forEach(([id, n]) => { if (ok(got[id])) { v[id] = got[id]; done.push(n); } });
+  if (got.feat) { const f = PD_FEAT.map(x => x[0]).filter(k => new RegExp("\\b" + k + "\\b").test(got.feat)); v.pd_feat = f; done.push(`資料特性（${f.length} 項）`); }
+  if (got.goal) { const g = ["exp", "pred"].filter(k => new RegExp("\\b" + k + "\\b").test(got.goal)); if (g.length) { v.pd_goal = g; done.push("研究目標"); } }
+  if (!done.length) return "沒有讀到「研究情境：」「觀察單位：」等項目，請確認貼上的是填寫輔助 Prompt 的回覆。";
+  const ask = mdSec(t, "需要我確認之處");
+  return `已帶入：${done.join("、")}。請逐欄核對。` + (ask && !/^無$/.test(ask) ? `\n需要確認之處：\n${ask}` : "");
+}
 // panel data：0.2 步驟 1 回覆中的變數清單
 const pdVarText = () => pipeLines(mdSec(((typeof store !== "undefined" && store.replies) || {})["s0-4|pdata"], "變數清單"));
 const pdVals = () => { const v = store.values; return { ctx: (v.as_ctx || "").trim(), con: (v.as_con || "").trim(), unit: (v.pd_unit || "").trim(), time: (v.pd_time || "").trim(),
@@ -1081,6 +1101,12 @@ const DEFS = {
     label: "資料結構與估計目標", target: "nlm",
     hint: "在已上傳文獻的 NotebookLM 開新對話。描述手上的追蹤資料，請 AI 整理相近研究如何定義依變數與建構變數，並把研究問題收斂成解釋目標與預測目標，最後列出可由資料建構的變數清單。",
     fields: [
+      { id: "pf_on", type: "checks", label: "填寫輔助", options: [["on", "不知道怎麼填：先請一般 AI 讀資料範例與變數說明，產生下列各欄的內容"]], value: [] },
+      { id: "pf_prompt", type: "promptbox", label: "填寫輔助 Prompt", when: p => isOn(p.pf_on),
+        hint: "在一般 AI（Claude、ChatGPT、Gemini）開新對話，先上傳資料範例（Excel 前幾十列即可）與變數說明或模型規格文件，再貼上這段 Prompt",
+        copyLabel: "複製填寫輔助 Prompt（貼到一般 AI，並上傳檔案）", build: () => T.pd_fill() },
+      { id: "pf_reply", type: "textarea", label: "填寫輔助的 AI 回覆", hint: "整段貼上後按「帶入下列欄位」", rows: 6, when: p => isOn(p.pf_on) },
+      { id: "pf_go", type: "button", label: "帶入下列欄位", hint: "會取代研究情境、研究問題、觀察單位、時間、資料欄位、資料特性與研究目標", when: p => isOn(p.pf_on), run: p => pfFill(p.pf_reply) },
       { id: "as_ctx", type: "text", label: "研究情境（組織或產業）", placeholder: "例如：台灣非營利組織的個人捐款" },
       { id: "as_con", type: "text", label: "研究問題", hint: "選填；初稿即可，AI 會協助收斂", placeholder: "例如：勸募接觸是否提高捐款者再次捐款的機率與金額？哪些捐款者最可能再次捐款？" },
       { id: "pd_unit", type: "text", label: "觀察單位", placeholder: "例如：捐款者" },
