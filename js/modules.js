@@ -191,7 +191,7 @@ function mchkView(text) {
       <li><b>穩健性模型</b>：只放能回應上方檢核中具體疑慮的模型；資料條件不足（例如缺少必要的落後期）或你使用的軟體做不到的，改列為研究限制。</li></ol>
       還是無法決定時，複製下方 Prompt，在同一個 NotebookLM 對話請 AI 逐一比較兩版的差異並給建議。
       <p><button type="button" class="copy" data-copytext="${esc(T.pd_decide({ cur: A.map(r => r.join("｜")).join("\n"), rev: B.map(r => r.join("｜")).join("\n") }) + citeText())}">③ 複製「比較兩版並建議」Prompt</button></p></div>` : ""}
-    <p class="hint">同意修正就按下方「採用回覆中的修正後的模型組」；不同意則不必按，後續步驟會沿用目前的研究模型組。也可以自行修改「研究模型組」欄位，混合兩版。</p></div>`;
+    <p class="hint">同意右欄就按下方「採用 AI 建議的模型組」；不同意則不必按，後續步驟會沿用目前的研究模型組。也可以自行修改「研究模型組」欄位，混合兩版。</p></div>`;
 }
 // 0.2 panel data 填寫輔助：把一般 AI 的回覆拆成各欄位
 function pfFill(text) {
@@ -1167,7 +1167,7 @@ const DEFS = {
       { id: "mc_second", type: "promptbox", afterOut: true, label: "第二則 Prompt：修正後的模型組、研究缺口與預期貢獻",
         hint: "第一則的回覆完成後，在同一個對話接著送出；兩則回覆依序貼到下方「AI 回覆」",
         copyLabel: "② 複製第二則 Prompt（同一個對話接著送出）", build: () => T.pd_check2() },
-      { id: "mc_take", type: "button", below: true, label: "採用回覆中的「修正後的模型組」", hint: "把下方 AI 回覆的修正後模型組帶入「研究模型組」；有「③ 比較兩版並建議」的回覆時，改帶入其中的建議模型組",
+      { id: "mc_take", type: "button", below: true, label: "採用 AI 建議的模型組", hint: "把上方對照表右欄的模型組，帶入本頁最上方的「研究模型組」（會取代原本的內容）",
         run: () => { const r = (store.replies || {})["s0-5|mchk"], t = pipeLines(mdSec(r, "建議的研究模型組")) || pipeLines(mdSec(r, "修正後的模型組")); if (!t) return "回覆中沒有找到「## 修正後的模型組」一節。";
           if (!blank(store.values.pm_final) && !confirm("「研究模型組」已有內容，要以修正後的模型組取代嗎？")) return "未變更"; store.values.pm_final = t; return "已帶入修正後的模型組。"; } }
     ],
@@ -1180,7 +1180,7 @@ const DEFS = {
     replyView: t => mchkView(t),
     status: p => blank(p.pm_final) && modelText() ? "「研究模型組」留白，使用 0.2 回覆中的模型組。" : "",
     empty: "（0.2 還沒有研究模型組，或請至少勾選一個檢核項目、填入一個問題）",
-    next: "下一步：回覆貼到下方「AI 回覆」；同意修正時按「採用回覆中的修正後的模型組」。還有疑問時，用{#archq}在同一個對話接著問。"
+    next: "下一步：回覆貼到下方「AI 回覆」；同意對照表右欄時按「採用 AI 建議的模型組」。還有疑問時，用{#archq}在同一個對話接著問。"
   },
   pdict: {
     label: "資料字典與分析樣本", target: "nlm",
