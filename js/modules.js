@@ -105,11 +105,11 @@ function mdSec(text, head) {
   const out = []; for (let k = i + 1; k < L.length && !/^#{1,2}\s/.test(L[k].trim()); k++) out.push(L[k]);
   return out.join("\n").trim();
 }
-// panel data：研究模型組（0.2 定稿 → 0.3 修正後 → 0.2 回覆的建議）
+// panel data：研究模型組（已選定或已採用的 → 0.2 回覆的建議）
 function modelText() {
   const v = ((typeof store !== "undefined" && store.values.pm_final) || "").trim(); if (v) return v;
   const r = (typeof store !== "undefined" && store.replies) || {};
-  return pipeLines(mdSec(r["s0-5|mchk"], "修正後的模型組")) || pipeLines(mdSec(r["s0-4|pmodel"], "選定模型組"));
+  return pipeLines(mdSec(r["s0-4|pmodel"], "選定模型組"));   // 0.3 的修正後模型組要按「採用」才會取代
 }
 // 只保留「角色｜名稱｜…」的行，避免帶入回覆中其他段落
 const pipeLines = t => String(t || "").split(/\r?\n/).map(l => l.replace(/^[\s\-*•]+/, "").trim()).filter(l => /｜|\|/.test(l) && !/^[-|｜:\s]+$/.test(l)).join("\n");
@@ -155,6 +155,29 @@ function pmView() {
       <div class="chips">${[...PM_ROLES, ""].map(v => `<label class="chip"><input type="radio" name="pmr${i}" data-pmrole="${esc(m.key)}" value="${esc(v)}" ${r === v ? "checked" : ""}>${v || "不採用"}</label>`).join("")}</div>
       ${m.purpose ? `<p class="hint" style="margin:6px 0 0">目的：${esc(m.purpose)}</p>` : ""}
       <details><summary>看模型說明</summary><div class="cand-reason">${esc(m.body)}</div></details></div>`; }).join("");
+}
+// 0.3 panel data：對照目前的模型組與回覆中的修正後模型組，決定要不要採用
+function mchkView(text) {
+  if (blank(text)) return "";
+  const sec = mdSec(text, "修正後的模型組");
+  if (!sec) {
+    const t2 = T.pd_check2();
+    return `<div class="needbox second"><b>第二則尚未送出</b>：回覆中還沒有「## 修正後的模型組」。請在同一個 NotebookLM 對話送出第二則，再把回覆接在上方「AI 回覆」的最後。
+      <p><button type="button" class="copy" data-copytext="${esc(t2)}">② 複製第二則 Prompt</button></p></div>`;
+  }
+  const cur = (store.values.pm_final || "").trim() || pipeLines(mdSec((store.replies || {})["s0-4|pmodel"], "選定模型組"));
+  const rows = t => pipeLines(t).split("\n").filter(Boolean).map(l => l.split(/[｜|]/).map(x => x.trim()));
+  const A = rows(cur), B = rows(sec), key = r => pmNorm((r[1] || "").replace(/[（(][^（）()]*[）)]/g, "")) || pmNorm(r[1]);
+  const notes = sec.split(/\r?\n/).map(l => l.trim()).filter(l => l && !/[｜|]/.test(l)).map(l => l.replace(/^[-*•\d.、\s]+/, ""));
+  const none = notes.some(l => /^無需修正/.test(l));
+  const cell = (r, other) => { if (!r) return `<td class="hint">（無）</td>`; const o = other.find(x => key(x) === key(r));
+    const tag = !o ? `<b class="mk-new">${other === A ? "新增" : "移除"}</b> ` : o[0] !== r[0] ? `<b class="mk-chg">角色改變</b> ` : "";
+    return `<td>${tag}<b>${esc(r[0])}</b>｜${esc(r[1] || "")}${r[2] ? `<br><small>${esc(r[2])}</small>` : ""}</td>`; };
+  const pair = []; A.forEach(a => pair.push([a, B.find(b => key(b) === key(a))])); B.forEach(b => { if (!A.some(a => key(a) === key(b))) pair.push([null, b]); });
+  return `<div class="sview mchkv"><h3>修正前後對照</h3>${none ? `<p class="note">AI 判斷<b>無需修正</b>，不必採用。</p>` : ""}
+    <table class="mtbl"><thead><tr><th>目前的研究模型組</th><th>回覆中的修正後模型組</th></tr></thead><tbody>${pair.map(([a, b]) => `<tr>${cell(a, B)}${cell(b, A)}</tr>`).join("")}</tbody></table>
+    ${notes.filter(l => !/^無需修正/.test(l)).length ? `<p class="f"><b>修正之處與理由</b></p><ul>${notes.filter(l => !/^無需修正/.test(l)).map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
+    <p class="hint">同意修正就按下方「採用回覆中的修正後的模型組」；不同意則不必按，後續步驟會沿用目前的研究模型組。</p></div>`;
 }
 // panel data：0.2 步驟 1 回覆中的變數清單
 const pdVarText = () => pipeLines(mdSec(((typeof store !== "undefined" && store.replies) || {})["s0-4|pdata"], "變數清單"));
@@ -1083,7 +1106,7 @@ const DEFS = {
       { id: "pm_n", type: "radio", label: "候選模型數量", options: [["3", "3 個"], ["4", "4 個"], ["5", "5 個"]], value: "4" },
       { id: "pm_view", type: "cands", below: true, label: "選擇模型", hint: "貼上回覆後，這裡會列出每個候選模型；為每個模型選一個角色，下方「選定的研究模型組」會自動更新。預設依 AI 的建議；不需要的模型選「不採用」",
         render: () => pmView() },
-      { id: "pm_final", type: "textarea", below: true, label: "選定的研究模型組", hint: "每行一個：角色｜模型名稱（英文原文）｜目的。留白時自動使用 0.3 回覆的「修正後的模型組」，沒有時使用上方回覆的「選定模型組」；會帶到 0.3、0.4 與 0.5", rows: 4, mono: true,
+      { id: "pm_final", type: "textarea", below: true, label: "選定的研究模型組", hint: "每行一個：角色｜模型名稱（英文原文）｜目的。留白時使用上方回覆的「選定模型組」；0.3 檢核後按「採用」會改寫這裡；會帶到 0.3、0.4 與 0.5", rows: 4, mono: true,
         placeholder: "主要模型｜兩階段模型（Hurdle Model）｜分別估計勸募接觸對是否捐款與捐款金額的效果\n比較模型｜固定效果線性機率模型（Fixed-Effects Linear Probability Model）｜檢驗效果是否來自捐款者本身的變化" }
     ],
     rules: () => ["citation"],
@@ -1114,6 +1137,7 @@ const DEFS = {
       const checks = PD_CHECKS.filter(c => p.mc_checks.includes(c.key) && (!c.pred || pr)).map(c => c.text);
       return !model || (!checks.length && !qs.length) ? "" : T.pd_check({ ...pdVals(), model, checks, qs, same: p.mc_conv !== "new" }) + R;
     },
+    replyView: t => mchkView(t),
     status: p => blank(p.pm_final) && modelText() ? "「研究模型組」留白，使用 0.2 回覆中的模型組。" : "",
     empty: "（0.2 還沒有研究模型組，或請至少勾選一個檢核項目、填入一個問題）",
     next: "下一步：回覆貼到下方「AI 回覆」；同意修正時按「採用回覆中的修正後的模型組」。還有疑問時，用{#archq}在同一個對話接著問。"

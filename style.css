@@ -450,3 +450,9 @@ table.apa td[contenteditable]:focus, .tbl-note[contenteditable]:focus { outline:
 .rview .rv-end { text-align: center; margin-top: 18px; }
 .rview .rv-opts.col { flex-direction: column; gap: 2px; }
 .rview.apx { max-height: none; border: none; padding: 0; }
+
+.mchkv .mtbl { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 8px 0; }
+.mchkv .mtbl th, .mchkv .mtbl td { border: 1px solid var(--line); padding: 6px 8px; vertical-align: top; text-align: left; }
+.mchkv .mtbl th { background: var(--bg); }
+.mchkv .mk-new { color: #a33a2c; } .mchkv .mk-chg { color: #8a6d1f; }
+.mchkv ul { margin: 4px 0 8px 20px; font-size: 13.5px; line-height: 1.6; }
