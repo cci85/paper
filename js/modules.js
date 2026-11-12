@@ -228,7 +228,7 @@ function mchkView(text) {
       <ol><li><b>主要模型</b>：哪一個能直接回答你的研究問題（估計你要的效果）？兩版主要模型若都能回答，選假設較少、能保留較多樣本者。</li>
       <li><b>比較模型</b>：只保留「和主要模型只差一項設定、而且這個差異能證明某個設定有必要」的模型；比較後說不出意義的就不要放。</li>
       <li><b>穩健性模型</b>：只放能回應上方檢核中具體疑慮的模型；資料條件不足（例如缺少必要的落後期）或你使用的軟體做不到的，改列為研究限制。</li></ol>
-      還是無法決定時，複製下方 Prompt，在同一個 NotebookLM 對話請 AI 逐一比較兩版的差異並給建議；回覆接在上方「AI 回覆」的最後，其中的「建議的研究模型組」會自動帶入最上方的「研究模型組」。
+      還是無法決定時，複製下方 Prompt，在同一個 NotebookLM 對話請 AI 逐一比較兩版的差異並給建議；回覆貼到下方「③『比較兩版並建議』的 AI 回覆」欄，其中的「建議的研究模型組」會自動帶入最上方的「研究模型組」。
       <p><button type="button" class="copy" data-copytext="${esc(T.pd_decide({ cur: A.map(r => r.join("｜")).join("\n"), rev: B.map(r => r.join("｜")).join("\n") }) + citeText())}">③ 複製「比較兩版並建議」Prompt</button></p></div>` : ""}
     ${auto ? (pmNorm(store.values.pm_final) === store.values.pm_auto_sig
       ? `<p class="note">右欄已自動帶入最上方的「研究模型組」，後續步驟會使用它；也可以直接在那裡修改，混合兩版。${diff ? ` <button type="button" data-pmrestore="1">復原為帶入前的模型組</button>` : ""}</p>`
@@ -1200,6 +1200,8 @@ const DEFS = {
     hint: "依上傳文獻逐項檢核研究模型組：內生性、未觀察異質性、樣本選擇、時間結構、代理變數、模型比較的公平性與策略意涵的推論範圍；最後提出修正後的模型組，並整理研究缺口與預期貢獻。可接在 0.2 的同一個對話，也可開新對話。",
     fields: [
       { id: "pm_final", type: "textarea", label: "研究模型組", hint: "與 0.2「選定的研究模型組」共用；留白時自動使用 0.2 回覆的「選定模型組」", rows: 4, mono: true },
+      { id: "mc_dec", type: "textarea", below: true, label: "③「比較兩版並建議」的 AI 回覆", hint: "選填；只有按了上方「③ 複製『比較兩版並建議』Prompt」並送出時才需要。回覆整段貼在這裡，其中的「建議的研究模型組」會自動帶入最上方的「研究模型組」", rows: 5,
+        auto: t => mchkAuto(((store.replies || {})["s0-5|mchk"] || "") + "\n\n" + t) },
       { id: "mc_conv", type: "radio", label: "對話", hint: "接在 0.2 的同一個對話時，不重複貼上資料描述與變數清單，Prompt 比較短", options: [["same", "接在 0.2 的同一個對話"], ["new", "開新對話"]], value: "same" },
       { id: "pd_goal", type: "checks", label: "研究目標", hint: "與 0.2 步驟 1 共用；取消「預測」後，本步驟不再檢核資料洩漏，0.4 也不再規劃預測的時間切分", options: PD_GOAL, value: ["exp", "pred"] },
       { id: "mc_checks", type: "checks", label: "檢核項目", hint: "可全部取消，只問自己的問題；「資料洩漏」只在研究目標含預測時送出",
@@ -1216,8 +1218,8 @@ const DEFS = {
       const checks = PD_CHECKS.filter(c => p.mc_checks.includes(c.key) && (!c.pred || pr)).map(c => c.text);
       return !model || (!checks.length && !qs.length) ? "" : T.pd_check({ ...pdVals(), model, checks, qs, same: p.mc_conv !== "new" }) + R;
     },
-    replyView: t => mchkView(t),
-    autoReply: t => mchkAuto(t),
+    replyView: t => mchkView(t + "\n\n" + (store.values.mc_dec || "")),
+    autoReply: t => mchkAuto(t + "\n\n" + (store.values.mc_dec || "")),
     status: p => blank(p.pm_final) ? (modelText() ? "「研究模型組」留白，使用 0.2 回覆中 AI 建議的模型組。" : "") : `「研究模型組」目前的內容：${pmSrc()}。`,
     empty: "（0.2 還沒有研究模型組，或請至少勾選一個檢核項目、填入一個問題）",
     next: "下一步：回覆貼到下方「AI 回覆」；同意對照表右欄時按「採用 AI 建議的模型組」。還有疑問時，用{#archq}在同一個對話接著問。"
