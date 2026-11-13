@@ -488,3 +488,8 @@ table.apa td[contenteditable]:focus, .tbl-note[contenteditable]:focus { outline:
 .dp .dpconf .ex { color: var(--muted); font-size: 13px; margin: 4px 0; }
 .dp .dpbtns { display: flex; flex-wrap: wrap; gap: 8px; }
 .dp .warn { color: var(--warn); }
+.dp .dpaebox { margin: 10px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.dp svg.dpaech { width: 100%; max-width: 680px; height: auto; display: block; margin-top: 4px; }
+.dp .dplg { font-size: 13px; margin: 4px 0; }
+.dp .dplg .ln { display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--accent); vertical-align: middle; margin: 0 4px 0 10px; }
+.dp .dplg .ln.ly { border-top: 2px dashed var(--muted); }

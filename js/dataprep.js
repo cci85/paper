@@ -641,6 +641,9 @@ function dpLogLines(cfg, chk) {
 function dpExtLog(cfg) {
   const L = [], fmtN = x => x.toLocaleString("en-US"), A = dpActs(cfg), S = DP.extStat;
   if (A.list.length) L.push(`活動期間（來源：${cfg.actSrc || "未填"}；全國一致，起迄日都包含在內）：` + A.list.map(a => `${a.v}＝${a.name}（${dpFmt(a.from)} 至 ${dpFmt(a.to)}）`).join("；"));
+  if (A.list.length && DP.chk) { const o = dpAeCfg(cfg), kp = dpAeScreen(cfg, DP.chk).filter(r => r.keep);
+    if (kp.length) L.push(`活動初步評估：以起日為事件日，比較起日前後同樣天數的窗口（天數 ${o.cut} 天以內預設為短期，前後各 ${o.short} 天；長期各 ${o.long} 天）；前一年同期為 ${DP_LY} 天前的同一段日期（星期幾一致）；保留的活動依日期資訊篩選，不看捐款資料：` +
+      kp.map(r => `${r.a.v}（${r.kind === "s" ? "短期" : "長期"}${r.cty ? "，" + r.cty : ""}${r.exact ? "" : "，起日未確定"}）`).join("、") + `；Y 以每日彙總計算（Y1＝${dpAeYlab(cfg)}的每日合計，Y2＝每日捐款人數，另列首次捐款人數），沒有交易的日子為 0${kp.some(r => r.cty) ? "；地區活動比較該縣市與其他縣市" : ""}`); }
   (cfg.ext || []).forEach((e, i) => {
     const ix = DP.ext[i] ? dpExtIx(i) : null; if (!ix) { if (e.file) L.push(`外部資料 ${i + 1}：${e.file}（本次未上傳，以下串接結果不含此檔）`); return; }
     const o = ix.st, by = o.by ? `依日期與縣市（本資料的 ${e.key} 欄）串接` : "依日期串接（全國一致）";
@@ -874,6 +877,99 @@ function dpView() {
     ${RT() === "model" ? `<p class="hint">0.2「資料結構與估計目標」的觀察單位、時間與資料欄位留白時，會自動帶入這裡的處理結果。</p>` : ""}</fieldset></div>`;
   return h;
 }
+// ── 活動初步評估：表一篩選（只用日期資訊，不看捐款資料）；表二 Y 比較與事件時間圖（只算保留的活動）──
+const DP_LY = 364;   // 前一年同期：往前 52 週，星期幾一致
+const dpAeCfg = c => { const o = c.ae ||= {}; o.short ??= 28; o.long ??= 182; o.cut ??= 90; o.keep ||= {}; o.kind ||= {}; o.exact ||= {}; o.cty ||= {}; o.cy ||= 0; return o; };
+const dpAeKeyOf = a => a.name + "|" + dpFmt(a.from);
+const dpAeCtyGuess = name => { for (const m of String(name).matchAll(/[（(]([^）)]+)[）)]/g)) { const k = dpCty(m[1]); if (DP_TW.has(k)) return k; } return ""; };
+const DP_AEM = ["Y1 捐款總金額", "Y2 捐款人數", "首次捐款人數"];
+function dpAeScreen(c, k) {
+  const o = dpAeCfg(c);
+  const rows = dpActs(c).list.map(a => { const key = dpAeKeyOf(a), days = a.to - a.from + 1, kind = o.kind[key] || (days <= o.cut ? "s" : "l"), W = kind === "s" ? o.short : o.long, dd = dpYMD(a.from)[2];
+    return { a, key, days, kind, W, w0: a.from - W, w1: a.from + W - 1, rough: dd === 1, exact: key in o.exact ? !!o.exact[key] : dd !== 1,
+      preOK: a.from - W >= k.dmin, postOK: a.from + W - 1 <= k.dmax, toEnd: a.to >= k.dmax, cty: key in o.cty ? o.cty[key] : dpAeCtyGuess(a.name), keep: !!o.keep[key] }; });
+  rows.forEach(r => { r.ov = rows.filter(x => x !== r).map(x => [x.a.v, Math.min(r.w1, x.w1) - Math.max(r.w0, x.w0) + 1]).filter(x => x[1] > 0); });
+  return rows;
+}
+// Y1 的來源：數值欄（加總、平均、最大、最小）或展開後各欄的合計
+const dpAeYopts = c => [...(c.pcol ? [["__pv", `展開後各欄合計（${dpTargets(c).join("＋") || "無"}）`]] : []), ...DP.head.filter(h => ["sum", "mean", "max", "min"].includes(c.roles[h])).map(h => [h, h])];
+const dpAeY = c => { const o = dpAeCfg(c), opt = dpAeYopts(c); if (opt.some(x => x[0] === o.y1)) return o.y1;
+  const t = opt.find(x => x[0] !== "__pv" && /total|合計|總|金額|amount/i.test(x[0])); return (t || opt[0] || [null])[0]; };
+const dpAeYlab = c => { const y = dpAeY(c); return y === "__pv" ? "展開後各欄合計" : y || "（未選）"; };
+const dpAeStateKey = (c, k) => { const o = dpAeCfg(c); return JSON.stringify([o.short, o.long, o.cut, o.keep, o.kind, o.cty, dpAeY(c), o.ccol || dpCtyCols()[0] || "", dpActs(c).list, k.k, k.dmin, k.dmax]); };
+function dpAeRun(c, k, T) {
+  const o = dpAeCfg(c), H = T.head, rows = T.rows, di = H.indexOf("date"), yv = dpAeY(c), ccol = o.ccol || dpCtyCols()[0] || "";
+  const yc = yv === "__pv" ? dpTargets(c).map(t => H.indexOf(t)).filter(x => x >= 0) : [H.indexOf(yv)].filter(x => x >= 0);
+  let ci = H.indexOf(ccol); if (ci < 0 && ccol) ci = H.indexOf(ccol + "_原");
+  const all = new Map(), byC = new Map(), add = (m, key, y, f) => { let e = m.get(key); if (!e) m.set(key, e = [0, 0, 0]); e[0] += y; e[1]++; e[2] += f; };
+  for (let i = 0; i < rows.length; i++) { const r = rows[i], d = r[di], f = i === 0 || dpKey(r[0]) !== dpKey(rows[i - 1][0]) ? 1 : 0;
+    const y = yc.reduce((a, j) => a + (typeof r[j] === "number" && isFinite(r[j]) ? r[j] : 0), 0);
+    add(all, d, y, f); if (ci >= 0) { const q = dpCty(r[ci]); if (DP_TW.has(q)) { add(byC, d + "\u0001" + q, y, f); add(byC, d + "\u0001*", y, f); } } }
+  const getAll = d => all.get(d), getC = q => d => byC.get(d + "\u0001" + q), getO = q => d => { const t = byC.get(d + "\u0001*"); if (!t) return null; const x = byC.get(d + "\u0001" + q) || [0, 0, 0]; return t.map((v, j) => v - x[j]); };
+  const win = (g, s, e, W) => { if (s < k.dmin || e > k.dmax) return null; const t = [0, 0, 0]; for (let d = s; d <= e; d++) { const v = g(d); if (v) for (let j = 0; j < 3; j++) t[j] += v[j]; } return t.map(x => x / W); };
+  const stat = (g, a0, W) => { const pre = win(g, a0 - W, a0 - 1, W), post = win(g, a0, a0 + W - 1, W), lpre = win(g, a0 - W - DP_LY, a0 - 1 - DP_LY, W), lpost = win(g, a0 - DP_LY, a0 + W - 1 - DP_LY, W);
+    return [0, 1, 2].map(j => { const p = pre && pre[j], q = post && post[j], lp = lpre && lpre[j], lq = lpost && lpost[j], r1 = p > 0 && q != null ? q / p : null, r0 = lp > 0 && lq != null ? lq / lp : null;
+      return { p, q, lp, lq, r1, r0, rr: r1 != null && r0 > 0 ? r1 / r0 : null }; }); };
+  // 事件時間圖：短期逐日，長期每 7 天一點（每日平均）；今年與 364 天前同一段日期
+  const series = (g, a0, W, step) => { const one = sh => { const out = []; for (let t = -W; t < W; t += step) { let s = [0, 0, 0], n = 0;
+      for (let u = t; u < Math.min(t + step, W); u++) { const d = a0 + u - sh; if (d < k.dmin || d > k.dmax) { n = -1; break; } const v = g(d); if (v) for (let j = 0; j < 3; j++) s[j] += v[j]; n++; }
+      out.push({ t, v: n > 0 ? s.map(x => x / n) : null }); } return out; }; return { cur: one(0), ly: one(DP_LY) }; };
+  const res = dpAeScreen(c, k).filter(r => r.keep).map(r => { const a0 = r.a.from, step = r.kind === "s" ? 1 : 7;
+    const scopes = r.cty ? [[r.cty, getC(r.cty)], ["其他縣市", getO(r.cty)]] : [["全國", getAll]];
+    return { r, step, scopes: scopes.map(([nm, g]) => ({ nm, st: stat(g, a0, r.W), se: series(g, a0, r.W, step) })) }; });
+  DP.ae = { key: dpAeStateKey(c, k), res, ylab: dpAeYlab(c), ccol: ci >= 0 ? ccol : "" };
+  return DP.ae;
+}
+const dpAeF = (x, d = 1) => x == null ? "—" : Number(x).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
+function dpAeChart(sc, W, step, m) {
+  const w = 640, h = 200, L = 64, R = 14, T = 12, B = 34, X = t => L + (t + W) / (2 * W) * (w - L - R);
+  const pts = [...sc.se.cur, ...sc.se.ly].map(p => p.v && p.v[m]).filter(v => v != null), top = Math.max(...pts, 0);
+  const nice = v => { if (v <= 0) return 1; const e = 10 ** Math.floor(Math.log10(v)), f = v / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * e; }, yt = nice(top / 4), mx = yt * Math.max(1, Math.ceil(top / yt)), Y = v => T + (1 - v / mx) * (h - T - B);
+  const path = arr => { let s = "", pen = false; arr.forEach(p => { const v = p.v && p.v[m]; if (v == null) { pen = false; return; } s += `${pen ? "L" : "M"}${(X(p.t + (step - 1) / 2)).toFixed(1)},${Y(v).toFixed(1)}`; pen = true; }); return s; };
+  let g = ""; for (let v = 0; v <= mx + 1e-9; v += yt) g += `<line x1="${L}" x2="${w - R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${(Y(v) + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--muted)">${dpAeF(v, v < 10 && yt < 1 ? 1 : 0)}</text>`;
+  [-W, -W / 2, 0, W / 2, W].forEach(t => { g += `<text x="${X(t).toFixed(1)}" y="${h - B + 16}" text-anchor="middle" font-size="11" fill="var(--muted)">${t > 0 ? "+" + t : t}</text>`; });
+  g += `<line x1="${X(0)}" x2="${X(0)}" y1="${T}" y2="${h - B}" stroke="var(--muted)" stroke-width="1"/><text x="${X(0) + 4}" y="${T + 10}" font-size="11" fill="var(--muted)">起日</text>`;
+  g += `<text x="${(L + w - R) / 2}" y="${h - 4}" text-anchor="middle" font-size="11" fill="var(--muted)">距起日天數${step > 1 ? "（每 7 天一點，取每日平均）" : ""}</text>`;
+  const hit = sc.se.cur.map((p, i) => { const q = sc.se.ly[i], x0 = X(p.t), x1 = X(Math.min(p.t + step, W));
+    return `<rect x="${x0.toFixed(1)}" y="${T}" width="${Math.max(1, x1 - x0).toFixed(1)}" height="${h - T - B}" fill="transparent"><title>${step > 1 ? `第 ${p.t} 至 ${Math.min(p.t + step, W) - 1} 天` : `第 ${p.t} 天`}\n今年：${dpAeF(p.v && p.v[m])}\n前一年同期：${dpAeF(q.v && q.v[m])}</title></rect>`; }).join("");
+  return `<svg viewBox="0 0 ${w} ${h}" class="dpaech" role="img" aria-label="${esc(DP_AEM[m])}事件時間圖">${g}<path d="${path(sc.se.ly)}" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 4"/><path d="${path(sc.se.cur)}" fill="none" stroke="var(--accent)" stroke-width="2"/>${hit}</svg>`;
+}
+// 表格列（畫面與 Excel 共用）
+const DP_AEH2 = ["活動", "變數", "類型", "窗口天數", "範圍", "指標", "事前", "事後", "事後÷事前", "去年事前", "去年事後", "去年比值", "比值÷去年比值"];
+const dpAeRows2 = ae => ae.res.flatMap(x => x.scopes.flatMap(sc => sc.st.map((s, j) => [x.r.a.name, x.r.a.v, x.r.kind === "s" ? "短期" : "長期", x.r.W, sc.nm, DP_AEM[j], s.p, s.q, s.r1, s.lp, s.lq, s.r0, s.rr])));
+const DP_AEH1 = ["變數", "活動名稱", "起日", "迄日", "天數", "類型", "窗口天數", "起日確定", "事前窗口完整", "事後窗口完整", "延續到截止日", "窗口重疊", "地區", "保留"];
+const dpAeRows1 = (c, k) => dpAeScreen(c, k).map(r => [r.a.v, r.a.name, dpFmt(r.a.from), dpFmt(r.a.to), r.days, r.kind === "s" ? "短期" : "長期", r.W, r.exact ? "是" : "否", r.preOK ? "是" : "否", r.postOK ? "是" : "否", r.toEnd ? "是" : "否", r.ov.map(([v, n]) => `${v} ${n} 天`).join("、"), r.cty || "全國", r.keep ? "是" : "否"]);
+function dpAeView(c, k) {
+  if (!k || !dpActs(c).list.length) return "";
+  const o = dpAeCfg(c), S = dpAeScreen(c, k), ctys = [...DP_TW], yo = dpAeYopts(c), y = dpAeY(c), cc = dpCtyCols(), YN = (b, warn) => b ? "是" : `<span class="${warn ? "warn" : ""}">否</span>`;
+  let h = `<div class="dpsub"><b>活動初步評估</b>
+    <p class="hint">分兩段進行。表一只用日期資訊（天數、起日、窗口是否完整、重疊），不看捐款資料，請依此先決定要保留的活動與分類；表二才比較保留活動的 Y，只用於描述，不用來挑選活動。每個活動以起日（對外公開日）為事件日，比較起日前後同樣天數的窗口；前一年同期為 ${DP_LY} 天前的同一段日期（星期幾一致），用來對照季節性。</p>
+    <div class="dprow"><label>短期窗口 <input type="number" min="1" step="1" data-dpae="short" value="${o.short}" style="width:5em"> 天</label><label>長期窗口 <input type="number" min="1" step="1" data-dpae="long" value="${o.long}" style="width:5em"> 天</label><label>天數 <input type="number" min="1" step="1" data-dpae="cut" value="${o.cut}" style="width:5em"> 天以內預設為短期</label></div>
+    <table class="dptbl"><thead><tr><th>保留</th><th>變數</th><th>活動名稱</th><th>起日</th><th>天數</th><th>類型</th><th>起日確定</th><th>事前窗口</th><th>事後窗口</th><th>延續到截止日</th><th>窗口重疊</th><th>地區</th></tr></thead><tbody>${S.map(r => `<tr>
+      <td><input type="checkbox" data-dpaekeep="${esc(r.key)}"${r.keep ? " checked" : ""}></td><td>${r.a.v}</td><td>${esc(r.a.name)}</td><td>${dpFmt(r.a.from)}</td><td class="r">${r.days}</td>
+      <td><select data-dpaekind="${esc(r.key)}"><option value="s"${r.kind === "s" ? " selected" : ""}>短期</option><option value="l"${r.kind === "l" ? " selected" : ""}>長期</option></select> <small>${r.W} 天</small></td>
+      <td><label class="chip"><input type="checkbox" data-dpaeex="${esc(r.key)}"${r.exact ? " checked" : ""}>${r.rough ? "<small>月初，可能為概估</small>" : "確定"}</label></td>
+      <td>${YN(r.preOK, 1)}</td><td>${YN(r.postOK, 1)}</td><td>${r.toEnd ? `<span class="warn">是</span>` : "否"}</td>
+      <td>${r.ov.length ? `<span class="warn">${r.ov.map(([v, n]) => `${v} ${n} 天`).join("、")}</span>` : "無"}</td>
+      <td><select data-dpaecty="${esc(r.key)}"><option value="">全國</option>${ctys.map(x => `<option${x === r.cty ? " selected" : ""}>${x}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table>
+    <p class="hint">事前、事後窗口「否」表示窗口超出觀察期間（${dpFmt(k.dmin)} 至 ${dpFmt(k.dmax)}），該段不計算。起日落在月初者可能是以年或月登錄的概估日期，查證後再勾選「起日確定」。窗口重疊列出與其他活動窗口重疊的天數（含未保留的活動）。延續到截止日、或長達數年的活動屬於長期結構轉變，以起日前後的變化描述。地區活動（名稱中的縣市會自動判斷）比較該縣市與其他縣市。</p>`;
+  const keep = S.filter(r => r.keep);
+  if (!keep.length) return h + `<p class="note">勾選要保留的活動後，可計算表二。</p></div>`;
+  const anyC = keep.some(r => r.cty);
+  h += `<div class="dprow"><label>Y1 的金額欄 <select data-dpae="y1">${yo.map(([v, t]) => `<option value="${esc(v)}"${v === y ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></label>
+    ${anyC ? `<label>縣市欄 <select data-dpae="ccol">${dpOpt(cc, o.ccol || cc[0] || "", cc.length ? null : "（沒有縣市欄）")}</select></label>` : ""}
+    <button type="button" class="copy" data-dpaerun="1">${DP.ae ? "重新計算表二" : "計算表二（Y 比較）"}</button></div>`;
+  const ae = DP.ae;
+  if (!ae) return h + `<p class="hint">表二以每日彙總計算：Y1＝當天所有捐款人的金額合計，Y2＝當天有捐款的人數，首次捐款人數＝當天為此人在輸出資料中第一個交易日的人數；沒有交易的日子為 0，事前、事後的值都是窗口內的每日平均。計算需要整理全部資料，按鈕按下後稍候。</p></div>`;
+  if (ae.key !== dpAeStateKey(c, k)) h += `<div class="note warn">設定或資料已變更，請按「重新計算表二」。</div>`;
+  if (anyC && !ae.ccol) h += `<div class="note warn">沒有可用的縣市欄，地區活動無法分縣市比較。</div>`;
+  h += `<p class="hint">Y1＝${esc(ae.ylab)}的每日合計；比值大於 1 表示事後高於事前。「比值÷去年比值」扣除季節性：大於 1 表示今年起日前後的變化大於去年同一段日期。樣本只含首次交易在起日之後的人時，捐款人數會隨時間累積，事後÷事前會因此偏高，窗口越長越明顯，請一併看去年比值。「—」表示窗口超出觀察期間或事前為 0。</p>
+    <table class="dptbl"><thead><tr>${DP_AEH2.slice(1).map(x => `<th>${x}</th>`).join("")}</tr></thead><tbody>${dpAeRows2(ae).map(r => `<tr><td>${r[1]}</td><td>${r[2]}</td><td class="r">${r[3]}</td><td>${esc(r[4])}</td><td>${r[5]}</td>${r.slice(6).map((v, i) => `<td class="r">${dpAeF(v, [2, 5, 6].includes(i) ? 2 : 1)}</td>`).join("")}</tr>`).join("")}</tbody></table>
+    <div class="dprow"><span>事件時間圖</span>${DP_AEM.map((t, m) => `<label class="chip"><input type="radio" name="dpaecy" data-dpae="cy" value="${m}"${+o.cy === m ? " checked" : ""}>${t}</label>`).join("")}</div>
+    <p class="dplg"><span class="ln"></span>活動當年 <span class="ln ly"></span>前一年同期（${DP_LY} 天前）　<small>滑鼠移到圖上可看數值</small></p>`;
+  ae.res.forEach(x => x.scopes.forEach(sc => { h += `<div class="dpaebox"><b>${x.r.a.v} ${esc(x.r.a.name)}</b>　<small>${dpFmt(x.r.a.from)} 起，${x.r.kind === "s" ? "短期" : "長期"}，前後各 ${x.r.W} 天；${esc(sc.nm)}</small>${dpAeChart(sc, x.r.W, x.step, +o.cy)}</div>`; }));
+  return h + `</div>`;
+}
 // 4. 活動期間與外部資料
 function dpExtView(c, k) {
   const A = dpActs(c), N = dpN;
@@ -887,6 +983,7 @@ function dpExtView(c, k) {
   if (A.list.length) h += `<table class="dptbl"><thead><tr><th>變數</th><th>活動名稱</th><th>起日</th><th>迄日</th><th>天數</th><th>說明</th></tr></thead><tbody>${A.list.map(a => `<tr><td>${a.v}</td><td>${esc(a.name)}</td><td>${dpFmt(a.from)}</td><td>${dpFmt(a.to)}</td><td class="r">${a.to - a.from + 1}</td><td>${esc(a.note)}</td></tr>`).join("")}</tbody></table>`;
   if (A.bad.length) h += `<div class="note warn">讀不出日期的行（請修正或刪除）：\n${A.bad.map(esc).join("\n")}</div>`;
   if (A.unsure.length) h += `<div class="note warn">AI 列為無法確定的活動（未納入；確認日期後，依「活動名稱｜起日｜迄日｜說明」補進上方）：\n${A.unsure.map(esc).join("\n")}</div>`;
+  h += dpAeView(c, k);
   h += `</div><div class="dpsub"><b>外部資料</b>
     <p class="hint">依日期串接的資料（例如連假、全國性的颱風假），或依日期與縣市串接的資料（例如天氣、空氣品質、各縣市的颱風假）。上傳 .xlsx 或 .csv：長格式為一列一個日期（或日期 × 縣市）；欄名有 3 個以上是縣市名稱時，視為一個縣市一欄的寬格式。縣市以本資料當天處理後的縣市欄串接（已套用不一致的處理與 22 縣市篩選）；台／臺視為相同，舊縣名換為現行縣市。數值中的「T」（微量）視為 0；「X」（儀器故障）不列入平均，某縣市當天全部為 X 時，以距離最近的縣市（依縣市政府所在地的距離）同一天的值取代；最近的縣市當天也沒有有效值、離島縣，或依日期串接的全國資料，維持缺漏並列出。研究存檔只記住串接設定，外部檔要與原始資料一起重新上傳。資料來源、網址與取得日期須填寫，會寫進處理紀錄，供論文說明資料來源與查核。</p>`;
   (c.ext || []).forEach((e, i) => {
@@ -995,6 +1092,12 @@ async function dpSaveFile(blob, name) {
   dpDownload(blob, name); DP.msg = `已下載「${name}」到瀏覽器的下載資料夾（目前沒有開啟研究資料夾）。`;
 }
 function dpDownload(blob, name) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
+async function dpAeGo() {
+  DP.err = ""; dpBusy("計算活動評估…"); await dpTick();
+  try { dpAeRun(DP.cfg, DP.chk, dpExtend(dpBuild(DP.cfg, DP.chk, "day", true), DP.cfg)); }
+  catch (e) { DP.err = "活動評估計算失敗：" + (e && e.message || e); DP.ae = null; }
+  dpBusy(""); dpCommit(false);
+}
 async function dpOutput(what) {
   const c = DP.cfg, k = DP.chk; if (!k || dpNeed(c, k).length || dpBlock(c, k).length) return;
   DP.err = ""; DP.msg = ""; dpBusy("整理資料中…"); await dpTick();
@@ -1006,6 +1109,8 @@ async function dpOutput(what) {
       const det = dpDetailRows(c, k);
       store.values.dp_log = dpLogText();
       sh.push({ name: "處理紀錄", head: ["處理紀錄"], rows: dpLogLines(c, k).map(x => [x]), dateCol: new Set() }, { name: "檢查明細", head: det[0], rows: det.slice(1), dateCol: new Set() });
+      if (dpActs(c).list.length) { sh.push({ name: "活動篩選", head: DP_AEH1, rows: dpAeRows1(c, k), dateCol: new Set() });
+        if (dpAeScreen(c, k).some(r => r.keep)) sh.push({ name: "活動Y比較", head: DP_AEH2, rows: dpAeRows2(dpAeRun(c, k, sh[0])).map(r => r.map(v => typeof v === "number" ? Math.round(v * 1e4) / 1e4 : v)), dateCol: new Set() }); }
       dpBusy("寫入 Excel 檔…"); await dpTick();
       const blob = await dpXlsx(sh.filter(x => x.rows.length <= DP_XLS_MAX), async f => { dpBusy(`寫入 Excel 檔… ${Math.round(f * 100)}%`); await dpTick(); });
       await dpSaveFile(blob, `${dpBase()}_處理後.xlsx`);
@@ -1050,6 +1155,11 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
     if (d.dpex != null) { ((c.valid ||= {})[d.dpex] ||= {}).ex = t.value; return dpCommit(false); }
     if (d.dpwt != null) { (c.wt ||= {})[d.dpwt] = t.value || null; return dpCommit(false); }
     if (d.dpnear != null) { (c.near ||= {})[d.dpnear] = Math.max(0, Math.round(+t.value || 0)); return dpCommit(false); }
+    if (d.dpae != null) { const o = dpAeCfg(c); o[d.dpae] = ["short", "long", "cut"].includes(d.dpae) ? Math.max(1, Math.round(+t.value || 1)) : d.dpae === "cy" ? +t.value : t.value || null; return dpCommit(false); }
+    if (d.dpaekeep != null) { dpAeCfg(c).keep[d.dpaekeep] = t.checked; return dpCommit(false); }
+    if (d.dpaekind != null) { dpAeCfg(c).kind[d.dpaekind] = t.value; return dpCommit(false); }
+    if (d.dpaeex != null) { dpAeCfg(c).exact[d.dpaeex] = t.checked; return dpCommit(false); }
+    if (d.dpaecty != null) { dpAeCfg(c).cty[d.dpaecty] = t.value; return dpCommit(false); }
     if (d.dp === "dv") { const v = t.value; c.dvTxt = !v.trim() || v.trim() === dpDv04().trim() ? null : v; DP.extStat = null; return dpCommit(false); }
     if (d.dp === "actRep" || d.dp === "actSrc") { c[d.dp] = t.value; DP.extStat = null; return dpCommit(false); }
     if (d.dpextf != null) { if (t.files && t.files[0]) dpExtLoad(+d.dpextf, t.files[0]); return; }
@@ -1071,6 +1181,7 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
       x.vals = [...new Set([...(x.vals || []), ...dpUV(x.col).map(([v]) => v).filter(v => want.has(dpNorm(v)))])]; dpCommit(true); }
     else if (b.dataset.dpdrop != null) { DP.cfg.roles[b.dataset.dpdrop] = "drop"; dpCommit(false); }   // 刪除：改為不輸出（可在欄位設定改回）
     else if (b.dataset.dpout) dpOutput(b.dataset.dpout);
+    else if (b.dataset.dpaerun) dpAeGo();
     else if (b.dataset.dpcopy === "act") { const m = document.getElementById("dpcopymsg");
       navigator.clipboard.writeText(dpActPrompt()).then(() => { if (m) m.textContent = "已複製；貼到一般 AI，再於最後貼上活動資料。"; }, () => { if (m) m.textContent = "無法複製，請改用 Chrome。"; }); }
     else if (b.dataset.dpextadd) { (DP.cfg.ext ||= []).push({ src: "", url: "", got: "", use: [], vars: {}, wv: "x" }); dpCommit(false); }
@@ -1078,4 +1189,4 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
   });
 }
 
-if (typeof module !== "undefined") module.exports = { DP_NEAR, dpDerive, dpDvParse, dpDvLog, dpTable2, dpHead0, dpSecLast, DP, dpTable, dpActs, dpActPrompt, dpExtGuess, dpExtIndex, dpExtend, dpExtLog, dpBlock, dpCty, dpSetTable, dpParseCSV, dpDecode, dpGuess, dpCheck, dpBuild, dpPivotVals, dpNeed, dpTargets, dpLogLines, dpDetailRows, dpXlsx, dpCSV, dpOpenXLSX, dpReadSheet, dpDateVal, dpFmt, dpSummary };
+if (typeof module !== "undefined") module.exports = { DP_NEAR, dpAeScreen, dpAeRun, dpAeRows1, dpAeRows2, dpAeChart, dpAeView, dpDerive, dpDvParse, dpDvLog, dpTable2, dpHead0, dpSecLast, DP, dpTable, dpActs, dpActPrompt, dpExtGuess, dpExtIndex, dpExtend, dpExtLog, dpBlock, dpCty, dpSetTable, dpParseCSV, dpDecode, dpGuess, dpCheck, dpBuild, dpPivotVals, dpNeed, dpTargets, dpLogLines, dpDetailRows, dpXlsx, dpCSV, dpOpenXLSX, dpReadSheet, dpDateVal, dpFmt, dpSummary };
