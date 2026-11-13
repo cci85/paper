@@ -508,10 +508,23 @@ function dpEvView(c) {
   const o = dpAeCfg(c), L = dpEvActs(c), S = L.filter(a => dpEvKind(c, a) === "s"), G = L.filter(a => dpEvKind(c, a) === "l");
   const nm = a => `${a.v}${a.ab ? " " + esc(a.ab) : ""}`;
   return `<div class="dpsub"><b>模型用的事件變數</b>
-    <p class="hint">依活動初步評估表一的「短期／長期」分類產生；表一有勾選保留時只處理保留的活動。所有輸出另加 time（線性時間趨勢）與 dow（星期幾）。</p>
-    <ul class="hint"><li><b>短期</b>（${S.length ? S.map(nm).join("、") : "無"}）：起日前各週 _b${o.ewb}…_b1、起日後各週 _a0…_a${o.ewa}（每 7 天一週，起日為第 0 週）。${esc(DP_EVREF.s)}。</li>
-      <li><b>長期</b>（${G.length ? G.map(nm).join("、") : "無"}）：_s 起日後為 1（水準變化）、_t 起日後天數（斜率變化）；迄日早於資料最後一天者另加 _e 迄日後為 1、_et 迄日後天數。${esc(DP_EVREF.l)}。</li>
-      <li><b>時間控制</b>：${esc(DP_EVREF.t)}。原本的期間 0/1 變數（act1…）等於 _s 減 _e，不要與 _s、_e 同時放入模型。</li></ul>
+    <p class="hint">依表一的「短期／長期」分類，替每個活動自動產生放進模型的變數（表一有勾選保留時只處理保留的活動），另加 time 與 dow 控制時間。短期：${S.length ? S.map(nm).join("、") : "無"}；長期：${G.length ? G.map(nm).join("、") : "無"}。</p>
+    <details class="dpdoc"><summary>說明：這些變數是什麼、為什麼這樣設</summary>
+      <p><b>短期活動</b></p>
+      <ul><li>變數：把起日前後切成一週一週（每 7 天一週，起日當週為第 0 週），每週一個 0/1 變數；_b${o.ewb}…_b1 是起日前第 ${o.ewb} 週到第 1 週，_a0…_a${o.ewa} 是起日當週到起日後第 ${o.ewa} 週。</li>
+        <li>看什麼：模型估出每一週比平常多或少多少，可看出效果出現在哪幾週、多久消退；若起日前幾週就已經升高，表示變化在活動前就開始，不宜歸因於活動。</li></ul>
+      <p>依據 Garthwaite（2014）彙總時間序列的設定，起日前後各取 8 週；Sheng &amp; Astvansh（2026）取前後 3 週。週數可在下方調整。</p>
+      <p><b>長期活動</b></p>
+      <ul><li>_s：起日之後每天為 1，估計活動開始後每日數值整體墊高（或降低）多少，即水準變化。</li>
+        <li>_t：起日之後經過的天數，估計活動開始後每天是否再多增加（或減少），即趨勢變陡或變緩。</li>
+        <li>_e、_et：只有在資料截止前就已結束的活動才有，分別估計結束後的水準與趨勢是否再改變（例如回落）。</li></ul>
+      <p>水準變化依斷點時間序列（Cornelsen et al., 2017）與代言銷售研究（Elberse &amp; Verleun, 2012）的階梯變數；趨勢變化依 Miller（2023）的分段設定；結束後的變化依 Sheng &amp; Astvansh（2026）。</p>
+      <p><b>時間控制</b></p>
+      <ul><li>time：從樣本第一天起算的第幾天，用來扣除長期自然成長或衰退。</li>
+        <li>dow：星期幾（1＝星期一），用來扣除平日與週末的差異。</li>
+        <li>不放年份固定效果：所有單位在同一天開始活動、又沒有未受活動影響的對照單位時，「活動開始之後」與「某幾個年份」幾乎重疊，模型無法區分兩者（Miller, 2023），因此含長期活動的模型改用 time 加季節虛擬變數（Cornelsen et al., 2017 用季別虛擬變數）；只含短期活動的模型可依 Garthwaite（2014）同時控制年份。</li></ul>
+      <p>原本的期間 0/1 變數（act1…）剛好等於 _s 減 _e，內容重複，不要與 _s、_e 同時放入模型。</p>
+    </details>
     <div class="dprow"><label>短期活動：起日前 <input type="number" min="1" step="1" data-dpae="ewb" value="${o.ewb}" style="width:4em"> 週</label><label>起日後 <input type="number" min="0" step="1" data-dpae="ewa" value="${o.ewa}" style="width:4em"> 週</label></div></div>`;
 }
 // 一人一日的資料 → 加上活動期間（act1…）與外部資料的欄位
