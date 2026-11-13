@@ -221,7 +221,7 @@ function mchkView(text) {
     return `<td>${tag}<b>${esc(r[0])}</b>｜${esc(r[1] || "")}${r[2] ? `<br><small>${esc(r[2])}</small>` : ""}</td>`; };
   const pair = pmPair(A, B);
   const diff = pair.some(([a, b]) => !a || !b || a[0] !== b[0]);
-  return `<div class="sview mchkv"><h3>修正前後對照</h3>${none ? `<p class="note">AI 判斷<b>無需修正</b>，不必採用。</p>` : ""}
+  return mdBox(text, "閱讀整理後的檢核回覆", false) + `<div class="sview mchkv"><h3>修正前後對照</h3>${none ? `<p class="note">AI 判斷<b>無需修正</b>，不必採用。</p>` : ""}
     <table class="mtbl"><thead><tr><th>${auto ? "帶入前的研究模型組" : "目前的研究模型組"}</th><th>${lab}</th></tr></thead><tbody>${pair.map(([a, b]) => `<tr>${cell(a, b, false)}${cell(b, a, true)}</tr>`).join("")}</tbody></table>
     ${notes.filter(l => !/^無需修正/.test(l)).length ? `<p class="f"><b>修正之處與理由</b></p><ul>${notes.filter(l => !/^無需修正/.test(l)).map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
     ${diff ? `<div class="needbox"><b>不知道該選哪一版？</b>依下列順序判斷：
@@ -255,7 +255,50 @@ function pfFill(text) {
   return `已帶入：${done.join("、")}。請逐欄核對。` + (ask && !/^無$/.test(ask) ? `\n需要確認之處：\n${ask}` : "");
 }
 // panel data：0.2 步驟 1 回覆中的變數清單
-const pdVarText = () => pipeLines(mdSec(((typeof store !== "undefined" && store.replies) || {})["s0-4|pdata"], "變數清單"));
+const pdVarAI = () => pipeLines(mdSec(((typeof store !== "undefined" && store.replies) || {})["s0-4|pdata"], "變數清單"));
+const pdVarText = () => ((typeof store !== "undefined" && store.values.pd_vars) || "").trim() || pdVarAI();   // 研究變數：以自行確認的清單為準，留白時用 0.2 回覆的變數清單
+// 0.2 步驟 1：回覆貼上後，把「變數清單」帶入「研究變數」（研究變數留白或仍是上次帶入的內容時才帶入）
+function pdataAuto(text) {
+  const rows = pipeLines(mdSec(text, "變數清單")); if (!rows) return "";
+  const v = store.values, cur = (v.pd_vars || "").trim();
+  if (cur && pmNorm(cur) !== v.pd_vars_sig) return "";
+  if (pmNorm(rows) === pmNorm(cur)) return "";
+  v.pd_vars = rows; v.pd_vars_sig = pmNorm(rows);
+  return "已把回覆中的「變數清單」帶入下方「研究變數」；請核對，後續步驟以「研究變數」為準。";
+}
+// 簡易 Markdown 檢視：標題、表格、條列、粗體、分隔線（用來閱讀 AI 回覆）
+function mdInline(t) { return esc(t).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>"); }
+function mdView(text) {
+  const L = String(text || "").replace(/\r/g, "").split("\n"), out = []; let i = 0, para = [];
+  const flush = () => { if (para.length) { out.push(`<p>${para.map(mdInline).join("<br>")}</p>`); para = []; } };
+  while (i < L.length) {
+    const l = L[i], t = l.trim();
+    if (!t) { flush(); i++; continue; }
+    if (/^-{3,}$/.test(t)) { flush(); out.push("<hr>"); i++; continue; }
+    const h = t.match(/^(#{1,4})\s+(.*)$/); if (h) { flush(); const n = Math.min(h[1].length + 1, 5); out.push(`<h${n}>${mdInline(h[2])}</h${n}>`); i++; continue; }
+    if (/^\|.*\|$/.test(t)) { flush(); const rows = []; while (i < L.length && /^\|.*\|$/.test(L[i].trim())) { rows.push(L[i].trim()); i++; }
+      const cells = r => r.slice(1, -1).split("|").map(c => c.trim()), body = rows.filter(r => !/^\|[\s:|-]+\|$/.test(r));
+      out.push(`<table class="mtbl">${body.map((r, k) => `<tr>${cells(r).map(c => k ? `<td>${mdInline(c)}</td>` : `<th>${mdInline(c)}</th>`).join("")}</tr>`).join("")}</table>`); continue; }
+    if (/^([-*•]|\d+[.、)])\s+/.test(t)) { flush(); const ord = /^\d/.test(t), items = [];
+      while (i < L.length && (/^\s*([-*•]|\d+[.、)])\s+/.test(L[i]) || (L[i].trim() && /^\s{2,}/.test(L[i]) && items.length))) {
+        const x = L[i].trim(); if (/^([-*•]|\d+[.、)])\s+/.test(x)) items.push(x.replace(/^([-*•]|\d+[.、)])\s+/, "")); else items[items.length - 1] += "\n" + x; i++; }
+      out.push(`<${ord ? "ol" : "ul"}>${items.map(x => `<li>${x.split("\n").map(mdInline).join("<br>")}</li>`).join("")}</${ord ? "ol" : "ul"}>`); continue; }
+    para.push(t); i++;
+  }
+  flush();
+  return out.join("");
+}
+const mdBox = (text, title, open) => blank(text) ? "" : `<details class="sview mdv"${open ? " open" : ""}><summary>${esc(title)}</summary>${mdView(text)}</details>`;
+// 0.4 資料字典：回覆中的「可再考慮的變數」可逐一加入研究變數
+function pdictView(text) {
+  if (blank(text)) return "";
+  const extra = pipeLines(mdSec(text, "可再考慮的變數")).split("\n").filter(Boolean).map(l => l.split(/[｜|]/).map(x => x.trim()));
+  const have = pmNorm(pdVarText());
+  const box = extra.length ? `<div class="needbox"><b>可再考慮的變數</b>：文獻常用、現有欄位做得出來、但研究變數尚未納入。按「加入」會寫進上方「研究變數」；加入自變數或調節變數時，研究假說與模型組也要一併考慮（可回 0.3 用「追問」確認）。
+    <table class="mtbl"><tr><th>角色</th><th>變數</th><th>建構方式</th><th>納入理由</th><th></th></tr>${extra.map((r, k) => { const inV = have.includes(pmNorm((r[1] || "").replace(/[（(].*$/, "")));
+      return `<tr><td>${esc(r[0] || "")}</td><td>${esc(r[1] || "")}</td><td>${esc(r[2] || "")}</td><td>${esc(r.slice(3).join("｜"))}</td><td>${inV ? "<small>已在研究變數</small>" : `<button type="button" data-addvar="${esc([r[0], r[1], r[2], r[4] || r[3] || ""].join("｜"))}">加入</button>`}</td></tr>`; }).join("")}</table></div>` : "";
+  return box + mdBox(text, "閱讀整理後的回覆（資料字典、分析樣本、檢查清單）", true);
+}
 const pdVals = () => { const v = store.values; return { ctx: (v.as_ctx || "").trim(), con: (v.as_con || "").trim(), unit: (v.pd_unit || "").trim(), time: (v.pd_time || "").trim(),
   fields: (v.pd_fields || "").trim(), feat: v.pd_feat || [], goal: v.pd_goal || ["exp", "pred"], vars: pdVarText() }; };
 
@@ -1168,8 +1211,12 @@ const DEFS = {
       { id: "pd_fields", type: "textarea", label: "現有資料欄位", hint: "每行一個或以頓號分隔；可附簡短說明", rows: 4,
         placeholder: "捐款者編號、捐款日期、捐款金額、捐款管道、勸募信寄送日期、性別、居住縣市、首次捐款日期" },
       { id: "pd_feat", type: "checks", label: "資料特性", hint: "可複選；不確定時可先不勾，AI 會依欄位判斷", options: PD_FEAT, value: [] },
-      { id: "pd_goal", type: "checks", label: "研究目標", hint: "可複選；兩者並用時，解釋與預測分別以不同準則比較模型", options: PD_GOAL, value: ["exp", "pred"] }
+      { id: "pd_goal", type: "checks", label: "研究目標", hint: "可複選；兩者並用時，解釋與預測分別以不同準則比較模型", options: PD_GOAL, value: ["exp", "pred"] },
+      { id: "pd_vars", type: "textarea", below: true, label: "研究變數", hint: "每行一個：角色｜變數名稱（英文原文）｜建構方式｜依據文獻。貼上 AI 回覆後自動帶入其中的「變數清單」；可自行修改，或改貼自己整理的變數清單。0.3、0.4、0.5 以這裡為準", rows: 6, mono: true,
+        placeholder: "依變數｜當日捐款金額（Donation Amount）｜ln(mtotal)｜Khodakarami et al., 2015\n自變數｜寒冷改善（Cold Relief）｜節氣常態 THI 與當日 THI 之差｜Choi et al., 2016" }
     ],
+    replyView: t => mdBox(t, "閱讀整理後的回覆", false),
+    autoReply: t => pdataAuto(t),
     rules: () => ["citation"],
     seed: () => { const s = seedFrom01(); return { as_ctx: s.as_ctx, as_con: s.as_con }; }, seedFrom: "0.1「研究方向聚焦」",
     seedNote: "研究情境與研究問題由 0.1「研究方向聚焦」的 AI 回覆帶入，可自行修改",
@@ -1216,7 +1263,7 @@ const DEFS = {
     build: (p, R) => {
       const model = modelText(), qs = splitLines(p.mc_qs), pr = pdGoal(pdVals().goal).r;
       const checks = PD_CHECKS.filter(c => p.mc_checks.includes(c.key) && (!c.pred || pr)).map(c => c.text);
-      return !model || (!checks.length && !qs.length) ? "" : T.pd_check({ ...pdVals(), model, checks, qs, same: p.mc_conv !== "new" }) + R;
+      return !model || (!checks.length && !qs.length) ? "" : T.pd_check({ ...pdVals(), model, checks, qs, same: p.mc_conv !== "new", varsEdited: !blank(store.values.pd_vars) && pmNorm(store.values.pd_vars) !== pmNorm(pdVarAI()) }) + R;
     },
     replyView: t => mchkView(t + "\n\n" + (store.values.mc_dec || "")),
     autoReply: t => mchkAuto(t + "\n\n" + (store.values.mc_dec || "")),
@@ -1229,11 +1276,13 @@ const DEFS = {
     hint: "接在 0.3 同一個對話。依研究模型組與資料欄位，列出每個變數的建構方式、分析樣本的納入與排除規則；研究目標含預測時，另規劃訓練期與驗證期的時間切分。",
     fields: [
       { id: "pd_goal", type: "checks", label: "研究目標", hint: "與 0.2、0.3 共用；含「預測」時才規劃預測的時間切分", options: PD_GOAL, value: ["exp", "pred"] },
+      { id: "pd_vars", type: "textarea", label: "研究變數", hint: "與 0.2 步驟 1 共用；資料字典以此為準。下方回覆的「可再考慮的變數」按「加入」會寫進這裡", rows: 5, mono: true },
       { id: "dc_conv", type: "radio", label: "對話", hint: "0.2、0.3 都在同一個對話時，不重複貼上資料欄位與變數清單，Prompt 比較短", options: [["same", "接在 0.2／0.3 的同一個對話"], ["new", "開新對話"]], value: "same" },
       { id: "pd_fields", type: "textarea", label: "現有資料欄位", hint: "與 0.2 共用；選「開新對話」時才會放進 Prompt", rows: 3, when: p => p.dc_conv === "new" },
       { id: "dc_cut", type: "text", label: "預測時點與預測期間", hint: "選填；研究目標含預測時使用", placeholder: "例如：以 2024 年 12 月為預測時點，預測 2025 年上半年是否再次捐款", when: () => pdGoal(pdVals().goal).r }
     ],
     rules: () => ["citation"],
+    replyView: t => pdictView(t),
     build: (p, R) => { const model = modelText(); return model ? T.pd_dict({ ...pdVals(), model, cut: (p.dc_cut || "").trim(), same: p.dc_conv !== "new" }) + R : ""; },
     empty: "（0.2 還沒有研究模型組）",
     next: "下一步：依資料字典整理資料，再到{#mreport}規劃第四章要揭露的結果。"
@@ -1245,6 +1294,7 @@ const DEFS = {
       { id: "mr_extra", type: "text", label: "補充要求", hint: "選填", placeholder: "例如：係數以平均邊際效果呈現；預測結果另做名單前 10% 的增益圖" }
     ],
     rules: () => ["citation"],
+    replyView: t => mdBox(t, "閱讀整理後的回覆", true),
     build: (p, R) => { const model = modelText(); return model ? T.pd_report({ model, goal: pdVals().goal, extra: (p.mr_extra || "").trim() }) + R : ""; },
     empty: "（0.2 還沒有研究模型組）",
     next: "下一步：到 0.5 擬定論文題目。"

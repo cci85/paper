@@ -317,6 +317,11 @@ function runAuto(t) {
 }
 $("pane").addEventListener("paste", e => { const t = e.target; if (t && t.tagName === "TEXTAREA") setTimeout(() => runAuto(t), 0); });
 $("pane").addEventListener("change", e => { const t = e.target; if (t && t.tagName === "TEXTAREA") runAuto(t); });
+$("pane").addEventListener("click", e => {   // 0.4 panel data：把「可再考慮的變數」加入研究變數
+  const b = e.target.closest("button[data-addvar]"); if (!b) return;
+  const v = store.values, cur = (v.pd_vars || "").trim() || pdVarAI();
+  v.pd_vars = (cur ? cur + "\n" : "") + b.dataset.addvar; save(); renderPane(); update();
+});
 $("pane").addEventListener("click", e => {   // 0.3 panel data：復原為帶入前的模型組
   const b = e.target.closest("button[data-pmrestore]"); if (!b) return;
   store.values.pm_final = store.values.pm_prev || ""; save(); renderPane(); update();

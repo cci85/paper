@@ -456,3 +456,11 @@ table.apa td[contenteditable]:focus, .tbl-note[contenteditable]:focus { outline:
 .mchkv .mtbl th { background: var(--bg); }
 .mchkv .mk-new { color: #a33a2c; } .mchkv .mk-chg { color: #8a6d1f; }
 .mchkv ul { margin: 4px 0 8px 20px; font-size: 13.5px; line-height: 1.6; }
+
+.mdv { margin-top: 10px; }
+.mdv > summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.mdv h3, .mdv h4, .mdv h5 { margin: 12px 0 6px; }
+.mdv p, .mdv li { font-size: 14px; line-height: 1.7; }
+.mdv .mtbl, .needbox .mtbl { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0; }
+.mdv .mtbl th, .mdv .mtbl td, .needbox .mtbl th, .needbox .mtbl td { border: 1px solid var(--line); padding: 5px 7px; vertical-align: top; text-align: left; }
+.mdv .mtbl th, .needbox .mtbl th { background: var(--bg); }
