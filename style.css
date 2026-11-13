@@ -485,3 +485,4 @@ table.apa td[contenteditable]:focus, .tbl-note[contenteditable]:focus { outline:
 .dp .dpconf.todo { border-color: var(--warn); background: var(--warn-soft); }
 .dp .dpconf .ex { color: var(--muted); font-size: 13px; margin: 4px 0; }
 .dp .dpbtns { display: flex; flex-wrap: wrap; gap: 8px; }
+.dp .warn { color: var(--warn); }

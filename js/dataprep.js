@@ -2,7 +2,7 @@
 // 全部在瀏覽器處理，原始資料不會上傳，也不存進研究存檔；研究存檔只記住欄位設定（dp_cfg）與處理摘要（dp_sum）
 // 讀寫 .xlsx 用網站已有的 JSZip（js/vendor/jszip.min.js），不另外載入試算表元件
 
-const DP = { name: "", head: [], rows: [], kind: [], sheets: [], zip: null, sheet: 0, chk: null, busy: "", err: "", log: [] };
+const DP = { name: "", head: [], rows: [], kind: [], sheets: [], zip: null, sheet: 0, chk: null, busy: "", err: "", log: [], ext: [], extX: [], extIx: [], extStat: null };
 const DP_LV = { day: "一人一日", month: "一人一月", year: "一人一年", person: "一人一筆（整個期間）" };
 const DP_RES = [["near", "依前後幾天的交易判斷"], ["wt", "依某數值欄的金額決定"], ["mode", "取出現次數最多者"], ["first", "取第一筆"], ["last", "取最後一筆"]];
 const DP_ROLE = { sum: "加總", mean: "平均", max: "最大", min: "最小", take: "取值（不一致時示警）", drop: "刪除（不輸出）" };
@@ -134,8 +134,9 @@ async function dpReadSheet(X, k, onProg) {
   parse(carry);
   return { rows: Array.from(rows, r => r || []), dateHit };
 }
-// 原始列（含標題列）→ DP.head／rows／kind
-function dpSetTable(raw, dateHit = []) {
+// 原始列（含標題列）→ { head, rows, kind }；主檔存進 DP，外部檔另存
+function dpSetTable(raw, dateHit = []) { const t = dpTable(raw, dateHit); DP.head = t.head; DP.rows = t.rows; DP.kind = t.kind; DP.chk = null; DP.uv = {}; }
+function dpTable(raw, dateHit = []) {
   let h = 0; while (h < raw.length && !(raw[h] || []).some(v => !dpBlank(v))) h++;
   const hdr = raw[h] || [], body = raw.slice(h + 1).filter(r => r && r.some(v => !dpBlank(v)));
   const nc = Math.max(hdr.length, ...body.slice(0, 2000).map(r => r.length)), seen = {};
@@ -153,13 +154,13 @@ function dpSetTable(raw, dateHit = []) {
     if (dpBlank(v)) r[c] = null;
     else if (kind[c] === "text") r[c] = typeof v === "string" ? v.trim() : String(v);
     else if (typeof v !== "number") r[c] = dpNum(v); } });
-  DP.head = head; DP.rows = body; DP.kind = kind; DP.chk = null; DP.uv = {};
+  return { head, rows: body, kind };
 }
 
 // ── 欄位設定的預設值（只是建議；角色都可以改）──
 function dpGuess(old) {
   const H = DP.head, K = DP.kind, idx = re => H.findIndex(h => re.test(h));
-  const cfg = { id: null, dmode: "one", dcol: null, y: null, m: null, d: null, ychk: false, roles: {}, res: {}, flag: {}, agg: "person", wide: "day", from: null, to: null, coh: false, cohCol: null, excl: [], pcol: null, pval: null, pmap: {}, pcnt: false, tot: null, parts: [] };
+  const cfg = { id: null, dmode: "one", dcol: null, y: null, m: null, d: null, ychk: false, roles: {}, res: {}, flag: {}, agg: "person", wide: "day", from: null, to: null, coh: false, cohCol: null, excl: [], pcol: null, pval: null, pmap: {}, pcnt: false, tot: null, parts: [], actRep: "", actSrc: "", ext: [] };
   if (old && H.includes(old.id)) Object.assign(cfg, JSON.parse(JSON.stringify(old)));
   const has = c => c != null && H.includes(c);
   if (!has(cfg.id)) { const i = idx(/^(id|ID|編號|代碼|捐款人|個人代碼|會員編號)$/i); cfg.id = H[i >= 0 ? i : 0]; }
@@ -350,6 +351,142 @@ function dpBuild(cfg, chk, lv, pivot) {
   return { head, rows, dateCol };
 }
 
+// ── 活動期間與外部資料：附加在一人一日的資料之後 ──
+// 縣市名稱只為串接而統一：台→臺、舊縣名→現行縣市、唯一的兩字簡稱補全（新竹、嘉義有縣與市，不補）
+const DP_OLDC = { "臺北縣": "新北市", "桃園縣": "桃園市", "臺中縣": "臺中市", "臺南縣": "臺南市", "高雄縣": "高雄市" };
+const dpCty = v => { if (v == null) return ""; const s = dpNorm(v).replace(/\s+/g, ""); if (DP_OLDC[s]) return DP_OLDC[s]; if (DP_TW.has(s)) return s;
+  if (s.length === 2) { const m = [...DP_TW].filter(x => x.startsWith(s)); if (m.length === 1) return m[0]; } return s; };
+// 各縣市政府所在地（約略經緯度），用來找距離最近的縣市；離島縣不找鄰近縣市
+const DP_SEAT = { "臺北市": [25.0375, 121.5637], "新北市": [25.0120, 121.4650], "桃園市": [24.9937, 121.3010], "臺中市": [24.1618, 120.6467], "臺南市": [22.9925, 120.1850], "高雄市": [22.6205, 120.3120],
+  "新竹縣": [24.8270, 121.0130], "苗栗縣": [24.5650, 120.8205], "彰化縣": [24.0760, 120.5420], "南投縣": [23.9025, 120.6900], "雲林縣": [23.6990, 120.5260], "嘉義縣": [23.4590, 120.2930],
+  "屏東縣": [22.6830, 120.4880], "宜蘭縣": [24.7300, 121.7630], "花蓮縣": [23.9910, 121.6110], "臺東縣": [22.7560, 121.1440], "基隆市": [25.1310, 121.7440], "新竹市": [24.8040, 120.9680], "嘉義市": [23.4800, 120.4490] };
+const DP_NEAR = (() => { const km = ([a, b], [c, d]) => { const r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r; return 6371 * Math.hypot(x, y); }, o = {};
+  Object.keys(DP_SEAT).forEach(k => { o[k] = Object.keys(DP_SEAT).filter(x => x !== k).sort((x, y) => km(DP_SEAT[k], DP_SEAT[x]) - km(DP_SEAT[k], DP_SEAT[y]))[0]; }); return o; })();
+const DP_DRE = /(\d{2,4})\s*[\/\-.年]\s*(\d{1,2})\s*[\/\-.月]\s*(\d{1,2})\s*日?/g;
+// 活動整理 Prompt：交給一般 AI，把活動資料整理成固定格式後貼回
+const dpActPrompt = () => [
+  "以下是我整理的活動資料（可能是表格、條列或一般文字）。請找出其中每一個活動及其舉辦期間，整理成每行一個活動，格式為：",
+  "活動名稱｜起日｜迄日｜說明",
+  "",
+  "規則：",
+  "1. 日期一律寫成西元 YYYY/MM/DD；原文為民國年時換算成西元年。",
+  "2. 單日活動的起日與迄日相同；起迄日都包含在活動期間內。",
+  "3. 同一活動有多個不連續的期間時，分成多行，並在活動名稱後加（1）（2）區分。",
+  "4. 「說明」寫活動內容的簡短摘要（一句話），原文沒有時留白。",
+  "5. 原文沒有寫明年份、日期不完整或無法確定者，不得推測，改列在最後的「## 無法確定」一節，每行寫出原文與原因。",
+  "6. 只輸出上述內容，不加其他文字、不使用表格。",
+  "", "活動資料：", "---", "（請在這裡貼上活動資料）", "---"
+].join("\n");
+function dpActs(cfg) {
+  const list = [], bad = [], txt = String(cfg.actRep || "").replace(/\*\*/g, ""), cut = txt.search(/^#{1,3}\s*無法確定/m);
+  const body = cut >= 0 ? txt.slice(0, cut) : txt, unsure = cut >= 0 ? txt.slice(cut).split(/\r?\n/).slice(1).map(l => l.replace(/^[\s\-*•]+/, "").trim()).filter(Boolean) : [];
+  body.split(/\r?\n/).forEach(l => {
+    const t = l.replace(/^[\s\-*•]+/, "").trim(); if (!t || /^[-|｜:\s]+$/.test(t) || /^#/.test(t)) return;
+    const cells = t.replace(/^\||\|$/g, "").split(/[｜|\t]/).map(x => x.trim());
+    if (/^活動名稱$/.test(cells[0])) return;   // 標題列
+    const ds = [...t.matchAll(DP_DRE)].map(m => dpSerial(+m[1], +m[2], +m[3]));
+    if (!ds.length || ds.some(x => x == null)) { bad.push(t); return; }
+    const name = cells.find(x => x && !x.match(new RegExp(DP_DRE.source))) || "";
+    const from = Math.min(ds[0], ds[1] ?? ds[0]), to = Math.max(ds[0], ds[1] ?? ds[0]);
+    list.push({ name, from, to, note: cells.length > 3 ? cells.slice(3).join("｜") : "", v: `act${list.length + 1}` });
+  });
+  return { list, bad, unsure };
+}
+// 外部檔：猜日期欄、縣市欄；欄名有 3 個以上是縣市時視為寬格式（一個縣市一欄）
+const dpExtWide = (e, t) => e.ccol ? [] : t.head.map((h, c) => h !== e.dcol && DP_TW.has(dpCty(h)) ? c : -1).filter(c => c >= 0);
+function dpExtGuess(e, t) {
+  const H = t.head, smp = t.rows.slice(0, 500), share = (c, f) => { let n = 0, k = 0; smp.forEach(r => { if (r[c] != null) { n++; if (f(r[c])) k++; } }); return n ? k / n : 0; };
+  if (!H.includes(e.dcol)) { let i = H.findIndex(h => /日期|date|yyyymmdd|觀測時間/i.test(h)); if (i < 0) i = H.findIndex((h, c) => share(c, v => dpDateVal(v) != null) > 0.9); e.dcol = i >= 0 ? H[i] : null; }
+  if (e.ccol && !H.includes(e.ccol)) e.ccol = null;
+  if (e.ccol === undefined) { const i = H.findIndex((h, c) => h !== e.dcol && share(c, v => DP_TW.has(dpCty(v))) > 0.8); e.ccol = i >= 0 ? H[i] : null; }
+  e.use ||= []; e.vars ||= {}; e.use = e.use.filter(h => H.includes(h));
+  if (!e.wv) e.wv = "x";
+  if (!e.key || !DP.head.includes(e.key)) e.key = dpCtyCols()[0] || null;
+}
+// 本資料中可作為縣市鍵的欄位：取值的文字欄，依縣市值的比例排序
+const dpCtyCols = () => { const c = DP.cfg; if (!c) return [];
+  return DP.head.filter((h, i) => DP.kind[i] === "text" && c.roles[h] === "take" && h !== c.pcol).map(h => { const u = dpUV(h), n = u.reduce((a, x) => a + x[1], 0) || 1;
+    return [h, u.filter(([v]) => DP_TW.has(dpCty(v))).reduce((a, x) => a + x[1], 0) / n]; }).filter(x => x[1] > 0.5).sort((a, b) => b[1] - a[1]).map(x => x[0]); };
+// 外部檔整理成「日期（＋縣市）→ 各變數的值」：同一鍵多筆時數值取平均（X 不列入）；T（微量）視為 0；全部為 X 時以距離最近的縣市同一天的值取代
+function dpExtIndex(e, t) {
+  const H = t.head, dc = H.indexOf(e.dcol), cc = e.ccol ? H.indexOf(e.ccol) : -1, wc = dpExtWide(e, t), wide = wc.length >= 3;
+  const vars = wide ? [{ c: -1, h: "（各縣市欄）", v: (e.wv || "x").trim() }] : (e.use || []).filter(h => H.includes(h)).map(h => ({ c: H.indexOf(h), h, v: ((e.vars || {})[h] || h).trim() }));
+  const st = { rows: t.rows.length, badDate: 0, dmin: Infinity, dmax: -Infinity, unk: new Map(), T: 0, X: 0, other: new Map(), filled: 0, fillBy: new Map(), gaps: [], wide, by: cc >= 0 || wide, ctys: new Set() };
+  const acc = new Map();
+  const put = (key, j, v) => {
+    let a = acc.get(key); if (!a) acc.set(key, a = vars.map(() => ({ s: 0, n: 0, x: 0, t: null })));
+    if (v == null) return; const o = a[j];
+    if (typeof v === "number") { if (isFinite(v)) { o.s += v; o.n++; } return; }
+    const s = String(v).trim(); if (!s) return;
+    if (/^T$/i.test(s)) { o.n++; st.T++; return; }   // 微量：視為 0
+    if (/^X$/i.test(s)) { o.x++; st.X++; return; }
+    const n = dpNum(s); if (!isNaN(n) && n != null) { o.s += n; o.n++; return; }
+    if (o.t == null) o.t = s; o.tn = (o.tn || 0) + 1;
+  };
+  if (dc >= 0 && vars.length) for (const r of t.rows) {
+    const d = dpDateVal(r[dc]); if (d == null) { st.badDate++; continue; }
+    if (d < st.dmin) st.dmin = d; if (d > st.dmax) st.dmax = d;
+    if (wide) wc.forEach(c => { const k = dpCty(t.head[c]); st.ctys.add(k); put(d + "\u0001" + k, 0, r[c]); });
+    else { let k = ""; if (cc >= 0) { k = dpCty(r[cc]); if (!DP_TW.has(k)) { st.unk.set(String(r[cc] ?? "（空白）"), (st.unk.get(String(r[cc] ?? "（空白）")) || 0) + 1); continue; } st.ctys.add(k); }
+      vars.forEach((o, j) => put(d + "\u0001" + k, j, r[o.c])); }
+  }
+  // 各變數是數值或文字：數值多於文字者視為數值，其餘文字代碼（T、X 以外）記為缺漏並列出
+  const num = vars.map((_, j) => { let n = 0, tx = 0; acc.forEach(a => { n += a[j].n + a[j].x; tx += a[j].tn || 0; }); return n >= tx; });
+  acc.forEach(a => vars.forEach((_, j) => { if (num[j] && a[j].tn) { const k = a[j].t; st.other.set(k, (st.other.get(k) || 0) + a[j].tn); } }));
+  const map = new Map(); acc.forEach((a, key) => map.set(key, a.map((o, j) => num[j] ? (o.n ? o.s / o.n : o.x ? "X" : null) : o.t)));
+  // X：該縣市當天全部為 X 時，以距離最近的 1 個縣市同一天的值取代；最近的縣市當天也沒有有效值、離島縣或全國資料，維持缺漏
+  const miss = [], orig = new Map(); map.forEach((v, key) => orig.set(key, v.slice()));
+  map.forEach((vals, key) => { const [d, k] = key.split("\u0001");
+    vals.forEach((v, j) => { if (v !== "X") return;
+      const nb = k ? DP_NEAR[k] : null, w = nb ? orig.get(d + "\u0001" + nb) : null;
+      if (w && typeof w[j] === "number") { st.filled++; st.fillBy.set(k, nb); vals[j] = w[j]; }
+      else miss.push([k, j, +d]); }); });
+  // 再把取代值與缺漏分開：取代值只取鄰近縣市的原始有效值（不連鎖取代）
+  miss.forEach(([k, j, d]) => { map.get(d + "\u0001" + k)[j] = null; });
+  miss.sort((x, y) => x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : x[1] - y[1] || x[2] - y[2]);
+  miss.forEach(([k, j, d]) => { const g = st.gaps[st.gaps.length - 1];
+    if (g && g.k0 === k && g.j === j && g.to === d - 1) { g.to = d; g.days++; }
+    else st.gaps.push({ k0: k, k: k || "全國", j, v: vars[j].v, from: d, to: d, days: 1, why: !k ? "全國資料" : !DP_NEAR[k] ? "離島縣" : `${DP_NEAR[k]}當天也沒有有效值` }); });
+  if (st.dmin === Infinity) st.dmin = st.dmax = null;
+  return { map, vars, num, st };
+}
+const dpExtIx = i => { const t = DP.ext[i], e = DP.cfg.ext[i]; if (!t) return null; return DP.extIx[i] ||= dpExtIndex(e, t); };
+// 輸出前必須完成的設定
+function dpBlock(cfg) {
+  const m = []; const A = dpActs(cfg);
+  if (A.list.length && !String(cfg.actSrc || "").trim()) m.push("活動期間：請填寫資料來源");
+  if (A.bad.length) m.push(`活動期間：有 ${A.bad.length} 行讀不出日期，請修正或刪除`);
+  (cfg.ext || []).forEach((e, i) => { const t = `外部資料 ${i + 1}${e.file ? `（${e.file}）` : ""}`;
+    if (!DP.ext[i]) m.push(`${t}：請${e.file ? "重新" : ""}上傳檔案`); else {
+      if (!e.dcol) m.push(`${t}：請選擇日期欄`);
+      const ix = dpExtIx(i); if (ix && !ix.vars.length) m.push(`${t}：請勾選要帶入的變數`);
+      if (ix && ix.st.by && !e.key) m.push(`${t}：請選擇本資料中對應的縣市欄`); }
+    ["src", "url", "got"].forEach(k => { if (!String(e[k] || "").trim()) m.push(`${t}：請填寫${{ src: "資料來源", url: "網址或取得方式", got: "取得日期" }[k]}`); }); });
+  return m;
+}
+// 一人一日的資料 → 加上活動期間（act1…）與外部資料的欄位
+function dpExtend(T, cfg) {
+  const head = T.head.slice(), rows = T.rows, di = head.indexOf("date"), desc = {}, st = { ext: [] };
+  const seen = new Set(head), nm = h => { let x = h, k = 2; while (seen.has(x)) x = `${h}_${k++}`; seen.add(x); return x; };
+  const A = dpActs(cfg);
+  A.list.forEach(a => { const v = nm(a.v); head.push(v); desc[v] = `活動「${a.name}」期間（${dpFmt(a.from)} 至 ${dpFmt(a.to)}）為 1，其餘為 0`; rows.forEach(r => r.push(r[di] >= a.from && r[di] <= a.to ? 1 : 0)); });
+  (cfg.ext || []).forEach((e, i) => {
+    const ix = DP.ext[i] ? dpExtIx(i) : null, vars = ix ? ix.vars : [], s = { ok: 0, miss: 0, noC: 0, out: 0, keys: new Map() };
+    const names = vars.map(o => { const v = nm(o.v); head.push(v); desc[v] = `${e.src || "外部資料"}的 ${o.h === "（各縣市欄）" ? "各縣市資料" : o.h}（依日期${ix && ix.st.by ? `與 ${e.key} 的縣市` : ""}串接）`; return v; });
+    if (!ix) return st.ext.push(s);
+    let kc = ix.st.by ? head.indexOf(e.key) : -1; if (ix.st.by && kc < 0) kc = head.indexOf(e.key + "_原");
+    rows.forEach(r => { let k = "";
+      if (ix.st.by) { k = dpCty(r[kc]); if (!k) { s.noC++; vars.forEach(() => r.push(null)); return; } }
+      const v = ix.map.get(r[di] + "\u0001" + k);
+      if (v) { s.ok++; vars.forEach((_, j) => r.push(v[j] === "X" ? null : v[j])); }
+      else { if (ix.st.dmin == null || r[di] < ix.st.dmin || r[di] > ix.st.dmax) s.out++; else { s.miss++; const kk = k || dpFmt(r[di]); s.keys.set(kk, (s.keys.get(kk) || 0) + 1); } vars.forEach(() => r.push(null)); }
+    });
+    st.ext.push(s);
+  });
+  return { head, rows, dateCol: T.dateCol, desc, st };
+}
+const dpTable2 = (cfg, chk) => dpExtend(dpBuild(cfg, chk, "day", true), cfg);
+
 // ── 處理紀錄（文字）──
 function dpLogLines(cfg, chk) {
   const L = [], fmtN = x => x.toLocaleString("en-US");
@@ -369,6 +506,26 @@ function dpLogLines(cfg, chk) {
   if (cfg.pcol) { const tg = dpTargets(cfg);
     L.push(`寬格式展開：${cfg.pcol} 的各個值 → ${cfg.pval ? cfg.pval + " 加總" : "筆數"}；` + tg.map(t => `${t}＝${Object.keys(cfg.pmap).filter(v => (cfg.pmap[v] || "").trim() === t).map(v => v || "（空白）").join("＋")}`).join("；"));
     const skip = Object.keys(cfg.pmap).filter(v => !(cfg.pmap[v] || "").trim()); if (skip.length) L.push(`未納入寬格式：${skip.map(v => v || "（空白）").join("、")}`); }
+  dpExtLog(cfg).forEach(x => L.push(x));
+  return L;
+}
+function dpExtLog(cfg) {
+  const L = [], fmtN = x => x.toLocaleString("en-US"), A = dpActs(cfg), S = DP.extStat;
+  if (A.list.length) L.push(`活動期間（來源：${cfg.actSrc || "未填"}；全國一致，起迄日都包含在內）：` + A.list.map(a => `${a.v}＝${a.name}（${dpFmt(a.from)} 至 ${dpFmt(a.to)}）`).join("；"));
+  (cfg.ext || []).forEach((e, i) => {
+    const ix = DP.ext[i] ? dpExtIx(i) : null; if (!ix) { if (e.file) L.push(`外部資料 ${i + 1}：${e.file}（本次未上傳，以下串接結果不含此檔）`); return; }
+    const o = ix.st, by = o.by ? `依日期與縣市（本資料的 ${e.key} 欄）串接` : "依日期串接（全國一致）";
+    L.push(`外部資料 ${i + 1}：${e.file}；來源：${e.src}（${e.url}，取得日期 ${String(e.got || "").replace(/-/g, "/")}）；${by}；` +
+      `${o.wide ? `寬格式（各縣市一欄）→ ${ix.vars[0].v}` : ix.vars.map(v => `${v.v}＝${v.h}`).join("、")}；外部檔日期 ${dpFmt(o.dmin)} 至 ${dpFmt(o.dmax)}` +
+      `${o.by ? "；縣市名稱統一台／臺，舊縣名換為現行縣市（如臺北縣→新北市）" : ""}；同一日期${o.by ? "與縣市" : ""}有多筆時數值取平均`);
+    if (o.T) L.push(`　「T」（微量）${fmtN(o.T)} 筆，視為 0`);
+    if (o.X) L.push(`　「X」（儀器故障）${fmtN(o.X)} 筆：同一${o.by ? "縣市" : "日期"}當天有其他有效值時取有效值的平均；${o.by ? `某縣市當天全部為 X 時，以距離最近的縣市（依縣市政府所在地的距離）同一天的值取代（${fmtN(o.filled)} 筆${o.fillBy.size ? "；" + [...o.fillBy].map(([a, b]) => `${a}以${b}取代`).join("、") : ""}）；` : ""}其餘 ${fmtN(o.gaps.length)} 段維持缺漏` +
+      (o.gaps.length ? "，例：" + o.gaps.slice(0, 5).map(g => `${g.k} ${g.v} ${dpFmt(g.from)}–${dpFmt(g.to)}（${g.days} 天，${g.why}）`).join("；") + "（完整清單見「檢查明細」工作表）" : ""));
+    if (o.other.size) L.push(`　其他非數值代碼視為缺漏：` + [...o.other].map(([k, n]) => `「${k}」${fmtN(n)} 筆`).join("、"));
+    if (o.unk.size) L.push(`　縣市名稱無法對應、未納入：` + [...o.unk].slice(0, 10).map(([k, n]) => `${k} ×${fmtN(n)}`).join("、"));
+    const r = S && S.ext[i]; if (r) L.push(`　串接結果：對上 ${fmtN(r.ok)} 筆；外部檔日期範圍外 ${fmtN(r.out)} 筆${o.by ? `；當天沒有縣市 ${fmtN(r.noC)} 筆` : ""}；範圍內但對不上 ${fmtN(r.miss)} 筆（以上皆為缺漏）` +
+      (r.keys.size ? "，例：" + [...r.keys].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, n]) => `${k} ×${fmtN(n)}`).join("、") : ""));
+  });
   return L;
 }
 function dpDetailRows(cfg, chk) {
@@ -378,6 +535,7 @@ function dpDetailRows(cfg, chk) {
   chk.bad.id.slice(0, 2000).forEach(i => rows.push(["排除：缺少代碼", "", "", xr(i), cfg.id, ""]));
   chk.bad.date.slice(0, 2000).forEach(i => rows.push(["排除：日期無法解析", "", String(DP.rows[i][DP.head.indexOf(cfg.id)] ?? ""), xr(i), cfg.dmode === "one" ? cfg.dcol : "年月日", String(cfg.dmode === "one" ? DP.rows[i][DP.head.indexOf(cfg.dcol)] ?? "" : "")]));
   chk.ymdBad.slice(0, 2000).forEach(([i, a, b]) => rows.push(["日期與年月日不一致", "", String(DP.rows[i][DP.head.indexOf(cfg.id)]), xr(i), `${cfg.dcol}／${cfg.y}${cfg.m}${cfg.d}`, `${dpFmt(a)}／${b == null ? "無效日期" : dpFmt(b)}`]));
+  (cfg.ext || []).forEach((e, i) => { const ix = DP.ext[i] ? dpExtIx(i) : null; if (ix) ix.st.gaps.forEach(g => rows.push(["外部資料：X 維持缺漏", "", g.k, `${dpFmt(g.from)}–${dpFmt(g.to)}`, g.v, `${e.file}，${g.days} 天，${g.why}`])); });
   chk.totBad.slice(0, 2000).forEach(([i, t, s]) => rows.push(["總額不一致", "", String(DP.rows[i][DP.head.indexOf(cfg.id)]), xr(i), cfg.tot, `${cfg.tot}＝${t}；細項合計＝${s}`]));
   return rows;
 }
@@ -452,9 +610,10 @@ function dpCSV(t) {
 
 // ── 0.2 panel data：觀察單位、時間與資料欄位的帶入內容 ──
 function dpSummary(cfg, chk) {
-  const H = DP.head, dayT = dpBuild(cfg, { ...chk, k: Math.min(chk.k, 1) }, "day", true).head;
+  const H = DP.head, dayX = dpExtend(dpBuild(cfg, { ...chk, k: Math.min(chk.k, 1) }, "day", true), cfg), dayT = dayX.head;
   const desc = h => {
     if (h === cfg.id) return `${h}：個人代碼`;
+    if (dayX.desc[h]) return `${h}：${dayX.desc[h]}`;
     const o = { date: "date：日期", year: "year：年", month: "month：月", day: "day：日", n_tx: "n_tx：當日交易筆數" }[h]; if (o) return o;
     if (h.endsWith("_conflict")) return `${h}：${h.slice(0, -9)} 當日是否有不一致的值（0／1）`;
     const r = cfg.roles[h];
@@ -572,14 +731,63 @@ function dpView() {
           <label class="chip">不採用的值 <input type="text" data-dpex="${esc(x)}" value="${esc(o.ex || "")}" placeholder="例如：其他" style="width:10em"></label></div>
           ${o.tw ? `<div class="ex">${bad.length ? "不在 22 縣市內的值：" + bad.slice(0, 20).map(([v, n]) => `${esc(v)} ×${dpN(n)}`).join("、") + (bad.length > 20 ? "…" : "") : "所有值都是 22 縣市之一（台／臺 視為相同）。"}</div>` : ""}`; })() : ""}</div>`;
     }).join("")) + `</div></fieldset>`;
+  h += dpExtView(c, k);
   // 輸出
-  const need = dpNeed(c, k);
-  h += `<fieldset class="struct"><legend>4. 輸出</legend>`;
+  const need = dpNeed(c, k), blk = dpBlock(c);
+  h += `<fieldset class="struct"><legend>5. 輸出</legend>`;
   if (need.length) h += `<div class="note warn">請先在上方選擇這些欄位的處理方式：${need.map(esc).join("、")}</div>`;
-  h += `<p class="hint">輸出一人一日一筆的寬格式資料：每列含 id、date（Excel 日期格式）、year、month、day、n_tx（當天合併的交易筆數）、各欄位依上方設定計算的值${c.pcol ? "，以及展開後的欄位" : ""}。只輸出有交易的日子，沒有交易的日子不補列。Excel 檔另含「處理紀錄」與「檢查明細」工作表；CSV 為 UTF-8（含 BOM），Excel、Stata、R、SPSS 都能讀取。已開啟研究資料夾時，檔案直接存進該資料夾（檔名前加研究名稱）；沒有開啟時下載到瀏覽器的下載資料夾。</p>
-    <p class="dpbtns"><button type="button" class="copy" data-dpout="xlsx"${need.length ? " disabled" : ""}>下載 Excel</button>
-    <button type="button" data-dpout="wide"${need.length ? " disabled" : ""}>下載 CSV</button></p>
+  if (blk.length) h += `<div class="note warn">${blk.map(esc).join("\n")}</div>`;
+  h += `<p class="hint">輸出一人一日一筆的寬格式資料：每列含 id、date（Excel 日期格式）、year、month、day、n_tx（當天合併的交易筆數）、各欄位依上方設定計算的值${c.pcol ? "，以及展開後的欄位" : ""}${dpActs(c).list.length || (c.ext || []).length ? "，以及第 4 部分的活動期間與外部資料欄位" : ""}。只輸出有交易的日子，沒有交易的日子不補列。Excel 檔另含「處理紀錄」與「檢查明細」工作表；CSV 為 UTF-8（含 BOM），Excel、Stata、R、SPSS 都能讀取。已開啟研究資料夾時，檔案直接存進該資料夾（檔名前加研究名稱）；沒有開啟時下載到瀏覽器的下載資料夾。</p>
+    <p class="dpbtns"><button type="button" class="copy" data-dpout="xlsx"${need.length || blk.length ? " disabled" : ""}>下載 Excel</button>
+    <button type="button" data-dpout="wide"${need.length || blk.length ? " disabled" : ""}>下載 CSV</button></p>
     ${RT() === "model" ? `<p class="hint">0.2「資料結構與估計目標」的觀察單位、時間與資料欄位留白時，會自動帶入這裡的處理結果。</p>` : ""}</fieldset></div>`;
+  return h;
+}
+// 4. 活動期間與外部資料
+function dpExtView(c, k) {
+  const A = dpActs(c), N = dpN;
+  let h = `<fieldset class="struct"><legend>4. 活動期間與外部資料（選用）</legend>
+    <div class="dpsub"><b>活動期間</b>
+    <p class="hint">活動資料（表格、條列或文字都可以）先交給一般 AI 整理：按「複製活動整理 Prompt」，貼到一般 AI（Claude、ChatGPT、Gemini），在 Prompt 最後的位置貼上活動資料；AI 的回覆整段貼到下方。每個活動產生一個 0/1 變數（act1、act2…），活動期間內（含起迄日）為 1，其餘為 0；活動視為全國一致。</p>
+    <p><button type="button" data-dpcopy="act">複製活動整理 Prompt</button> <span class="hint" id="dpcopymsg"></span></p>
+    <textarea data-dp="actRep" class="mono" style="min-height:96px" placeholder="AI 的回覆貼在這裡，例如：
+年終感恩募款｜2023/12/01｜2023/12/31｜年底募款信與電話勸募">${esc(c.actRep || "")}</textarea>
+    <div class="dprow"><label>資料來源 <input type="text" data-dp="actSrc" value="${esc(c.actSrc || "")}" placeholder="例如：本機構 2013–2025 年活動紀錄" style="width:22em"></label></div>`;
+  if (A.list.length) h += `<table class="dptbl"><thead><tr><th>變數</th><th>活動名稱</th><th>起日</th><th>迄日</th><th>天數</th><th>說明</th></tr></thead><tbody>${A.list.map(a => `<tr><td>${a.v}</td><td>${esc(a.name)}</td><td>${dpFmt(a.from)}</td><td>${dpFmt(a.to)}</td><td class="r">${a.to - a.from + 1}</td><td>${esc(a.note)}</td></tr>`).join("")}</tbody></table>`;
+  if (A.bad.length) h += `<div class="note warn">讀不出日期的行（請修正或刪除）：\n${A.bad.map(esc).join("\n")}</div>`;
+  if (A.unsure.length) h += `<div class="note warn">AI 列為無法確定的活動（未納入；確認日期後，依「活動名稱｜起日｜迄日｜說明」補進上方）：\n${A.unsure.map(esc).join("\n")}</div>`;
+  h += `</div><div class="dpsub"><b>外部資料</b>
+    <p class="hint">依日期串接的資料（例如連假、全國性的颱風假），或依日期與縣市串接的資料（例如天氣、空氣品質、各縣市的颱風假）。上傳 .xlsx 或 .csv：長格式為一列一個日期（或日期 × 縣市）；欄名有 3 個以上是縣市名稱時，視為一個縣市一欄的寬格式。縣市以本資料當天處理後的縣市欄串接（已套用不一致的處理與 22 縣市篩選）；台／臺視為相同，舊縣名換為現行縣市。數值中的「T」（微量）視為 0；「X」（儀器故障）不列入平均，某縣市當天全部為 X 時，以距離最近的縣市（依縣市政府所在地的距離）同一天的值取代；最近的縣市當天也沒有有效值、離島縣，或依日期串接的全國資料，維持缺漏並列出。研究存檔只記住串接設定，外部檔要與原始資料一起重新上傳。資料來源、網址與取得日期須填寫，會寫進處理紀錄，供論文說明資料來源與查核。</p>`;
+  (c.ext || []).forEach((e, i) => {
+    const t = DP.ext[i], ix = t ? dpExtIx(i) : null, o = ix && ix.st, H = t ? t.head : [];
+    const smp = col => { const u = []; for (const r of t.rows) { const v = r[H.indexOf(col)]; if (v != null && !u.includes(v)) u.push(v); if (u.length >= 3) break; } return u.map(String).join("、"); };
+    h += `<div class="dpconf"><div><b>外部資料 ${i + 1}</b>　<input type="file" data-dpextf="${i}" accept=".xlsx,.xlsm,.csv,.txt"> ${t ? `已讀入 <b>${esc(e.file)}</b>：${N(t.rows.length)} 列` : e.file ? `<span class="warn">請重新上傳「${esc(e.file)}」</span>` : ""}
+      <button type="button" data-dpextdel="${i}">移除</button></div>
+      <div class="dprow"><label>資料來源 <input type="text" data-dpexts="src" data-i="${i}" value="${esc(e.src || "")}" placeholder="例如：交通部中央氣象署 CODiS 氣候觀測資料查詢服務" style="width:24em"></label>
+      <label>網址或取得方式 <input type="text" data-dpexts="url" data-i="${i}" value="${esc(e.url || "")}" placeholder="https://…" style="width:18em"></label>
+      <label>取得日期 <input type="date" data-dpexts="got" data-i="${i}" value="${esc(e.got || "")}"></label></div>`;
+    if (t) {
+      const wide = o.wide;
+      h += `<div class="dprow"><label>日期欄 <select data-dpexts="dcol" data-i="${i}">${dpOpt(H, e.dcol, "（請選擇）")}</select></label>
+        <label>縣市欄 <select data-dpexts="ccol" data-i="${i}"><option value="">${wide ? "（寬格式：各縣市一欄）" : "（無：依日期串接，全國一致）"}</option>${H.filter(x => x !== e.dcol).map(x => `<option value="${esc(x)}"${x === e.ccol ? " selected" : ""}>${esc(x)}</option>`).join("")}</select></label>
+        ${o.by ? `<label>對應本資料的縣市欄 <select data-dpexts="key" data-i="${i}">${dpOpt(dpCtyCols(), e.key, "（請選擇）")}</select></label>` : ""}
+</div>`;
+      if (wide) h += `<div class="dprow"><span>寬格式：${o.ctys.size} 個縣市欄</span><label>變數名稱 <input type="text" data-dpexts="wv" data-i="${i}" value="${esc(e.wv || "")}" style="width:10em"></label></div>`;
+      else h += `<table class="dptbl"><thead><tr><th>帶入</th><th>欄位</th><th>前幾個值</th><th>變數名稱</th></tr></thead><tbody>${H.filter(x => x !== e.dcol && x !== e.ccol).map(x => { const on = (e.use || []).includes(x);
+        return `<tr><td><input type="checkbox" data-dpextc="${esc(x)}" data-i="${i}"${on ? " checked" : ""}></td><td>${esc(x)}</td><td class="ex">${esc(smp(x))}</td><td>${on ? `<input type="text" data-dpextv="${esc(x)}" data-i="${i}" value="${esc((e.vars || {})[x] || x)}" style="width:10em">` : ""}</td></tr>`; }).join("")}</tbody></table>`;
+      const w = [];
+      if (o.dmin != null) w.push(`外部檔日期 ${dpFmt(o.dmin)} 至 ${dpFmt(o.dmax)}${o.by ? `，${o.ctys.size} 個縣市` : ""}` + (k && (o.dmin > k.dmin || o.dmax < k.dmax) ? `；未涵蓋整個觀察期間（${dpFmt(k.dmin)} 至 ${dpFmt(k.dmax)}），涵蓋不到的日子為缺漏` : ""));
+      if (o.badDate) w.push(`日期無法解析 ${N(o.badDate)} 列，未納入`);
+      if (o.unk.size) w.push(`縣市名稱無法對應 ${o.unk.size} 種，未納入：` + [...o.unk].slice(0, 10).map(([x, n]) => `${x} ×${N(n)}`).join("、"));
+      if (o.T) w.push(`「T」（微量）${N(o.T)} 筆，視為 0`);
+      if (o.X) w.push(`「X」（儀器故障）${N(o.X)} 筆：以最近縣市同一天的值取代 ${N(o.filled)} 筆${o.fillBy.size ? "（" + [...o.fillBy].map(([a, b]) => `${a}←${b}`).join("、") + "）" : ""}；維持缺漏的有 ${o.gaps.length} 段` + (o.gaps.length ? "：\n" + o.gaps.slice(0, 20).map(g => `${g.k}　${g.v}　${dpFmt(g.from)}–${dpFmt(g.to)}（${g.days} 天；${g.why}）`).join("\n") + (o.gaps.length > 20 ? "\n…（完整清單見 Excel 檔的「檢查明細」工作表）" : "") : ""));
+      if (o.other.size) w.push(`其他非數值代碼視為缺漏：` + [...o.other].map(([x, n]) => `「${x}」${N(n)} 筆`).join("、"));
+      if (w.length) h += `<div class="note${o.gaps.length || o.unk.size || o.badDate ? " warn" : ""}">${w.map(esc).join("\n")}</div>`;
+    }
+    h += `</div>`;
+  });
+  h += `<details class="dpsub"><summary>最近縣市對照（「X」的取代依據）</summary><p class="hint">依各縣市政府所在地的直線距離，取距離最近的 1 個縣市；澎湖縣、金門縣、連江縣不取代。</p><p class="ex">${Object.entries(DP_NEAR).map(([a, b]) => `${a}←${b}`).join("、")}</p></details>
+    <p><button type="button" data-dpextadd="1">新增外部資料</button></p></div></fieldset>`;
   return h;
 }
 function dpLogText() { return DP.chk && DP.cfg ? dpLogLines(DP.cfg, DP.chk).join("\n") : ""; }
@@ -604,6 +812,19 @@ async function dpLoadSheet(k, refresh = true) {
   dpSetTable(rows, dateHit);
   if (refresh) { DP.cfg = dpGuess(store.values.dp_cfg); dpBusy(""); dpCommit(true); }
 }
+async function dpExtLoad(i, file) {
+  const e = DP.cfg.ext[i]; DP.err = ""; dpBusy(`讀取外部資料「${file.name}」…`); await dpTick();
+  try {
+    const buf = await file.arrayBuffer(); let t;
+    if (/\.(csv|txt)$/i.test(file.name)) t = dpTable(dpParseCSV(dpDecode(new Uint8Array(buf))));
+    else if (/\.(xlsx|xlsm)$/i.test(file.name)) { const X = await dpOpenXLSX(buf), r = await dpReadSheet(X, 0); t = dpTable(r.rows, r.dateHit); }
+    else throw new Error("只支援 .xlsx 與 .csv");
+    if (!t.rows.length) throw new Error("檔案裡沒有資料列");
+    if (e.file && e.file !== file.name) { e.dcol = null; e.ccol = undefined; e.use = []; e.vars = {}; }   // 換了不同的檔案：重新判斷欄位
+    e.file = file.name; DP.ext[i] = t; DP.extIx[i] = null; dpExtGuess(e, t);
+  } catch (x) { DP.err = "外部資料讀取失敗：" + (x && x.message || x); }
+  DP.extStat = null; dpBusy(""); dpCommit(false);
+}
 async function dpRunCheck() {
   dpBusy("檢查中…"); await dpTick();
   try { DP.chk = dpCheck(DP.cfg); DP.pv = DP.cfg.pcol ? dpPivotVals(DP.cfg, DP.chk) : null; if (DP.pv) DP.pv.forEach(x => { if (!(x.v in (DP.cfg.pmap ||= {}))) DP.cfg.pmap[x.v] = x.v; }); }
@@ -626,21 +847,22 @@ async function dpSaveFile(blob, name) {
 }
 function dpDownload(blob, name) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
 async function dpOutput(what) {
-  const c = DP.cfg, k = DP.chk; if (!k || dpNeed(c, k).length) return;
+  const c = DP.cfg, k = DP.chk; if (!k || dpNeed(c, k).length || dpBlock(c).length) return;
   DP.err = ""; DP.msg = ""; dpBusy("整理資料中…"); await dpTick();
   try {
-    const wide = () => dpBuild(c, k, "day", true);
+    const wide = () => { const t = dpTable2(c, k); DP.extStat = t.st; return t; };
     if (what === "xlsx") {
       const sh = [{ name: "一人一日", ...wide() }];
       const big = sh.filter(x => x.rows.length > DP_XLS_MAX);
       const det = dpDetailRows(c, k);
+      store.values.dp_log = dpLogText();
       sh.push({ name: "處理紀錄", head: ["處理紀錄"], rows: dpLogLines(c, k).map(x => [x]), dateCol: new Set() }, { name: "檢查明細", head: det[0], rows: det.slice(1), dateCol: new Set() });
       dpBusy("寫入 Excel 檔…"); await dpTick();
       const blob = await dpXlsx(sh.filter(x => x.rows.length <= DP_XLS_MAX), async f => { dpBusy(`寫入 Excel 檔… ${Math.round(f * 100)}%`); await dpTick(); });
       await dpSaveFile(blob, `${dpBase()}_處理後.xlsx`);
       if (big.length) DP.err = `${big.map(x => x.name).join("、")} 超過 Excel 的 1,048,576 列上限，未放入 Excel 檔，請改下載 CSV。`;
     } else {
-      await dpSaveFile(dpCSV(wide()), `${dpBase()}_一人一日.csv`);
+      await dpSaveFile(dpCSV(wide()), `${dpBase()}_一人一日.csv`); store.values.dp_log = dpLogText();
     }
   } catch (e) { DP.err = "輸出失敗：" + (e && e.message || e); }
   dpBusy(""); update();
@@ -679,6 +901,15 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
     if (d.dpex != null) { ((c.valid ||= {})[d.dpex] ||= {}).ex = t.value; return dpCommit(false); }
     if (d.dpwt != null) { (c.wt ||= {})[d.dpwt] = t.value || null; return dpCommit(false); }
     if (d.dpnear != null) { (c.near ||= {})[d.dpnear] = Math.max(0, Math.round(+t.value || 0)); return dpCommit(false); }
+    if (d.dp === "actRep" || d.dp === "actSrc") { c[d.dp] = t.value; DP.extStat = null; return dpCommit(false); }
+    if (d.dpextf != null) { if (t.files && t.files[0]) dpExtLoad(+d.dpextf, t.files[0]); return; }
+    if (d.dpexts != null || d.dpextc != null || d.dpextv != null) { const i = +d.i, e = c.ext[i];
+      if (d.dpexts) e[d.dpexts] = (t.value || (d.dpexts === "ccol" || d.dpexts === "dcol" || d.dpexts === "key" ? null : ""));
+      if (d.dpexts === "dcol" || d.dpexts === "ccol") { e.use = (e.use || []).filter(x => x !== e.dcol && x !== e.ccol); }
+      if (d.dpextc != null) e.use = t.checked ? [...new Set([...(e.use || []), d.dpextc])] : (e.use || []).filter(x => x !== d.dpextc);
+      if (d.dpextv != null) (e.vars ||= {})[d.dpextv] = t.value.trim();
+      if (!["src", "url", "got"].includes(d.dpexts)) DP.extIx[i] = null;
+      DP.extStat = null; return dpCommit(false); }
     if (d.dpflag != null) { c.flag[d.dpflag] = t.checked; return dpCommit(false); }
   });
   pane.addEventListener("click", e => {
@@ -690,7 +921,11 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
       x.vals = [...new Set([...(x.vals || []), ...dpUV(x.col).map(([v]) => v).filter(v => want.has(dpNorm(v)))])]; dpCommit(true); }
     else if (b.dataset.dpdrop != null) { DP.cfg.roles[b.dataset.dpdrop] = "drop"; dpCommit(false); }   // 刪除：改為不輸出（可在欄位設定改回）
     else if (b.dataset.dpout) dpOutput(b.dataset.dpout);
+    else if (b.dataset.dpcopy === "act") { const m = document.getElementById("dpcopymsg");
+      navigator.clipboard.writeText(dpActPrompt()).then(() => { if (m) m.textContent = "已複製；貼到一般 AI，再於最後貼上活動資料。"; }, () => { if (m) m.textContent = "無法複製，請改用 Chrome。"; }); }
+    else if (b.dataset.dpextadd) { (DP.cfg.ext ||= []).push({ src: "", url: "", got: "", use: [], vars: {}, wv: "x" }); dpCommit(false); }
+    else if (b.dataset.dpextdel != null) { const i = +b.dataset.dpextdel; DP.cfg.ext.splice(i, 1); DP.ext.splice(i, 1); DP.extIx.splice(i, 1); DP.extStat = null; dpCommit(false); }
   });
 }
 
-if (typeof module !== "undefined") module.exports = { DP, dpSetTable, dpParseCSV, dpDecode, dpGuess, dpCheck, dpBuild, dpPivotVals, dpNeed, dpTargets, dpLogLines, dpDetailRows, dpXlsx, dpCSV, dpOpenXLSX, dpReadSheet, dpDateVal, dpFmt, dpSummary };
+if (typeof module !== "undefined") module.exports = { DP_NEAR, DP, dpTable, dpActs, dpActPrompt, dpExtGuess, dpExtIndex, dpExtend, dpExtLog, dpBlock, dpCty, dpSetTable, dpParseCSV, dpDecode, dpGuess, dpCheck, dpBuild, dpPivotVals, dpNeed, dpTargets, dpLogLines, dpDetailRows, dpXlsx, dpCSV, dpOpenXLSX, dpReadSheet, dpDateVal, dpFmt, dpSummary };
