@@ -816,9 +816,9 @@ function dpView() {
     <details class="dpsub"${c.tot ? " open" : ""}><summary>總額核對（選用）</summary><p class="hint">原始資料已有總額與細項（例如 mtotal 與 money1–money5）時，逐列核對總額是否等於細項合計，不一致時示警。</p>
       <label>總額欄 <select data-dp="tot">${dpOpt(numH, c.tot, "（不核對）")}</select></label>
       ${c.tot ? `<div class="chips">${numH.filter(x => x !== c.tot).map(x => `<label class="chip"><input type="checkbox" data-dppart="${esc(x)}"${c.parts.includes(x) ? " checked" : ""}>${esc(x)}</label>`).join("")}</div>` : ""}</details>
-    <p><button type="button" class="copy" data-dp="check">${DP.chk ? "重新檢查資料" : "檢查資料"}</button></p></fieldset>`;
+    ${DP.chk ? `<p><button type="button" class="copy" data-dp="check">重新檢查資料</button></p>` : ""}</fieldset>`;
   const k = DP.chk;
-  if (!k) return h + `<p class="note">設定欄位後，按「檢查資料」。</p></div>`;
+  if (!k) return h + `<p class="note">設定欄位後，按「檢查資料」。</p><p><button type="button" class="copy" data-dp="check">檢查資料</button></p></div>`;
   const w = [];
   if (k.bad.id.length) w.push(`缺少個人代碼 ${dpN(k.bad.id.length)} 列，已排除（Excel 列號：${k.bad.id.slice(0, 8).map(i => i + 2).join("、")}${k.bad.id.length > 8 ? "…" : ""}）`);
   if (k.excl) w.push(`樣本資格：排除 ${dpN(k.excl.ids)} 人（${dpN(k.excl.rows)} 列）。` + k.excl.rules.map(x => `${x.col} 曾為「${x.vals.join("、")}」：${dpN(x.n)} 人`).join("；"));
