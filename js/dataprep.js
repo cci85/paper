@@ -10,7 +10,7 @@ const DP_XLS_MAX = 1048575;
 const DP_TW = new Set(["臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市", "新竹縣", "苗栗縣", "彰化縣", "南投縣", "雲林縣", "嘉義縣", "屏東縣", "宜蘭縣", "花蓮縣", "臺東縣", "澎湖縣", "金門縣", "連江縣", "基隆市", "新竹市", "嘉義市"]);   // 6 直轄市、13 縣、3 市
 const dpIsTW = v => DP_TW.has(String(v).trim().replace(/台/g, "臺"));
 const dpExList = t => String(t || "").split(/[、,，;；\s]+/).map(x => x.trim()).filter(Boolean);
-// 處理不一致時可採用的值：排除「不採用的值」，勾選 22 縣市時只留縣市名稱
+// 處理不一致時可採用的值：「不採用的值」（與勾選 22 縣市時的非縣市值）由當天其他的值取代；交易與金額照常計入
 const dpValidFn = (cfg, h) => { const o = (cfg.valid || {})[h] || {}, ex = new Set(dpExList(o.ex)); if (!o.tw && !ex.size) return null; return v => v != null && !ex.has(String(v).trim()) && (!o.tw || dpIsTW(v)); };   // Excel 每個工作表最多 1,048,576 列（含標題列）
 
 // ── 日期：一律換成 Excel 日期序號（1899-12-30 起算的日數），45943 = 2025/10/13 ──
@@ -310,7 +310,7 @@ function dpBuild(cfg, chk, lv, pivot) {
     if (lv === "person") row.push(e.d0, e.d1);
     num.forEach((o, j) => row.push(!e.c[j] ? null : o.role === "sum" ? e.s[j] : o.role === "mean" ? e.s[j] / e.c[j] : o.role === "max" ? e.mx[j] : e.mn[j]));
     // 依金額決定：每個值加總其交易的金額，取合計最大者；相同時取先出現者
-    const okIdx = j => { const f = vfn[j], all = e.t[j].map((_, i) => i); if (!f || new Set(e.t[j].filter(x => x != null)).size < 2) return all; const ok = all.filter(i => f(e.t[j][i])); return ok.length ? ok : all; };   // 只在不一致時排除不採用的值；全部都不採用時保留原值
+    const okIdx = j => { const f = vfn[j], all = e.t[j].map((_, i) => i); if (!f || new Set(e.t[j].filter(x => x != null)).size < 2) return all; const ok = all.filter(i => f(e.t[j][i])); return ok.length ? ok : all; };   // 只在不一致時，以當天其他的值取代不採用的值；全部都不採用時保留原值
     const wtPick = j => { const m = new Map(); okIdx(j).forEach(i => { const v = e.t[j][i]; if (v != null) m.set(v, (m.get(v) || 0) + e.w[j][i]); }); let best = null, bw = -Infinity; m.forEach((w, v) => { if (w > bw) { best = v; bw = w; } }); return best; };
     take.forEach((o, j) => { const tv = okIdx(j).map(i => e.t[j][i]);
       row.push(wtC[j] >= 0 ? wtPick(j) : cfg.res[o.h] === "near" && lv === "day" ? near(j, e.id, e.p, tv) : dpResolve(tv, cfg.res[o.h] === "near" ? "mode" : cfg.res[o.h] || "first")); });
@@ -330,7 +330,7 @@ function dpLogLines(cfg, chk) {
   L.push(`代碼欄：${cfg.id}；日期：${cfg.dmode === "one" ? `${cfg.dcol}${cfg.ychk ? `（以 ${cfg.y}／${cfg.m}／${cfg.d} 核對，不一致 ${fmtN(chk.ymdBad.length)} 列）` : ""}` : `${cfg.y}／${cfg.m}／${cfg.d}`}`);
   if (cfg.tot && cfg.parts.length) L.push(`總額核對：${cfg.tot} ＝ ${cfg.parts.join("＋")}，不一致 ${fmtN(chk.totBad.length)} 列`);
   const vNote = h => { const o = (cfg.valid || {})[h], ex = o ? dpExList(o.ex) : []; if (cfg.roles[h] !== "take" || !cfg.res[h] || !o || (!o.tw && !ex.length)) return "";
-    return `（不一致時${[o.tw ? "只採用台灣 22 縣市" : "", ex.length ? "不採用「" + ex.join("、") + "」" : ""].filter(Boolean).join("，")}）`; };
+    return `（不一致時，${[o.tw ? "不在台灣 22 縣市內的值" : "", ex.length ? "「" + ex.join("、") + "」" : ""].filter(Boolean).join("與")}由當天其他的值取代，交易與金額照常計入）`; };
   L.push("欄位處理：" + DP.head.filter(h => cfg.roles[h]).map(h => `${h}＝${cfg.roles[h] === "take" ? (cfg.res[h] === "wt" ? `依 ${(cfg.wt || {})[h] || "money"} 的金額決定（取當天金額合計最大的值）` : cfg.res[h] === "near" ? `依前後 ${(cfg.near || {})[h] ?? 30} 天的交易判斷（取前後期間出現次數最多的值）` : cfg.res[h] ? DP_RES.find(x => x[0] === cfg.res[h])[1] : "取值（無不一致）") : DP_ROLE[cfg.roles[h]]}${vNote(h)}`).join("；"));
   dpLevels(cfg).forEach(lv => { const o = chk.conf[lv], c = Object.entries(o.cols).filter(([h, x]) => x.n && cfg.roles[h] === "take");
     L.push(`${DP_LV[lv]}：${fmtN(o.groups)} 筆（含多筆交易者 ${fmtN(o.multi)} 筆）${c.length ? "；不一致：" + c.map(([h, x]) => `${h} ${fmtN(x.n)} 筆`).join("、") : ""}`); });
@@ -506,7 +506,7 @@ function dpView() {
   // 不一致的文字欄位
   const lvs = dpLevels(c), cc = k.take.filter(x => c.roles[x] === "take" && lvs.some(lv => k.conf[lv].cols[x].n));
   h += `<div class="dpsub"><b>同一天的值不一致</b>` + (!cc.length ? `<p class="hint">設為「取值」的欄位，同一人同一天的值都一致。</p>` :
-    `<p class="hint">以下欄位在同一人同一天出現不同的值，請逐一選擇處理方式（空白不列入比較）；選好之後才能輸出。「依前後幾天的交易判斷」適合居住地區這類會維持一段期間的欄位：從當天出現的值中，取這個人前後 N 天（含當天）交易裡出現次數最多者；同分時取前 N 天出現較多者，再相同則取當天之前最近一筆交易的值。「依某數值欄的金額決定」適合付款方式這類欄位：每個值加總當天該值各筆交易的金額，取合計最大者；相同時取當天第一筆。文字欄可勾選「只採用台灣 22 縣市」或填「不採用的值」（例如：其他）：不一致時先排除這些值再判斷；當天只剩不採用的值時保留原值。</p>` + cc.map(x => {
+    `<p class="hint">以下欄位在同一人同一天出現不同的值，請逐一選擇處理方式（空白不列入比較）；選好之後才能輸出。「依前後幾天的交易判斷」適合居住地區這類會維持一段期間的欄位：從當天出現的值中，取這個人前後 N 天（含當天）交易裡出現次數最多者；同分時取前 N 天出現較多者，再相同則取當天之前最近一筆交易的值。「依某數值欄的金額決定」適合付款方式這類欄位：每個值加總當天該值各筆交易的金額，取合計最大者；相同時取當天第一筆。文字欄可勾選「只採用台灣 22 縣市」或填「不採用的值」（例如：其他）：同一天的值不一致時，這些值由當天其他的值取代，也就是只在其他的值之中依上方的處理方式判斷；這些交易與金額照常計入，不會刪除。當天只有不採用的值、沒有其他的值可取代時，保留原值。</p>` + cc.map(x => {
       const exs = lvs.flatMap(lv => k.conf[lv].cols[x].ex.slice(0, 5).map(e => `${e.id}｜${e.per}：${e.vals.map(([v, n]) => `${K[H.indexOf(x)] === "date" && typeof v === "number" ? dpFmt(v) : v} ×${n}`).join("、")}`));
       return `<div class="dpconf${c.res[x] ? "" : " todo"}"><div><b>${esc(x)}</b>　${dpN(k.conf.day.cols[x].n)} 個人日不一致</div>
         <div class="ex">${exs.map(esc).join("<br>")}</div>
