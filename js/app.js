@@ -19,7 +19,7 @@ try {
   store.migrated = true;
 } catch {}
 // 2026-11 第零章重整：步驟移到新的節，AI 回覆跟著搬（舊存檔讀入時也會套用）
-const REPLY_MOVE = { "s0-1|gapsel": "s0-4|gapsel", "s0-4|lr": "s2-2|lr", "s0-4|astat": "s0-6|astat", "s0-4|asq": "s0-6|asq", "q-final|dr": "q-draft|dr", "s2-3|m8": "q-newlit|m8" };
+const REPLY_MOVE = { "s0-1|gapsel": "s0-4|gapsel", "s0-4|lr": "s2-2|lr", "s0-4|astat": "s0-6|astat", "s0-4|asq": "s0-6|asq", "q-final|dr": "q-draft|dr", "s2-3|m8": "q-newlit|m8", "r-method|smethod": "q-var|smethod" };
 function migrateReplies(r) {
   if (!r) return r;
   Object.entries(REPLY_MOVE).forEach(([a, b]) => {
@@ -62,6 +62,10 @@ if ((store.layout || 0) < 8) { if ((store.step || {})["s1-2"]) store.step["s1-2"
 rebuildCh2();   // 第二章各節依「第二章架構」產生
 if ((store.layout || 0) < 9) { migrateCh3(); delete store.step["s3-1"]; delete store.step["s3-3"]; store.layout = 9; }   // 3.1 與 3.2 合併；3.2（原 3.3）移除名詞釋義步驟
 if ((store.layout || 0) < 10) { delete (store.step || {})["s3-1"]; store.layout = 10; }   // 3.1 合併為單一撰寫步驟
+if ((store.layout || 0) < 11) {   // 常用「變數定義」與「方法導向檢索」合併為「檢索：變數與模型」
+  if (store.sec === "r-method") { store.sec = "q-var"; store.step["q-var"] = 2; }
+  delete (store.step || {})["r-method"]; store.layout = 11;
+}
 if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} if (window.onStoreSave) window.onStoreSave(); };
 
