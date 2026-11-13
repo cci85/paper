@@ -4,7 +4,7 @@
 
 const DP = { name: "", head: [], rows: [], kind: [], sheets: [], zip: null, sheet: 0, chk: null, busy: "", err: "", log: [] };
 const DP_LV = { day: "一人一日", month: "一人一月", year: "一人一年", person: "一人一筆（整個期間）" };
-const DP_RES = [["near", "依前後幾天的交易判斷"], ["mode", "取出現次數最多者"], ["first", "取第一筆"], ["last", "取最後一筆"], ["uniq", "串接不重複的值"], ["all", "串接全部值"]];
+const DP_RES = [["near", "依前後幾天的交易判斷"], ["wt", "依某數值欄的金額決定"], ["mode", "取出現次數最多者"], ["first", "取第一筆"], ["last", "取最後一筆"], ["uniq", "串接不重複的值"], ["all", "串接全部值"]];
 const DP_ROLE = { sum: "加總", mean: "平均", max: "最大", min: "最小", take: "取值（不一致時示警）", drop: "刪除（不輸出）" };
 const DP_XLS_MAX = 1048575;   // Excel 每個工作表最多 1,048,576 列（含標題列）
 
@@ -259,15 +259,16 @@ function dpBuild(cfg, chk, lv, pivot) {
   const pc = pivot ? col(cfg.pcol) : -1, vc = pivot ? col(cfg.pval) : -1, tg = pivot && pc >= 0 ? dpTargets(cfg) : [], tix = new Map(tg.map((t, i) => [t, i]));
   const g = new Map();
   // 「依前後幾天的交易判斷」：記下每個人在這些欄位的每筆交易（日期、值）
+  const wtC = take.map(o => cfg.res[o.h] === "wt" ? col((cfg.wt || {})[o.h] || (DP.head.includes("money") ? "money" : "")) : -1);   // 依金額決定：用來比較的數值欄
   const nearJ = take.map((o, j) => cfg.res[o.h] === "near" ? j : -1).filter(j => j >= 0), hist = new Map();
   for (let i = 0; i < chk.k; i++) {
     const r = DP.rows[chk.rIdx[i]], day = chk.rDay[i], id = dpKey(r[ic]), p = dpPer(lv, day), key = id + "\u0001" + p;
     nearJ.forEach(j => { const v = r[take[j].c]; if (v == null) return; const hk = j + "\u0001" + id; let a = hist.get(hk); if (!a) hist.set(hk, a = []); a.push([day, v]); });
     let e = g.get(key);
-    if (!e) { e = { id, idv: r[ic], p, n: 0, d0: day, d1: day, days: lv === "day" ? null : new Set(), s: num.map(() => 0), c: num.map(() => 0), mx: num.map(() => -Infinity), mn: num.map(() => Infinity), t: take.map(() => []), pv: tg.map(() => 0), pn: tg.map(() => 0) }; g.set(key, e); }
+    if (!e) { e = { id, idv: r[ic], p, n: 0, d0: day, d1: day, days: lv === "day" ? null : new Set(), s: num.map(() => 0), c: num.map(() => 0), mx: num.map(() => -Infinity), mn: num.map(() => Infinity), t: take.map(() => []), w: take.map(() => []), pv: tg.map(() => 0), pn: tg.map(() => 0) }; g.set(key, e); }
     e.n++; if (day < e.d0) e.d0 = day; if (day > e.d1) e.d1 = day; if (e.days) e.days.add(day);
     num.forEach((o, j) => { const v = r[o.c]; if (typeof v !== "number") return; e.s[j] += v; e.c[j]++; if (v > e.mx[j]) e.mx[j] = v; if (v < e.mn[j]) e.mn[j] = v; });
-    take.forEach((o, j) => e.t[j].push(r[o.c]));
+    take.forEach((o, j) => { e.t[j].push(r[o.c]); if (wtC[j] >= 0) e.w[j].push(dpNum(r[wtC[j]]) || 0); });
     if (pc >= 0) { const t = tix.get(((cfg.pmap || {})[r[pc] == null ? "" : String(r[pc])] || "").trim()); if (t != null) { e.pv[t] += vc >= 0 ? (dpNum(r[vc]) || 0) : 1; e.pn[t]++; } }
   }
   hist.forEach(a => a.sort((x, y) => x[0] - y[0]));
@@ -300,7 +301,9 @@ function dpBuild(cfg, chk, lv, pivot) {
     row.push(e.n); if (lv !== "day") row.push(e.days.size);
     if (lv === "person") row.push(e.d0, e.d1);
     num.forEach((o, j) => row.push(!e.c[j] ? null : o.role === "sum" ? e.s[j] : o.role === "mean" ? e.s[j] / e.c[j] : o.role === "max" ? e.mx[j] : e.mn[j]));
-    take.forEach((o, j) => row.push(cfg.res[o.h] === "near" && lv === "day" ? near(j, e.id, e.p, e.t[j]) : dpResolve(e.t[j], cfg.res[o.h] === "near" ? "mode" : cfg.res[o.h] || "first")));
+    // 依金額決定：每個值加總其交易的金額，取合計最大者；相同時取先出現者
+    const wtPick = j => { const m = new Map(); e.t[j].forEach((v, i) => { if (v != null) m.set(v, (m.get(v) || 0) + e.w[j][i]); }); let best = null, bw = -Infinity; m.forEach((w, v) => { if (w > bw) { best = v; bw = w; } }); return best; };
+    take.forEach((o, j) => row.push(wtC[j] >= 0 ? wtPick(j) : cfg.res[o.h] === "near" && lv === "day" ? near(j, e.id, e.p, e.t[j]) : dpResolve(e.t[j], cfg.res[o.h] === "near" ? "mode" : cfg.res[o.h] || "first")));
     flags.forEach(o => { const j = take.indexOf(o); row.push(new Set(e.t[j].filter(x => x != null)).size > 1 ? 1 : 0); });
     tg.forEach((_, t) => row.push(e.pv[t])); if (cfg.pcnt) tg.forEach((_, t) => row.push(e.pn[t]));
     return row;
@@ -316,7 +319,7 @@ function dpLogLines(cfg, chk) {
   L.push(`觀察期間：${dpFmt(chk.dmin)} 至 ${dpFmt(chk.dmax)}`);
   L.push(`代碼欄：${cfg.id}；日期：${cfg.dmode === "one" ? `${cfg.dcol}${cfg.ychk ? `（以 ${cfg.y}／${cfg.m}／${cfg.d} 核對，不一致 ${fmtN(chk.ymdBad.length)} 列）` : ""}` : `${cfg.y}／${cfg.m}／${cfg.d}`}`);
   if (cfg.tot && cfg.parts.length) L.push(`總額核對：${cfg.tot} ＝ ${cfg.parts.join("＋")}，不一致 ${fmtN(chk.totBad.length)} 列`);
-  L.push("欄位處理：" + DP.head.filter(h => cfg.roles[h]).map(h => `${h}＝${cfg.roles[h] === "take" ? (cfg.res[h] === "near" ? `依前後 ${(cfg.near || {})[h] ?? 30} 天的交易判斷（取前後期間出現次數最多的值）` : cfg.res[h] ? DP_RES.find(x => x[0] === cfg.res[h])[1] : "取值（無不一致）") : DP_ROLE[cfg.roles[h]]}${cfg.flag[h] ? "＋不一致旗標" : ""}`).join("；"));
+  L.push("欄位處理：" + DP.head.filter(h => cfg.roles[h]).map(h => `${h}＝${cfg.roles[h] === "take" ? (cfg.res[h] === "wt" ? `依 ${(cfg.wt || {})[h] || "money"} 的金額決定（取當天金額合計最大的值）` : cfg.res[h] === "near" ? `依前後 ${(cfg.near || {})[h] ?? 30} 天的交易判斷（取前後期間出現次數最多的值）` : cfg.res[h] ? DP_RES.find(x => x[0] === cfg.res[h])[1] : "取值（無不一致）") : DP_ROLE[cfg.roles[h]]}${cfg.flag[h] ? "＋不一致旗標" : ""}`).join("；"));
   dpLevels(cfg).forEach(lv => { const o = chk.conf[lv], c = Object.entries(o.cols).filter(([h, x]) => x.n && cfg.roles[h] === "take");
     L.push(`${DP_LV[lv]}：${fmtN(o.groups)} 筆（含多筆交易者 ${fmtN(o.multi)} 筆）${c.length ? "；不一致：" + c.map(([h, x]) => `${h} ${fmtN(x.n)} 筆`).join("、") : ""}`); });
   if (cfg.pcol) { const tg = dpTargets(cfg);
@@ -491,11 +494,12 @@ function dpView() {
   // 不一致的文字欄位
   const lvs = dpLevels(c), cc = k.take.filter(x => c.roles[x] === "take" && lvs.some(lv => k.conf[lv].cols[x].n));
   h += `<div class="dpsub"><b>同一天的值不一致</b>` + (!cc.length ? `<p class="hint">設為「取值」的欄位，同一人同一天的值都一致。</p>` :
-    `<p class="hint">以下欄位在同一人同一天出現不同的值，請逐一選擇處理方式（空白不列入比較）；選好之後才能輸出。「依前後幾天的交易判斷」適合居住地區這類會維持一段期間的欄位：從當天出現的值中，取這個人前後 N 天（含當天）交易裡出現次數最多者；同分時取前 N 天出現較多者，再相同則取當天之前最近一筆交易的值。</p>` + cc.map(x => {
+    `<p class="hint">以下欄位在同一人同一天出現不同的值，請逐一選擇處理方式（空白不列入比較）；選好之後才能輸出。「依前後幾天的交易判斷」適合居住地區這類會維持一段期間的欄位：從當天出現的值中，取這個人前後 N 天（含當天）交易裡出現次數最多者；同分時取前 N 天出現較多者，再相同則取當天之前最近一筆交易的值。「依某數值欄的金額決定」適合付款方式這類欄位：每個值加總當天該值各筆交易的金額，取合計最大者；相同時取當天第一筆。</p>` + cc.map(x => {
       const exs = lvs.flatMap(lv => k.conf[lv].cols[x].ex.slice(0, 5).map(e => `${e.id}｜${e.per}：${e.vals.map(([v, n]) => `${K[H.indexOf(x)] === "date" && typeof v === "number" ? dpFmt(v) : v} ×${n}`).join("、")}`));
       return `<div class="dpconf${c.res[x] ? "" : " todo"}"><div><b>${esc(x)}</b>　${dpN(k.conf.day.cols[x].n)} 個人日不一致</div>
         <div class="ex">${exs.map(esc).join("<br>")}</div>
         <div class="chips">${DP_RES.map(([r, t]) => `<label class="chip"><input type="radio" name="dpres-${esc(x)}" data-dpres="${esc(x)}" value="${r}"${c.res[x] === r ? " checked" : ""}>${t}</label>`).join("")}
+        ${c.res[x] === "wt" ? `<label class="chip">數值欄 <select data-dpwt="${esc(x)}">${dpOpt(numH.filter(z => !keys.has(z)), (c.wt || {})[x] || (H.includes("money") ? "money" : ""), "（請選擇）")}</select></label>` : ""}
         ${c.res[x] === "near" ? `<label class="chip">前後 <input type="number" min="0" max="3650" step="1" data-dpnear="${esc(x)}" value="${esc((c.near || {})[x] ?? 30)}" style="width:5em"> 天</label>` : ""}
         <label class="chip"><input type="checkbox" data-dpflag="${esc(x)}"${c.flag[x] ? " checked" : ""}>另加「${esc(x)}_conflict」旗標欄（0／1）</label>
         <button type="button" data-dpdrop="${esc(x)}">刪除這個變數</button></div></div>`;
@@ -598,6 +602,7 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
       store.values.dp_log = dpLogText(); save(); document.getElementById("out").textContent = dpLogText(); return;
     }
     if (d.dpres != null) { c.res[d.dpres] = t.value; return dpCommit(false); }
+    if (d.dpwt != null) { (c.wt ||= {})[d.dpwt] = t.value || null; return dpCommit(false); }
     if (d.dpnear != null) { (c.near ||= {})[d.dpnear] = Math.max(0, Math.round(+t.value || 0)); return dpCommit(false); }
     if (d.dpflag != null) { c.flag[d.dpflag] = t.checked; return dpCommit(false); }
   });
