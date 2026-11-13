@@ -468,12 +468,59 @@ function dpBlock(cfg, chk) {
     ["src", "url", "got"].forEach(k => { if (!String(e[k] || "").trim()) m.push(`${t}：請填寫${{ src: "資料來源", url: "網址或取得方式", got: "取得日期" }[k]}`); }); });
   return m;
 }
+// ── 模型用的事件變數（依文獻）──
+// 共同：time（線性時間趨勢）、dow（星期幾）；短期：起日前後各週指示變數；長期：起日後階梯、起日後天數，已結束者另加結束後階梯與天數
+const dpEvKind = (c, a) => { const o = dpAeCfg(c), k = dpAeKeyOf(a); return o.kind[k] || (a.to - a.from + 1 <= o.cut ? "s" : "l"); };
+const dpEvActs = c => { const L = dpActs(c).list, o = dpAeCfg(c), K = L.filter(a => o.keep[dpAeKeyOf(a)]); return K.length ? K : L; };
+function dpEvSpec(c, dmin, dmax) {
+  const o = dpAeCfg(c), cols = [["time", "線性時間趨勢：樣本第一天為 1，逐日加 1"], ["dow", "星期幾：1＝星期一，7＝星期日"]];
+  dpEvActs(c).forEach(a => { const nmA = `「${a.name}」`;
+    if (dpEvKind(c, a) === "s") {
+      for (let w = o.ewb; w >= 1; w--) cols.push([`${a.v}_b${w}`, `活動${nmA}起日前第 ${w} 週（起日前 ${w * 7} 至 ${w * 7 - 6} 天）為 1，其餘為 0`, a, "s", -w]);
+      for (let w = 0; w <= o.ewa; w++) cols.push([`${a.v}_a${w}`, `活動${nmA}起日後第 ${w} 週（起日後 ${w * 7} 至 ${w * 7 + 6} 天，起日為第 0 天）為 1，其餘為 0`, a, "s", w]);
+    } else {
+      cols.push([`${a.v}_s`, `活動${nmA}起日（${dpFmt(a.from)}）起每天為 1，之前為 0（水準變化）`, a, "ls"], [`${a.v}_t`, `活動${nmA}起日後經過的天數，起日為 0、之前為 0（斜率變化）`, a, "lt"]);
+      if (dmax == null || a.to < dmax) cols.push([`${a.v}_e`, `活動${nmA}迄日（${dpFmt(a.to)}）之後每天為 1，之前為 0（結束後的變化）`, a, "le"], [`${a.v}_et`, `活動${nmA}迄日之後經過的天數，迄日次日為 1、之前為 0`, a, "let"]);
+    } });
+  return cols;
+}
+function dpEvAdd(head, rows, di, desc, nm, cfg) {
+  let dmin = DP.chk && DP.chk.dmin, dmax = DP.chk && DP.chk.dmax;
+  if (dmin == null) rows.forEach(r => { if (dmin == null || r[di] < dmin) dmin = r[di]; });
+  dpEvSpec(cfg, dmin, dmax).forEach(([h, d, a, t, w]) => { const v = nm(h); head.push(v); desc[v] = d;
+    rows.forEach(r => { const x = r[di]; let y;
+      if (h === "time") y = x - dmin + 1;
+      else if (h === "dow") y = ((new Date((x - 25569) * 864e5).getUTCDay() + 6) % 7) + 1;
+      else if (t === "s") y = Math.floor((x - a.from) / 7) === w ? 1 : 0;
+      else if (t === "ls") y = x >= a.from ? 1 : 0;
+      else if (t === "lt") y = x >= a.from ? x - a.from : 0;
+      else if (t === "le") y = x > a.to ? 1 : 0;
+      else y = x > a.to ? x - a.to : 0;
+      r.push(y); }); });
+}
+const DP_EVREF = {
+  s: "短期活動依 Garthwaite（2014）彙總時間序列的設定，放入起日前後各週的指示變數，以呈現事前趨勢與事後各週的動態效果，並控制年份、一年中的週別與線性時間趨勢；窗口前後各 8 週亦依該研究的彙總分析（另見 Sheng & Astvansh, 2026 取前後 3 週）",
+  l: "長期活動依斷點時間序列（Cornelsen et al., 2017）與代言銷售研究（Elberse & Verleun, 2012）以起日後的階梯變數估計水準變化，並依 Miller（2023）的分段設定以起日後經過期數估計斜率變化；事件結束後的變化依 Sheng & Astvansh（2026）另設結束後的變數",
+  t: "所有單位同時發生、又沒有對照單位的長期事件，與年份等日曆時間固定效果完全共線（Miller, 2023），因此含長期活動的模型改以線性時間趨勢 time 加季節虛擬變數控制時間，不放年份固定效果（Cornelsen et al., 2017 用季別虛擬變數）；只含短期活動的模型可依 Garthwaite（2014）同時控制年份"
+};
+function dpEvView(c) {
+  if (!dpActs(c).list.length) return "";
+  const o = dpAeCfg(c), L = dpEvActs(c), S = L.filter(a => dpEvKind(c, a) === "s"), G = L.filter(a => dpEvKind(c, a) === "l");
+  const nm = a => `${a.v}${a.ab ? " " + esc(a.ab) : ""}`;
+  return `<div class="dpsub"><b>模型用的事件變數</b>
+    <p class="hint">依活動初步評估表一的「短期／長期」分類產生；表一有勾選保留時只處理保留的活動。所有輸出另加 time（線性時間趨勢）與 dow（星期幾）。</p>
+    <ul class="hint"><li><b>短期</b>（${S.length ? S.map(nm).join("、") : "無"}）：起日前各週 _b${o.ewb}…_b1、起日後各週 _a0…_a${o.ewa}（每 7 天一週，起日為第 0 週）。${esc(DP_EVREF.s)}。</li>
+      <li><b>長期</b>（${G.length ? G.map(nm).join("、") : "無"}）：_s 起日後為 1（水準變化）、_t 起日後天數（斜率變化）；迄日早於資料最後一天者另加 _e 迄日後為 1、_et 迄日後天數。${esc(DP_EVREF.l)}。</li>
+      <li><b>時間控制</b>：${esc(DP_EVREF.t)}。原本的期間 0/1 變數（act1…）等於 _s 減 _e，不要與 _s、_e 同時放入模型。</li></ul>
+    <div class="dprow"><label>短期活動：起日前 <input type="number" min="1" step="1" data-dpae="ewb" value="${o.ewb}" style="width:4em"> 週</label><label>起日後 <input type="number" min="0" step="1" data-dpae="ewa" value="${o.ewa}" style="width:4em"> 週</label></div></div>`;
+}
 // 一人一日的資料 → 加上活動期間（act1…）與外部資料的欄位
 function dpExtend(T, cfg) {
   const head = T.head.slice(), rows = T.rows, di = head.indexOf("date"), desc = {}, st = { ext: [] };
   const seen = new Set(head), nm = h => { let x = h, k = 2; while (seen.has(x)) x = `${h}_${k++}`; seen.add(x); return x; };
   const A = dpActs(cfg);
   A.list.forEach(a => { const v = nm(a.v); head.push(v); desc[v] = `活動「${a.name}」期間（${dpFmt(a.from)} 至 ${dpFmt(a.to)}）為 1，其餘為 0`; rows.forEach(r => r.push(r[di] >= a.from && r[di] <= a.to ? 1 : 0)); });
+  if (A.list.length) dpEvAdd(head, rows, di, desc, nm, cfg);
   (cfg.ext || []).forEach((e, i) => {
     const ix = DP.ext[i] ? dpExtIx(i) : null, vars = ix ? ix.vars : [], s = { ok: 0, miss: 0, noC: 0, out: 0, keys: new Map() };
     const names = vars.map(o => { const v = nm(o.v); head.push(v); desc[v] = `${e.src || "外部資料"}的 ${o.h === "（各縣市欄）" ? "各縣市資料" : o.h}（依日期${ix && ix.st.by ? `與 ${e.key} 的縣市` : ""}串接）`; return v; });
@@ -644,6 +691,10 @@ function dpLogLines(cfg, chk) {
 function dpExtLog(cfg) {
   const L = [], fmtN = x => x.toLocaleString("en-US"), A = dpActs(cfg), S = DP.extStat;
   if (A.list.length) L.push(`活動期間（來源：${cfg.actSrc || "未填"}；全國一致，起迄日都包含在內）：` + A.list.map(a => `${a.v}＝${a.name}${a.ab ? "（簡稱：" + a.ab + "）" : ""}（${dpFmt(a.from)} 至 ${dpFmt(a.to)}）`).join("；"));
+  if (A.list.length) { const o = dpAeCfg(cfg), EA = dpEvActs(cfg), S = EA.filter(a => dpEvKind(cfg, a) === "s").map(a => a.v), G = EA.filter(a => dpEvKind(cfg, a) === "l").map(a => a.v);
+    if (S.length) L.push(`模型用的事件變數（短期：${S.join("、")}）：起日前 ${o.ewb} 週至起日後 ${o.ewa} 週，每週一個指示變數（每 7 天一週，起日為第 0 週）。${DP_EVREF.s}`);
+    if (G.length) L.push(`模型用的事件變數（長期：${G.join("、")}）：_s 起日後為 1、_t 起日後天數；迄日早於資料最後一天者另加 _e 迄日後為 1、_et 迄日後天數。${DP_EVREF.l}`);
+    L.push(`時間控制：輸出含 time（線性時間趨勢，樣本第一天為 1）與 dow（星期幾）。${DP_EVREF.t}`); }
   if (A.list.length && DP.chk) { const o = dpAeCfg(cfg), kp = dpAeScreen(cfg, DP.chk).filter(r => r.keep);
     if (kp.length) L.push(`活動初步評估：以起日為事件日，比較起日前後同樣天數的窗口（天數 ${o.cut} 天以內預設為短期，前後各 ${o.short} 天；長期各 ${o.long} 天）；前一年同期為 ${DP_LY} 天前的同一段日期（星期幾一致）；保留的活動依日期資訊篩選，不看捐款資料：` +
       kp.map(r => `${r.a.v}（${r.kind === "s" ? "短期" : "長期"}${r.cty ? "，" + r.cty : ""}${r.exact ? "" : "，起日未確定"}）`).join("、") + `；Y 以每日彙總計算（Y1＝${dpAeYlab(cfg)}的每日合計，Y2＝每日捐款人數，另列首次捐款人數），沒有交易的日子為 0${kp.some(r => r.cty) ? "；地區活動比較該縣市與其他縣市" : ""}`); }
@@ -882,7 +933,7 @@ function dpView() {
 }
 // ── 活動初步評估：表一篩選（只用日期資訊，不看捐款資料）；表二 Y 比較與事件時間圖（只算保留的活動）──
 const DP_LY = 364;   // 前一年同期：往前 52 週，星期幾一致
-const dpAeCfg = c => { const o = c.ae ||= {}; o.short ??= 28; o.long ??= 182; o.cut ??= 90; o.keep ||= {}; o.kind ||= {}; o.exact ||= {}; o.cty ||= {}; o.cy ||= 0; return o; };
+const dpAeCfg = c => { const o = c.ae ||= {}; o.short ??= 28; o.long ??= 182; o.cut ??= 90; o.ewb ??= 8; o.ewa ??= 8; o.keep ||= {}; o.kind ||= {}; o.exact ||= {}; o.cty ||= {}; o.cy ||= 0; return o; };
 const dpAeKeyOf = a => a.name + "|" + dpFmt(a.from);
 // 簡稱：AI 回覆的「簡稱」欄，可在活動清單修改（存於 actAb）；表二結果是計算當時的快照，簡稱改讀目前設定
 const dpAbNow = a => { const o = (DP.cfg && DP.cfg.actAb) || {}, k = dpAeKeyOf(a); return k in o ? o[k] : (a.ab || ""); };
@@ -988,7 +1039,7 @@ function dpExtView(c, k) {
   if (A.list.length) h += `<table class="dptbl"><thead><tr><th>變數</th><th>簡稱</th><th>活動名稱</th><th>起日</th><th>迄日</th><th>天數</th><th>說明</th></tr></thead><tbody>${A.list.map(a => `<tr><td>${a.v}</td><td><input type="text" data-dpab="${esc(dpAeKeyOf(a))}" value="${esc(a.ab)}" placeholder="（未填）" style="width:7em"></td><td>${esc(a.name)}</td><td>${dpFmt(a.from)}</td><td>${dpFmt(a.to)}</td><td class="r">${a.to - a.from + 1}</td><td>${esc(a.note)}</td></tr>`).join("")}</tbody></table>`;
   if (A.bad.length) h += `<div class="note warn">讀不出日期的行（請修正或刪除）：\n${A.bad.map(esc).join("\n")}</div>`;
   if (A.unsure.length) h += `<div class="note warn">AI 列為無法確定的活動（未納入；確認日期後，依「活動名稱｜簡稱｜起日｜迄日｜說明」補進上方）：\n${A.unsure.map(esc).join("\n")}</div>`;
-  h += dpAeView(c, k);
+  h += dpAeView(c, k) + dpEvView(c);
   h += `</div><div class="dpsub"><b>外部資料</b>
     <p class="hint">依日期串接的資料（例如連假、全國性的颱風假），或依日期與縣市串接的資料（例如天氣、空氣品質、各縣市的颱風假）。上傳 .xlsx 或 .csv：長格式為一列一個日期（或日期 × 縣市）；欄名有 3 個以上是縣市名稱時，視為一個縣市一欄的寬格式。縣市以本資料當天處理後的縣市欄串接（已套用不一致的處理與 22 縣市篩選）；台／臺視為相同，舊縣名換為現行縣市。數值中的「T」（微量）視為 0；「X」（儀器故障）不列入平均，某縣市當天全部為 X 時，以距離最近的縣市（依縣市政府所在地的距離）同一天的值取代；最近的縣市當天也沒有有效值、離島縣，或依日期串接的全國資料，維持缺漏並列出。研究存檔只記住串接設定，外部檔要與原始資料一起重新上傳。資料來源、網址與取得日期須填寫，會寫進處理紀錄，供論文說明資料來源與查核。</p>`;
   (c.ext || []).forEach((e, i) => {
@@ -1160,7 +1211,7 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
     if (d.dpex != null) { ((c.valid ||= {})[d.dpex] ||= {}).ex = t.value; return dpCommit(false); }
     if (d.dpwt != null) { (c.wt ||= {})[d.dpwt] = t.value || null; return dpCommit(false); }
     if (d.dpnear != null) { (c.near ||= {})[d.dpnear] = Math.max(0, Math.round(+t.value || 0)); return dpCommit(false); }
-    if (d.dpae != null) { const o = dpAeCfg(c); o[d.dpae] = ["short", "long", "cut"].includes(d.dpae) ? Math.max(1, Math.round(+t.value || 1)) : d.dpae === "cy" ? +t.value : t.value || null; return dpCommit(false); }
+    if (d.dpae != null) { const o = dpAeCfg(c); o[d.dpae] = ["short", "long", "cut", "ewb", "ewa"].includes(d.dpae) ? Math.max(1, Math.round(+t.value || 1)) : d.dpae === "cy" ? +t.value : t.value || null; return dpCommit(false); }
     if (d.dpaekeep != null) { dpAeCfg(c).keep[d.dpaekeep] = t.checked; return dpCommit(false); }
     if (d.dpaekind != null) { dpAeCfg(c).kind[d.dpaekind] = t.value; return dpCommit(false); }
     if (d.dpaeex != null) { dpAeCfg(c).exact[d.dpaeex] = t.checked; return dpCommit(false); }
