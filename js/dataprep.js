@@ -473,7 +473,7 @@ function dpView() {
   if (c.pcol) {
     const pv = DP.pv || [];
     h += `<p class="hint">每個值展開成一欄，內容為該期間${c.pval ? ` ${esc(c.pval)} 的加總` : "的筆數"}。要合併的值填相同的欄名（例如「長照基金50」填「長照基金」）；欄名留白則不納入寬格式。欄名全部以數字結尾（例如 money1–money5）時依編號排列，否則依下表順序。</p>
-      <table class="dptbl"><thead><tr><th>${esc(c.pcol)} 的值</th><th>筆數</th>${c.pval ? `<th>${esc(c.pval)} 合計</th>` : ""}<th>寬格式欄名</th></tr></thead><tbody>${pv.map(x => `<tr><td>${esc(x.v || "（空白）")}</td><td class="r">${dpN(x.n)}</td>${c.pval ? `<td class="r">${dpN(x.s)}</td>` : ""}<td><input type="text" data-dpmap="${esc(x.v)}" value="${esc((c.pmap || {})[x.v] ?? "")}"></td></tr>`).join("")}</tbody></table>
+      <table class="dptbl"><thead><tr><th>${esc(c.pcol)} 的值</th><th>筆數</th>${c.pval ? `<th>${esc(c.pval)} 合計</th>` : ""}<th>寬格式欄名<br><small>要合併的值填相同名稱；留白則不納入</small></th></tr></thead><tbody>${pv.map(x => `<tr><td>${esc(x.v || "（空白）")}</td><td class="r">${dpN(x.n)}</td>${c.pval ? `<td class="r">${dpN(x.s)}</td>` : ""}<td><input type="text" data-dpmap="${esc(x.v)}" value="${esc((c.pmap || {})[x.v] ?? "")}"></td></tr>`).join("")}</tbody></table>
       <p class="hint" id="dptg">展開後的欄位：${esc(dpTargets(c).join("、") || "（無）")}</p>`;
   }
   h += `</div>`;
