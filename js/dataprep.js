@@ -421,6 +421,7 @@ function dpCommit(recheck) {   // 設定變更：存進研究存檔（只有設�
   if (recheck) DP.chk = null;
   store.values.dp_cfg = DP.cfg;
   if (DP.chk && !dpNeed(DP.cfg, DP.chk).length) store.values.dp_sum = dpSummary(DP.cfg, DP.chk);
+  if (DP.chk) store.values.dp_log = dpLogText();   // 處理紀錄存進研究存檔，下次開啟不必重新處理也看得到
   setTimeout(update, 0);   // 等目前的事件結束再重畫，避免輸入框失去焦點時重複重畫
 }
 function dpView() {
@@ -428,7 +429,8 @@ function dpView() {
   let h = `<div class="dp"><fieldset class="struct"><legend>1. 上傳原始資料</legend>
     <p class="hint">支援 .xlsx 與 .csv（UTF-8 或 Big5 皆可），一列一筆交易的長格式資料。資料只在這台電腦的瀏覽器處理，不會上傳；研究存檔只記住欄位設定與處理摘要，下次上傳同樣欄位的檔案會自動套用。建議大小：xlsx 約 50 MB、CSV 約 200 MB 以內；.xls 請先在 Excel 另存為 .xlsx 或 CSV。</p>
     <input type="file" data-dp="file" accept=".xlsx,.xlsm,.csv,.txt">
-    <div class="note" id="dpbusy"${DP.busy ? "" : " hidden"}>${esc(DP.busy)}</div>${DP.err ? `<div class="note warn">${esc(DP.err)}</div>` : ""}
+    <div class="note" id="dpbusy"${DP.busy ? "" : " hidden"}>${esc(DP.busy)}</div>${DP.err ? `<div class="note warn">${esc(DP.err)}</div>` : ""}${DP.msg ? `<div class="note">${esc(DP.msg)}</div>` : ""}
+    ${!H.length && store.values.dp_log ? `<p class="hint">這份研究上次的處理紀錄在本頁最下方，可直接複製；要重新輸出資料，請再上傳原始檔案（欄位設定會自動套用）。</p>` : ""}
     ${H.length ? `<p class="dpinfo">已讀入 <b>${esc(DP.name)}</b>${DP.sheets.length > 1 ? `，工作表 <select data-dp="sheet">${DP.sheets.map((x, k) => `<option value="${k}"${k === DP.sheet ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select>` : ""}：${dpN(DP.rows.length)} 列、${H.length} 欄</p>` : ""}</fieldset>`;
   if (!H.length || !c) return h + "</div>";
   const keys = dpKeys(c), numH = H.filter((_, i) => K[i] !== "text"), ex = i => { const u = []; for (const r of DP.rows) { const v = r[i]; if (v != null && !u.includes(v)) u.push(v); if (u.length >= 3) break; } return u.map(v => K[i] === "date" && typeof v === "number" ? dpFmt(v) : String(v)).join("、"); };
@@ -488,7 +490,7 @@ function dpView() {
   const need = dpNeed(c, k);
   h += `<fieldset class="struct"><legend>4. 輸出</legend>`;
   if (need.length) h += `<div class="note warn">請先在上方選擇這些欄位的處理方式：${need.map(esc).join("、")}</div>`;
-  h += `<p class="hint">Excel 檔含「一人一日」「加總（${DP_LV[c.agg]}）」「寬格式（${DP_LV[c.wide]}）」「處理紀錄」「檢查明細」五個工作表；日期欄為 Excel 日期格式。CSV 為 UTF-8（含 BOM），Excel 可直接開啟，Stata、R、SPSS 也能讀取。每列含 n_tx（合併的交易筆數）；加總資料另含 n_days（有交易的日數），一人一筆時另含 first_date、last_date。只輸出有交易的期間，沒有交易的期間不補列。</p>
+  h += `<p class="hint">Excel 檔含「一人一日」「加總（${DP_LV[c.agg]}）」「寬格式（${DP_LV[c.wide]}）」「處理紀錄」「檢查明細」五個工作表；日期欄為 Excel 日期格式。CSV 為 UTF-8（含 BOM），Excel 可直接開啟，Stata、R、SPSS 也能讀取。每列含 n_tx（合併的交易筆數）；加總資料另含 n_days（有交易的日數），一人一筆時另含 first_date、last_date。只輸出有交易的期間，沒有交易的期間不補列。已開啟研究資料夾時，檔案直接存進該資料夾（檔名前加研究名稱）；沒有開啟時下載到瀏覽器的下載資料夾。</p>
     <p class="dpbtns"><button type="button" class="copy" data-dpout="xlsx"${need.length ? " disabled" : ""}>下載 Excel（全部工作表）</button>
     <button type="button" data-dpout="day"${need.length ? " disabled" : ""}>CSV：一人一日</button>
     <button type="button" data-dpout="agg"${need.length ? " disabled" : ""}>CSV：加總（${DP_LV[c.agg]}）</button>
@@ -497,8 +499,9 @@ function dpView() {
   return h;
 }
 function dpLogText() { return DP.chk && DP.cfg ? dpLogLines(DP.cfg, DP.chk).join("\n") : ""; }
+const dpLogShown = () => dpLogText() || (typeof store !== "undefined" && store.values.dp_log) || "";
 async function dpLoad(file) {
-  DP.err = ""; DP.name = file.name; DP.head = []; DP.rows = []; DP.chk = null; DP.sheets = []; DP.X = null; DP.sheet = 0;
+  DP.err = ""; DP.msg = ""; DP.name = file.name; DP.head = []; DP.rows = []; DP.chk = null; DP.sheets = []; DP.X = null; DP.sheet = 0;
   dpBusy("讀取中…"); update(); await dpTick();
   try {
     const buf = await file.arrayBuffer();
@@ -528,10 +531,19 @@ function dpPivotInit() {
   if (DP.pv) { const keep = c.pmap || {}; c.pmap = {}; DP.pv.forEach(x => c.pmap[x.v] = x.v in keep && c.pcolWas === c.pcol ? keep[x.v] : x.v); }
   c.pcolWas = c.pcol;
 }
-function dpSaveFile(blob, name) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
+// 已開啟研究資料夾：直接存進該資料夾（檔名前加研究名稱）；否則下載到瀏覽器的下載資料夾
+async function dpSaveFile(blob, name) {
+  const pre = (store.name || "").replace(/[\\/:*?"<>|\r\n]+/g, "").trim();
+  let at = null;
+  try { at = window.saveToProjDir ? await window.saveToProjDir(pre ? `${pre}_${name}` : name, blob) : null; }
+  catch (e) { DP.err = "存入研究資料夾失敗，改為下載：" + (e && e.message || e); }
+  if (at) { DP.msg = `已存入研究資料夾：${at}`; return; }
+  dpDownload(blob, name); DP.msg = `已下載「${name}」到瀏覽器的下載資料夾（目前沒有開啟研究資料夾）。`;
+}
+function dpDownload(blob, name) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
 async function dpOutput(what) {
   const c = DP.cfg, k = DP.chk; if (!k || dpNeed(c, k).length) return;
-  DP.err = ""; dpBusy("整理資料中…"); await dpTick();
+  DP.err = ""; DP.msg = ""; dpBusy("整理資料中…"); await dpTick();
   try {
     const day = () => dpBuild(c, k, "day", false), agg = () => dpBuild(c, k, c.agg, false), wide = () => dpBuild(c, k, c.wide, true);
     if (what === "xlsx") {
@@ -541,11 +553,11 @@ async function dpOutput(what) {
       sh.push({ name: "處理紀錄", head: ["處理紀錄"], rows: dpLogLines(c, k).map(x => [x]), dateCol: new Set() }, { name: "檢查明細", head: det[0], rows: det.slice(1), dateCol: new Set() });
       dpBusy("寫入 Excel 檔…"); await dpTick();
       const blob = await dpXlsx(sh.filter(x => x.rows.length <= DP_XLS_MAX), async f => { dpBusy(`寫入 Excel 檔… ${Math.round(f * 100)}%`); await dpTick(); });
-      dpSaveFile(blob, `${dpBase()}_處理後.xlsx`);
+      await dpSaveFile(blob, `${dpBase()}_處理後.xlsx`);
       if (big.length) DP.err = `${big.map(x => x.name).join("、")} 超過 Excel 的 1,048,576 列上限，未放入 Excel 檔，請改下載 CSV。`;
     } else {
       const t = what === "day" ? day() : what === "agg" ? agg() : wide();
-      dpSaveFile(dpCSV(t), `${dpBase()}_${what === "day" ? "一人一日" : what === "agg" ? "加總_" + dpLvShort[c.agg] : "寬格式_" + dpLvShort[c.wide]}.csv`);
+      await dpSaveFile(dpCSV(t), `${dpBase()}_${what === "day" ? "一人一日" : what === "agg" ? "加總_" + dpLvShort[c.agg] : "寬格式_" + dpLvShort[c.wide]}.csv`);
     }
   } catch (e) { DP.err = "輸出失敗：" + (e && e.message || e); }
   dpBusy(""); update();
@@ -573,7 +585,7 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
       (c.pmap ||= {})[d.dpmap] = t.value.trim(); store.values.dp_cfg = c;
       if (DP.chk && !dpNeed(c, DP.chk).length) store.values.dp_sum = dpSummary(c, DP.chk);
       save(); const g = document.getElementById("dptg"); if (g) g.textContent = "展開後的欄位：" + (dpTargets(c).join("、") || "（無）");
-      document.getElementById("out").textContent = dpLogText(); return;
+      store.values.dp_log = dpLogText(); save(); document.getElementById("out").textContent = dpLogText(); return;
     }
     if (d.dpres != null) { c.res[d.dpres] = t.value; return dpCommit(false); }
     if (d.dpflag != null) { c.flag[d.dpflag] = t.checked; return dpCommit(false); }

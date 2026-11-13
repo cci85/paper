@@ -256,6 +256,13 @@ async function writeNow() {
   } finally { proj.busy = false; }
 }
 
+// 資料處理：處理後的檔案直接存進目前的研究資料夾（沒有開啟研究資料夾時回傳 null，改用下載）
+window.saveToProjDir = async (name, blob) => {
+  if (!bindOk() || !(await permOk(true))) return null;
+  const w = await (await proj.dir.getFileHandle(name, { create: true })).createWritable();
+  await w.write(blob); await w.close();
+  return `${proj.dirName}／${name}`;
+};
 window.flushSave = () => writeNow();   // 重新整理前先存檔
 // app.js 每次 save() 後呼叫
 window.onStoreSave = () => {
