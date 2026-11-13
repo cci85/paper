@@ -448,6 +448,7 @@ const dpBase = () => DP.name.replace(/\.[^.]+$/, "") || "資料";
 function dpBusy(t) { DP.busy = t; const el = document.getElementById("dpbusy"); if (el) { el.textContent = t; el.hidden = !t; } }
 function dpCommit(recheck) {   // 設定變更：存進研究存檔（只有設定與摘要），必要時清除檢查結果
   if (recheck) DP.chk = null;
+  if (DP.cfg && DP.cfg.pcol) DP.cfg.roles[DP.cfg.pcol] = "drop";   // 展開成寬格式的欄位不再當作「取值」欄，不檢查不一致
   store.values.dp_cfg = DP.cfg;
   if (DP.chk && !dpNeed(DP.cfg, DP.chk).length) store.values.dp_sum = dpSummary(DP.cfg, DP.chk);
   if (DP.chk) store.values.dp_log = dpLogText();   // 處理紀錄存進研究存檔，下次開啟不必重新處理也看得到
@@ -473,7 +474,7 @@ function dpView() {
       <select data-dp="y">${dpOpt(H, c.y, "年")}</select><select data-dp="m">${dpOpt(H, c.m, "月")}</select><select data-dp="d">${dpOpt(H, c.d, "日")}</select>
       ${c.dmode === "one" && c.y && c.m && c.d ? `<label class="chip"><input type="checkbox" data-dp="ychk"${c.ychk ? " checked" : ""}>以年、月、日三欄核對日期</label>` : ""}</div>
     <p class="hint">日期可以是 Excel 日期序號（例如 45943＝2025/10/13）、日期格式的儲存格、20251013、114/10/13 或 2025/10/13；年份小於 1000 視為民國年。</p>
-    <table class="dptbl"><thead><tr><th>欄位</th><th>型態</th><th>前幾個值</th><th>同一人同一天有多筆時的計算方式</th></tr></thead><tbody>${H.map((x, i) => `<tr${keys.has(x) ? ' class="key"' : ""}><td>${esc(x)}</td><td>${kindT[K[i]]}</td><td class="ex">${esc(ex(i))}</td><td>${keys.has(x) ? (x === c.id ? "個人代碼" : c.dmode === "one" && x !== c.dcol ? "核對日期用" : "日期") :
+    <table class="dptbl"><thead><tr><th>欄位</th><th>型態</th><th>前幾個值</th><th>同一人同一天有多筆時的計算方式</th></tr></thead><tbody>${H.map((x, i) => `<tr${keys.has(x) ? ' class="key"' : ""}><td>${esc(x)}</td><td>${kindT[K[i]]}</td><td class="ex">${esc(ex(i))}</td><td>${keys.has(x) ? (x === c.id ? "個人代碼" : c.dmode === "one" && x !== c.dcol ? "核對日期用" : "日期") : x === c.pcol ? "展開成寬格式（見步驟 3）" :
       `<select data-dprole="${esc(x)}">${Object.entries(DP_ROLE).filter(([r]) => K[i] === "text" ? ["take", "drop"].includes(r) : true).map(([r, t]) => `<option value="${r}"${c.roles[x] === r ? " selected" : ""}>${t}</option>`).join("")}</select>`}</td></tr>`).join("")}</tbody></table>
     <p class="hint">輸出為一人一日一筆：同一人同一天有多筆交易時，數值欄依這裡的設定加總、平均或取最大、最小值。預設值只是建議：數值欄預設加總；每人固定不變的欄位（例如首次捐款日）與文字欄預設「取值」，同一期間出現不同的值時會示警，由你選擇處理方式；看起來像單號的欄位預設刪除；不需要的變數也設為「刪除（不輸出）」。</p>
     <details class="dpsub"${c.tot ? " open" : ""}><summary>總額核對（選用）</summary><p class="hint">原始資料已有總額與細項（例如 mtotal 與 money1–money5）時，逐列核對總額是否等於細項合計，不一致時示警。</p>
