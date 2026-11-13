@@ -290,7 +290,7 @@ function dpBuild(cfg, chk, lv, pivot) {
   if (lv === "person") { head.push("first_date", "last_date"); dateCol.add(head.length - 2).add(head.length - 1); }
   num.forEach(o => { if (DP.kind[o.c] === "date" && o.role !== "sum" && o.role !== "mean") dateCol.add(head.length); head.push(o.h); });
   take.forEach(o => { if (DP.kind[o.c] === "date" && cfg.res[o.h] !== "uniq" && cfg.res[o.h] !== "all") dateCol.add(head.length); head.push(o.h); });
-  const flags = take.filter(o => cfg.flag[o.h]); flags.forEach(o => head.push(o.h + "_conflict"));
+  const flags = [];   // 旗標欄已取消 flags.forEach(o => head.push(o.h + "_conflict"));
   tg.forEach(t => head.push(t)); if (cfg.pcnt) tg.forEach(t => head.push(t + "_n"));
   const seen = new Set(); head.forEach((h, i) => { let x = h; while (seen.has(x)) x += "_原"; seen.add(x); head[i] = x; });   // 與產生的欄名（date、year…）同名時加「_原」
   const rows = [...g.values()].sort((a, b) => dpCmp(a.id, b.id) || a.p - b.p).map(e => {
@@ -319,7 +319,7 @@ function dpLogLines(cfg, chk) {
   L.push(`觀察期間：${dpFmt(chk.dmin)} 至 ${dpFmt(chk.dmax)}`);
   L.push(`代碼欄：${cfg.id}；日期：${cfg.dmode === "one" ? `${cfg.dcol}${cfg.ychk ? `（以 ${cfg.y}／${cfg.m}／${cfg.d} 核對，不一致 ${fmtN(chk.ymdBad.length)} 列）` : ""}` : `${cfg.y}／${cfg.m}／${cfg.d}`}`);
   if (cfg.tot && cfg.parts.length) L.push(`總額核對：${cfg.tot} ＝ ${cfg.parts.join("＋")}，不一致 ${fmtN(chk.totBad.length)} 列`);
-  L.push("欄位處理：" + DP.head.filter(h => cfg.roles[h]).map(h => `${h}＝${cfg.roles[h] === "take" ? (cfg.res[h] === "wt" ? `依 ${(cfg.wt || {})[h] || "money"} 的金額決定（取當天金額合計最大的值）` : cfg.res[h] === "near" ? `依前後 ${(cfg.near || {})[h] ?? 30} 天的交易判斷（取前後期間出現次數最多的值）` : cfg.res[h] ? DP_RES.find(x => x[0] === cfg.res[h])[1] : "取值（無不一致）") : DP_ROLE[cfg.roles[h]]}${cfg.flag[h] ? "＋不一致旗標" : ""}`).join("；"));
+  L.push("欄位處理：" + DP.head.filter(h => cfg.roles[h]).map(h => `${h}＝${cfg.roles[h] === "take" ? (cfg.res[h] === "wt" ? `依 ${(cfg.wt || {})[h] || "money"} 的金額決定（取當天金額合計最大的值）` : cfg.res[h] === "near" ? `依前後 ${(cfg.near || {})[h] ?? 30} 天的交易判斷（取前後期間出現次數最多的值）` : cfg.res[h] ? DP_RES.find(x => x[0] === cfg.res[h])[1] : "取值（無不一致）") : DP_ROLE[cfg.roles[h]]}`).join("；"));
   dpLevels(cfg).forEach(lv => { const o = chk.conf[lv], c = Object.entries(o.cols).filter(([h, x]) => x.n && cfg.roles[h] === "take");
     L.push(`${DP_LV[lv]}：${fmtN(o.groups)} 筆（含多筆交易者 ${fmtN(o.multi)} 筆）${c.length ? "；不一致：" + c.map(([h, x]) => `${h} ${fmtN(x.n)} 筆`).join("、") : ""}`); });
   if (cfg.pcol) { const tg = dpTargets(cfg);
@@ -501,7 +501,6 @@ function dpView() {
         <div class="chips">${DP_RES.map(([r, t]) => `<label class="chip"><input type="radio" name="dpres-${esc(x)}" data-dpres="${esc(x)}" value="${r}"${c.res[x] === r ? " checked" : ""}>${t}</label>`).join("")}
         ${c.res[x] === "wt" ? `<label class="chip">數值欄 <select data-dpwt="${esc(x)}">${dpOpt(numH.filter(z => !keys.has(z)), (c.wt || {})[x] || (H.includes("money") ? "money" : ""), "（請選擇）")}</select></label>` : ""}
         ${c.res[x] === "near" ? `<label class="chip">前後 <input type="number" min="0" max="3650" step="1" data-dpnear="${esc(x)}" value="${esc((c.near || {})[x] ?? 30)}" style="width:5em"> 天</label>` : ""}
-        <label class="chip"><input type="checkbox" data-dpflag="${esc(x)}"${c.flag[x] ? " checked" : ""}>另加「${esc(x)}_conflict」旗標欄（0／1）</label>
         <button type="button" data-dpdrop="${esc(x)}">刪除這個變數</button></div></div>`;
     }).join("")) + `</div></fieldset>`;
   // 輸出
