@@ -477,6 +477,8 @@ table.apa td[contenteditable]:focus, .tbl-note[contenteditable]:focus { outline:
 .dp .dptbl th { font-weight: 600; background: var(--accent-soft); }
 .dp .dptbl tr.key td { color: var(--muted); }
 .dp .dptbl td.ex { color: var(--muted); max-width: 22em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dp span.warn { color: var(--warn); }
+.dp .dptbl tr.bad td { background: var(--warn-soft); }
 .dp .dptbl td.r { text-align: right; font-variant-numeric: tabular-nums; }
 .dp .dptbl input[type=text] { width: 12em; }
 .dp .dpsub { margin-top: 14px; }

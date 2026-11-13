@@ -297,15 +297,23 @@ function pdCandText() {
   pipeLines(mdSec(r["s0-6|pdict"], "可再考慮的變數")).split("\n").filter(Boolean).forEach(l => { const c = l.split(/[｜|]/).map(x => x.trim()); add(c[1], c[2]); });
   return out.join("\n");
 }
+// 資料處理的輸出欄名（不含衍生變數），供 0.4 衍生變數計算規格限定來源欄
+function dpOutCols() {
+  const d = (typeof store !== "undefined" && store.values.dp_sum) || {};
+  const a = d.base || String(d.fields || "").split(/\r?\n/).map(l => l.split("：")[0].trim()).filter(Boolean);
+  return a.join("、");
+}
 // 0.4 資料字典：回覆中的「可再考慮的變數」可逐一加入研究變數
 function pdictView(text) {
   if (blank(text)) return "";
+  const noDv = !/^#{2,3}\s*衍生變數計算規格/m.test(String(text).replace(/\*\*/g, ""));
   const extra = pipeLines(mdSec(text, "可再考慮的變數")).split("\n").filter(Boolean).map(l => l.split(/[｜|]/).map(x => x.trim()));
   const have = pmNorm(pdVarText());
   const box = extra.length ? `<div class="needbox"><b>可再考慮的變數</b>：文獻常用、現有欄位做得出來、但研究變數尚未納入。按「加入」會寫進上方「研究變數」；加入自變數或調節變數時，研究假說與模型組也要一併考慮（可回 0.3 用「追問」確認）。想先查證文獻支持與資料來源時，到 0.2 步驟 3「候選變數的文獻檢索」，這些變數會自動帶入。
     <table class="mtbl"><tr><th>角色</th><th>變數</th><th>建構方式</th><th>納入理由</th><th></th></tr>${extra.map((r, k) => { const inV = have.includes(pmNorm((r[1] || "").replace(/[（(].*$/, "")));
       return `<tr><td>${esc(r[0] || "")}</td><td>${esc(r[1] || "")}</td><td>${esc(r[2] || "")}</td><td>${esc(r.slice(3).join("｜"))}</td><td>${inV ? "<small>已在研究變數</small>" : `<button type="button" data-addvar="${esc([r[0], r[1], r[2], r[4] || r[3] || ""].join("｜"))}">加入</button>`}</td></tr>`; }).join("")}</table></div>` : "";
-  return box + mdBox(text, "閱讀整理後的回覆（資料字典、分析樣本、檢查清單）", true);
+  const dv = noDv ? `<div class="note warn">回覆中還沒有「衍生變數計算規格」：請在同一個對話送出下方的「補問 Prompt」，再把回覆接在「AI 回覆」原有內容的最後。</div>` : "";
+  return dv + box + mdBox(text, "閱讀整理後的回覆（資料字典、分析樣本、檢查清單、衍生變數計算規格）", true);
 }
 const pdVals = () => { const v = store.values; return { ctx: (v.as_ctx || "").trim(), con: (v.as_con || "").trim(), unit: (v.pd_unit || "").trim(), time: (v.pd_time || "").trim(),
   fields: (v.pd_fields || "").trim(), feat: v.pd_feat || [], goal: v.pd_goal || ["exp", "pred"], vars: pdVarText() }; };
@@ -1313,11 +1321,14 @@ const DEFS = {
       { id: "pd_vars", type: "textarea", label: "研究變數", hint: "與 0.2 步驟 1 共用；資料字典以此為準。下方回覆的「可再考慮的變數」按「加入」會寫進這裡", rows: 5, mono: true },
       { id: "dc_conv", type: "radio", label: "對話", hint: "0.2、0.3 都在同一個對話時，不重複貼上資料欄位與變數清單，Prompt 比較短", options: [["same", "接在 0.2／0.3 的同一個對話"], ["new", "開新對話"]], value: "same" },
       { id: "pd_fields", type: "textarea", label: "現有資料欄位", hint: "與 0.2 共用；選「開新對話」時才會放進 Prompt", rows: 3, when: p => p.dc_conv === "new" },
-      { id: "dc_cut", type: "text", label: "預測時點與預測期間", hint: "選填；研究目標含預測時使用", placeholder: "例如：以 2024 年 12 月為預測時點，預測 2025 年上半年是否再次捐款", when: () => pdGoal(pdVals().goal).r }
+      { id: "dc_cut", type: "text", label: "預測時點與預測期間", hint: "選填；研究目標含預測時使用", placeholder: "例如：以 2024 年 12 月為預測時點，預測 2025 年上半年是否再次捐款", when: () => pdGoal(pdVals().goal).r },
+      { id: "dc_dv", type: "promptbox", below: true, label: "補問 Prompt：衍生變數計算規格",
+        hint: "已送出資料字典、回覆中沒有「衍生變數計算規格」時，在同一個對話接著送出；回覆接在上方「AI 回覆」原有內容的最後貼上。資料處理會自動讀入這一節",
+        copyLabel: "複製補問 Prompt（同一個對話接著送出）", build: () => T.pd_dv({ dpCols: dpOutCols() }) }
     ],
     rules: () => ["citation"],
     replyView: t => pdictView(t),
-    build: (p, R) => { const model = modelText(); return model ? T.pd_dict({ ...pdVals(), model, cut: (p.dc_cut || "").trim(), same: p.dc_conv !== "new" }) + R : ""; },
+    build: (p, R) => { const model = modelText(); return model ? T.pd_dict({ ...pdVals(), model, cut: (p.dc_cut || "").trim(), same: p.dc_conv !== "new", dpCols: dpOutCols() }) + R : ""; },
     empty: "（0.2 還沒有研究模型組）",
     next: "下一步：依資料字典整理資料，再到{#mreport}規劃第四章要揭露的結果。"
   },

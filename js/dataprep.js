@@ -452,8 +452,9 @@ function dpExtIndex(e, t) {
 }
 const dpExtIx = i => { const t = DP.ext[i], e = DP.cfg.ext[i]; if (!t) return null; return DP.extIx[i] ||= dpExtIndex(e, t); };
 // 輸出前必須完成的設定
-function dpBlock(cfg) {
+function dpBlock(cfg, chk) {
   const m = []; const A = dpActs(cfg);
+  if (chk) dpDvParse(dpDvText(cfg), dpHead0(cfg, chk)).items.forEach((it, q) => { if (it.err) m.push(`衍生變數 ${it.name || `第 ${q + 1} 行`}：${it.err}`); });
   if (A.list.length && !String(cfg.actSrc || "").trim()) m.push("活動期間：請填寫資料來源");
   if (A.bad.length) m.push(`活動期間：有 ${A.bad.length} 行讀不出日期，請修正或刪除`);
   (cfg.ext || []).forEach((e, i) => { const t = `外部資料 ${i + 1}${e.file ? `（${e.file}）` : ""}`;
@@ -485,7 +486,134 @@ function dpExtend(T, cfg) {
   });
   return { head, rows, dateCol: T.dateCol, desc, st };
 }
-const dpTable2 = (cfg, chk) => dpExtend(dpBuild(cfg, chk, "day", true), cfg);
+// ── 衍生變數：依 0.4 回覆的「## 衍生變數計算規格」計算（每行「變數名稱｜類型｜來源欄｜參數｜說明」），附加在最後 ──
+// 類型名稱與 js/prompts-new.js 的 DV_TYPES 對應
+const DV_NAMES = ["星期", "對數", "分散度", "組內", "組間", "距上次交易天數", "過去N天交易次數", "過去N天合計", "過去N天平均", "年資", "首次交易", "首次交易值", "落後k期", "等於某值", "非零項目數", "無法計算"];
+const DV_SRC = { "星期": [0, 1], "對數": [1, 1], "分散度": [2, 99], "組內": [1, 1], "組間": [1, 1], "距上次交易天數": [0, 0], "過去N天交易次數": [0, 0], "過去N天合計": [1, 1], "過去N天平均": [1, 1],
+  "年資": [0, 1], "首次交易": [0, 0], "首次交易值": [1, 1], "落後k期": [1, 1], "等於某值": [1, 1], "非零項目數": [1, 99] };
+const DV_WIN = new Set(["過去N天交易次數", "過去N天合計", "過去N天平均"]);
+// 取最後一次出現的「## 標題」一節（補問的回覆接在原回覆之後，以後面的為準）
+function dpSecLast(text, head) {
+  const L = String(text || "").replace(/\*\*/g, "").split(/\r?\n/); let i = -1;
+  L.forEach((l, k) => { if (new RegExp("^#{2,3}\\s*" + head).test(l.trim())) i = k; });
+  if (i < 0) return ""; const out = []; for (let k = i + 1; k < L.length && !/^#{1,2}\s/.test(L[k].trim()); k++) out.push(L[k]);
+  return out.join("\n").trim();
+}
+const dpDv04 = () => dpSecLast(((typeof store !== "undefined" && store.replies) || {})["s0-6|pdict"], "衍生變數計算規格");
+const dpDvText = cfg => cfg && cfg.dvTxt != null ? cfg.dvTxt : dpDv04();
+const dpDvBlank = s => /^[\s\-—–－無（）()留白不需要]*$/.test(s || "");
+// 來源欄：以頓號等分隔；「money1–money5」展開為 money1、money2…money5
+const dpDvCols = s => dpDvBlank(s) ? [] : String(s).split(/[、,，;；]+/).map(x => x.trim()).filter(x => x && !dpDvBlank(x)).flatMap(x => {
+  const m = x.match(/^(.*?)(\d+)\s*[–—\-~～至到]+\s*(.*?)(\d+)$/);
+  if (m && (!m[3] || m[3] === m[1]) && +m[4] > +m[2] && +m[4] - +m[2] < 100) return Array.from({ length: +m[4] - +m[2] + 1 }, (_, k) => m[1] + (+m[2] + k));
+  return [x]; });
+function dpDvParse(text, head) {
+  const items = [], have = new Set(head), names = new Map();
+  String(text || "").replace(/\*\*/g, "").split(/\r?\n/).map(l => l.replace(/^[\s\-*•]+/, "").trim()).filter(l => /[｜|]/.test(l) && !/^[-|｜:\s]+$/.test(l)).forEach(l => {
+    const c = l.replace(/^[|｜]\s*|\s*[|｜]$/g, "").split(/\s*[｜|]\s*/);
+    if (/^變數名稱$/.test(c[0])) return;   // 標題列
+    const it = { name: (c[0] || "").replace(/`/g, ""), raw: c[1] || "", src: dpDvCols((c[2] || "").replace(/`/g, "")), param: dpDvBlank(c[3]) ? "" : (c[3] || "").trim(), note: c.slice(4).join("｜").trim(), err: "" };
+    let t = it.raw.replace(/\s+/g, "").replace(/^過去[nN]天/, "過去N天").replace(/^落後[kK]期$/, "落後k期"), m;
+    if ((m = t.match(/^過去(\d+)天(交易次數|合計|平均)$/))) { t = "過去N天" + m[2]; if (!it.param) it.param = m[1]; }
+    else if ((m = t.match(/^落後(\d+)期$/))) { t = "落後k期"; if (!it.param) it.param = m[1]; }
+    else if (t === "前一期" || t === "落後一期") { t = "落後k期"; if (!it.param) it.param = "1"; }
+    it.type = t; items.push(it);
+  });
+  items.forEach((it, q) => {
+    if (it.type === "無法計算") { it.skip = true; return; }
+    if (!it.name) { it.err = "變數名稱空白"; return; }
+    if (have.has(it.name)) { it.err = "與輸出欄位同名"; return; }
+    if (names.has(it.name)) { it.err = `與第 ${names.get(it.name) + 1} 行的變數同名`; return; }
+    names.set(it.name, q);
+    if (!DV_SRC[it.type]) { it.err = `類型「${it.raw}」不在可用的類型中`; return; }
+    const [lo, hi] = DV_SRC[it.type], n = it.src.length;
+    if (n < lo || n > hi) { it.err = hi === 0 ? "此類型不需要來源欄" + (it.type === "過去N天交易次數" ? "（要加總 n_tx 時改用「過去N天合計」）" : "") : lo === hi ? `來源欄須為 ${lo} 個` : `來源欄至少 ${lo} 個`; return; }
+    const N = it.param.match(/\d+/);
+    if (DV_WIN.has(it.type)) { if (!N || +N[0] < 1) { it.err = "參數須填天數 N（正整數）"; return; } it.N = +N[0]; }
+    if (it.type === "落後k期") { it.k = N ? +N[0] : 1; if (it.k < 1) { it.err = "參數 k 須為正整數"; return; } }
+    if (it.type === "對數") { if (it.param && !/\+\s*1\b/.test(it.param) && !/^ln\(?x\)?$/i.test(it.param)) { it.err = "參數只能留白（ln(x)）或填「+1」（ln(x+1)）"; return; } it.p1 = /\+\s*1\b/.test(it.param); }
+    if (it.type === "年資") { const u = !it.param ? "年" : /天|日/.test(it.param) ? "天" : /月/.test(it.param) ? "月" : /年/.test(it.param) ? "年" : ""; if (!u) { it.err = "參數須填「天」「月」或「年」"; return; } it.unit = u; it.unitDef = !it.param; }
+    if (it.type === "等於某值") { it.vals = it.param.replace(/^[「『"]|[」』"]$/g, "").split(/[」』"]?\s*[、,，]\s*[「『"]?/).map(x => dpNorm(x)).filter(Boolean); if (!it.vals.length) { it.err = "參數須填要比對的值"; return; } }
+  });
+  // 計算順序：來源欄都已存在（輸出欄位或已排好的變數）才排入；來源欄有錯或互相引用者標錯
+  const order = [], done = new Set(head), byName = new Map(items.filter(x => !x.err && !x.skip).map(x => [x.name, x]));
+  let left = [...byName.values()], prog = true;
+  while (left.length && prog) { prog = false;
+    left = left.filter(it => { const miss = it.src.filter(x => !done.has(x));
+      if (!miss.length) { order.push(it); done.add(it.name); prog = true; return false; }
+      const bad = miss.find(x => !byName.has(x) || byName.get(x).err);
+      if (bad) { it.err = byName.has(bad) ? `來源欄 ${bad} 有錯誤` : `來源欄 ${bad} 不在輸出欄位中`; prog = true; return false; }
+      return true; }); }
+  left.forEach(it => { it.err = "來源欄互相引用，無法決定計算順序"; });
+  items.forEach(it => { if (!it.err && !it.skip && it.src.some(x => !done.has(x))) it.err = `來源欄 ${it.src.find(x => !done.has(x))} 不在輸出欄位中`; });
+  return { items, order: order.filter(it => !it.err) };
+}
+// 規則的文字說明（處理紀錄、0.2 資料欄位）
+function dpDvRule(it) {
+  const s = it.src.join("、"), N = it.N;
+  return { "星期": `${s || "date"} 的星期（一＝1…日＝7）`, "對數": `ln(${s}${it.p1 ? "+1" : ""})`, "分散度": `${s} 的熵（−Σ S_j ln S_j，S_j 為各欄占合計的比例）`,
+    "組內": `${s} 減去個人平均`, "組間": `${s} 的個人平均`, "距上次交易天數": "距前一次交易日的天數", "過去N天交易次數": `前 ${N} 天內（不含當天）的交易日數`,
+    "過去N天合計": `前 ${N} 天內（不含當天）${s} 的合計`, "過去N天平均": `前 ${N} 天內（不含當天）各交易日 ${s} 的平均`,
+    "年資": `距首次交易日（${s ? s + " 欄" : "輸出資料中該人第一個交易日"}）的${it.unit}數${it.unitDef ? "（參數留白，預設為年）" : ""}`, "首次交易": "該人第一個交易日為 1，其餘為 0",
+    "首次交易值": `該人第一個交易日的 ${s}`, "落後k期": `前 ${it.k} 次交易日的 ${s}`, "等於某值": `${s} 為「${(it.vals || []).join("、")}」時為 1，否則為 0`, "非零項目數": `${s} 中非 0、非空白的欄數` }[it.type] || it.type;
+}
+// 計算：輸出資料已依個人代碼、日期排序，一人一日一列
+function dpDerive(T, cfg) {
+  const head = T.head, rows = T.rows, n = rows.length, di = head.indexOf("date"), base = head.slice(), desc = { ...(T.desc || {}) };
+  const sp = dpDvParse(dpDvText(cfg), base), st = { items: [], trunc: [] };
+  const gs = new Int32Array(n), D = new Float64Array(n); let dmin = Infinity;
+  for (let i = 0, s0 = 0; i < n; i++) { if (i && dpKey(rows[i][0]) !== dpKey(rows[i - 1][0])) s0 = i; gs[i] = s0; D[i] = rows[i][di]; if (D[i] < dmin) dmin = D[i]; }
+  sp.order.forEach(it => {
+    const cs = it.src.map(x => head.indexOf(x)), c = cs[0], out = new Array(n).fill(null), o = { name: it.name, nonNum: 0, neg: 0 };
+    const num = v => { if (v == null || v === "") return null; if (typeof v === "number") return isFinite(v) ? v : null; const x = dpNum(v); if (x == null || isNaN(x)) { o.nonNum++; return null; } return x; };
+    const T_ = it.type;
+    if (T_ === "星期") for (let i = 0; i < n; i++) { const v = c >= 0 ? rows[i][c] : D[i], d = typeof v === "number" ? Math.floor(v) : dpDateVal(v); if (d != null) out[i] = (new Date((d - 25569) * 864e5).getUTCDay() + 6) % 7 + 1; }
+    else if (T_ === "對數") for (let i = 0; i < n; i++) { let x = num(rows[i][c]); if (x == null) continue; if (it.p1) x += 1; out[i] = x > 0 ? Math.log(x) : null; }
+    else if (T_ === "分散度") for (let i = 0; i < n; i++) { const v = cs.map(k => num(rows[i][k])); if (v.every(x => x == null) || v.some(x => x != null && x < 0)) continue;
+      const t = v.reduce((a, x) => a + (x || 0), 0); if (!(t > 0)) continue; let h = 0; v.forEach(x => { if (x > 0) { const p = x / t; h -= p * Math.log(p); } }); out[i] = h; }
+    else if (T_ === "組內" || T_ === "組間") for (let i = 0; i < n; ) { let j = i, s = 0, k = 0; while (j < n && gs[j] === i) { const x = num(rows[j][c]); if (x != null) { s += x; k++; } j++; }
+      const m = k ? s / k : null; for (let q = i; q < j; q++) { if (T_ === "組間") out[q] = m; else { const x = num(rows[q][c]); out[q] = x == null || m == null ? null : x - m; } } i = j; }
+    else if (T_ === "距上次交易天數") for (let i = 0; i < n; i++) out[i] = i > gs[i] ? D[i] - D[i - 1] : null;
+    else if (DV_WIN.has(T_)) { const ps = new Float64Array(n + 1), pc = new Float64Array(n + 1);
+      for (let i = 0; i < n; i++) { const x = c >= 0 ? num(rows[i][c]) : null; ps[i + 1] = ps[i] + (x || 0); pc[i + 1] = pc[i] + (x != null ? 1 : 0); }
+      let lo = 0, tr = 0;
+      for (let i = 0; i < n; i++) { if (gs[i] > lo) lo = gs[i]; while (lo < i && D[lo] < D[i] - it.N) lo++;
+        if (D[i] - it.N < dmin) tr++;
+        out[i] = T_ === "過去N天交易次數" ? i - lo : T_ === "過去N天合計" ? ps[i] - ps[lo] : (pc[i] - pc[lo] ? (ps[i] - ps[lo]) / (pc[i] - pc[lo]) : null); }
+      if (tr) st.trunc.push([it.name, it.N, tr]); }
+    else if (T_ === "年資") { const div = { "天": 1, "月": 365.25 / 12, "年": 365.25 }[it.unit];
+      for (let i = 0; i < n; i++) { let f = D[gs[i]]; if (c >= 0) { const v = rows[i][c], d = typeof v === "number" ? Math.floor(v) : dpDateVal(v); if (d != null) f = d; }
+        const x = D[i] - f; if (x < 0) o.neg++; out[i] = div === 1 ? x : Math.round(x / div * 1e4) / 1e4; } }
+    else if (T_ === "首次交易") for (let i = 0; i < n; i++) out[i] = i === gs[i] ? 1 : 0;
+    else if (T_ === "首次交易值") for (let i = 0; i < n; i++) out[i] = rows[gs[i]][c];
+    else if (T_ === "落後k期") for (let i = 0; i < n; i++) out[i] = i - it.k >= gs[i] ? rows[i - it.k][c] : null;
+    else if (T_ === "等於某值") { const set = new Set(it.vals); for (let i = 0; i < n; i++) { const v = rows[i][c]; if (v != null && v !== "") out[i] = set.has(dpNorm(String(v))) ? 1 : 0; } }
+    else if (T_ === "非零項目數") for (let i = 0; i < n; i++) out[i] = cs.reduce((a, k) => { const v = rows[i][k]; return a + (v != null && v !== "" && v !== 0 && v !== "0" ? 1 : 0); }, 0);
+    head.push(it.name); for (let i = 0; i < n; i++) rows[i].push(out[i]);
+    desc[it.name] = `${it.note ? it.note + "；" : ""}${dpDvRule(it)}`;
+    if (T_ === "首次交易值" && T.dateCol && T.dateCol.has(c)) T.dateCol.add(head.length - 1);
+    if (T_ === "落後k期" && T.dateCol && T.dateCol.has(c)) T.dateCol.add(head.length - 1);
+    st.items.push(o);
+  });
+  const S = { ...(T.st || {}), dv: st };
+  return { ...T, head, rows, desc, st: S, base, dv: sp };
+}
+const dpTable2 = (cfg, chk) => dpDerive(dpExtend(dpBuild(cfg, chk, "day", true), cfg), cfg);
+const dpHead0 = (cfg, chk) => dpExtend(dpBuild(cfg, { ...chk, k: Math.min(chk.k, 1) }, "day", true), cfg).head;   // 衍生變數之前的輸出欄位
+function dpDvLog(cfg) {
+  const L = [], sp = dpDvParse(dpDvText(cfg), DP.chk ? dpHead0(cfg, DP.chk) : []), S = DP.extStat && DP.extStat.dv, fmtN = x => x.toLocaleString("en-US");
+  if (!sp.items.length) return L;
+  L.push(`衍生變數（依 0.4「資料字典與分析樣本」的衍生變數計算規格${cfg.dvTxt != null ? "，並在資料處理修改" : ""}）：` + sp.order.map(it => `${it.name}＝${dpDvRule(it)}`).join("；"));
+  L.push("　過去與落後類變數一律不含當天；資料只含有交易的日子，「前一期」為前一次交易日，「過去 N 天」以日曆天計算；組內、組間的個人平均以輸出資料中該人所有交易日計算，空白不列入");
+  if (S) {
+    if (S.trunc.length) L.push(cfg.coh ? "　時間窗：樣本只含首次交易在起日之後的人，起日之前沒有交易，時間窗不受觀察期間起日影響"
+      : "　時間窗涵蓋觀察期間起日之前（起日之前的交易不在資料中，以下各筆的過去期間不完整）：" + S.trunc.map(([v, N, k]) => `${v}（${N} 天）${fmtN(k)} 筆`).join("、"));
+    S.items.filter(o => o.nonNum).forEach(o => L.push(`　${o.name}：來源欄有 ${fmtN(o.nonNum)} 個非數值的內容，視為空白`));
+    S.items.filter(o => o.neg).forEach(o => L.push(`　${o.name}：首次交易日晚於交易日 ${fmtN(o.neg)} 筆（年資為負值）`));
+  }
+  const sk = sp.items.filter(it => it.skip); if (sk.length) L.push("　無法計算、未產生：" + sk.map(it => `${it.name || "（未命名）"}${it.note ? `（${it.note}）` : ""}`).join("；"));
+  return L;
+}
 
 // ── 處理紀錄（文字）──
 function dpLogLines(cfg, chk) {
@@ -507,6 +635,7 @@ function dpLogLines(cfg, chk) {
     L.push(`寬格式展開：${cfg.pcol} 的各個值 → ${cfg.pval ? cfg.pval + " 加總" : "筆數"}；` + tg.map(t => `${t}＝${Object.keys(cfg.pmap).filter(v => (cfg.pmap[v] || "").trim() === t).map(v => v || "（空白）").join("＋")}`).join("；"));
     const skip = Object.keys(cfg.pmap).filter(v => !(cfg.pmap[v] || "").trim()); if (skip.length) L.push(`未納入寬格式：${skip.map(v => v || "（空白）").join("、")}`); }
   dpExtLog(cfg).forEach(x => L.push(x));
+  dpDvLog(cfg).forEach(x => L.push(x));
   return L;
 }
 function dpExtLog(cfg) {
@@ -610,7 +739,7 @@ function dpCSV(t) {
 
 // ── 0.2 panel data：觀察單位、時間與資料欄位的帶入內容 ──
 function dpSummary(cfg, chk) {
-  const H = DP.head, dayX = dpExtend(dpBuild(cfg, { ...chk, k: Math.min(chk.k, 1) }, "day", true), cfg), dayT = dayX.head;
+  const H = DP.head, dayX = dpDerive(dpExtend(dpBuild(cfg, { ...chk, k: Math.min(chk.k, 1) }, "day", true), cfg), cfg), dayT = dayX.head;
   const desc = h => {
     if (h === cfg.id) return `${h}：個人代碼`;
     if (dayX.desc[h]) return `${h}：${dayX.desc[h]}`;
@@ -625,7 +754,8 @@ function dpSummary(cfg, chk) {
   return {
     unit: `個人（代碼欄 ${cfg.id}，共 ${chk.ids.toLocaleString("en-US")} 人${chk.excl ? `；已排除 ${chk.excl.rules.map(x => `${x.col} 曾為「${x.vals.join("、")}」`).join("或")}的人` : ""}${chk.coh ? `；只含首次交易在 ${dpFmt(cfg.from)} 之後的人` : ""}）`,
     time: `以日為單位，一人一日一筆（${chk.conf.day.groups.toLocaleString("en-US")} 筆，只含有交易的日子）；觀察期間 ${dpFmt(chk.dmin)} 至 ${dpFmt(chk.dmax)}`,
-    fields: dayT.map(desc).join("\n")
+    fields: dayT.map(desc).join("\n"),
+    base: dayX.base
   };
 }
 
@@ -732,12 +862,13 @@ function dpView() {
           ${o.tw ? `<div class="ex">${bad.length ? "不在 22 縣市內的值：" + bad.slice(0, 20).map(([v, n]) => `${esc(v)} ×${dpN(n)}`).join("、") + (bad.length > 20 ? "…" : "") : "所有值都是 22 縣市之一（台／臺 視為相同）。"}</div>` : ""}`; })() : ""}</div>`;
     }).join("")) + `</div></fieldset>`;
   h += dpExtView(c, k);
+  h += dpDvView(c, k);
   // 輸出
-  const need = dpNeed(c, k), blk = dpBlock(c);
-  h += `<fieldset class="struct"><legend>5. 輸出</legend>`;
+  const need = dpNeed(c, k), blk = dpBlock(c, k);
+  h += `<fieldset class="struct"><legend>6. 輸出</legend>`;
   if (need.length) h += `<div class="note warn">請先在上方選擇這些欄位的處理方式：${need.map(esc).join("、")}</div>`;
   if (blk.length) h += `<div class="note warn">${blk.map(esc).join("\n")}</div>`;
-  h += `<p class="hint">輸出一人一日一筆的寬格式資料：每列含 id、date（Excel 日期格式）、year、month、day、n_tx（當天合併的交易筆數）、各欄位依上方設定計算的值${c.pcol ? "，以及展開後的欄位" : ""}${dpActs(c).list.length || (c.ext || []).length ? "，以及第 4 部分的活動期間與外部資料欄位" : ""}。只輸出有交易的日子，沒有交易的日子不補列。Excel 檔另含「處理紀錄」與「檢查明細」工作表；CSV 為 UTF-8（含 BOM），Excel、Stata、R、SPSS 都能讀取。已開啟研究資料夾時，檔案直接存進該資料夾（檔名前加研究名稱）；沒有開啟時下載到瀏覽器的下載資料夾。</p>
+  h += `<p class="hint">輸出一人一日一筆的寬格式資料：每列含 id、date（Excel 日期格式）、year、month、day、n_tx（當天合併的交易筆數）、各欄位依上方設定計算的值${c.pcol ? "，以及展開後的欄位" : ""}${dpActs(c).list.length || (c.ext || []).length ? "，以及第 4 部分的活動期間與外部資料欄位" : ""}${dpDvParse(dpDvText(c), []).items.some(it => !it.skip) ? "，最後是第 5 部分的衍生變數" : ""}。只輸出有交易的日子，沒有交易的日子不補列。Excel 檔另含「處理紀錄」與「檢查明細」工作表；CSV 為 UTF-8（含 BOM），Excel、Stata、R、SPSS 都能讀取。已開啟研究資料夾時，檔案直接存進該資料夾（檔名前加研究名稱）；沒有開啟時下載到瀏覽器的下載資料夾。</p>
     <p class="dpbtns"><button type="button" class="copy" data-dpout="xlsx"${need.length || blk.length ? " disabled" : ""}>下載 Excel</button>
     <button type="button" data-dpout="wide"${need.length || blk.length ? " disabled" : ""}>下載 CSV</button></p>
     ${RT() === "model" ? `<p class="hint">0.2「資料結構與估計目標」的觀察單位、時間與資料欄位留白時，會自動帶入這裡的處理結果。</p>` : ""}</fieldset></div>`;
@@ -788,6 +919,24 @@ function dpExtView(c, k) {
   });
   h += `<details class="dpsub"><summary>最近縣市對照（「X」的取代依據）</summary><p class="hint">依各縣市政府所在地的直線距離，取距離最近的 1 個縣市；澎湖縣、金門縣、連江縣不取代。</p><p class="ex">${Object.entries(DP_NEAR).map(([a, b]) => `${a}←${b}`).join("、")}</p></details>
     <p><button type="button" data-dpextadd="1">新增外部資料</button></p></div></fieldset>`;
+  return h;
+}
+// 5. 衍生變數
+function dpDvView(c, k) {
+  const src = dpDv04(), txt = dpDvText(c), H0 = dpHead0(c, k), sp = dpDvParse(txt, H0);
+  let h = `<fieldset class="struct"><legend>5. 衍生變數</legend>
+    <p class="hint">自動讀入 0.4「資料字典與分析樣本」AI 回覆中的「## 衍生變數計算規格」，每行「變數名稱｜類型｜來源欄｜參數｜說明」，依序附加在輸出資料的最後；後面的變數可以用前面的變數當來源欄。可直接在下方修改，輸出以這裡的內容為準；清空即改回 0.4 的內容。過去與落後類變數一律不含當天；資料只含有交易的日子，「前一期」為前一次交易日。</p>`;
+  if (!src && c.dvTxt == null) h += `<div class="note">0.4 的回覆中還沒有「衍生變數計算規格」：到 0.4「資料字典與分析樣本」，在同一個對話送出「補問 Prompt」，回覆接在原回覆的最後貼上；也可以直接在下方輸入。</div>`;
+  else if (c.dvTxt != null) h += `<div class="note">${src ? "已修改，與 0.4 回覆的內容不同；輸出以這裡為準，清空即改回 0.4 的內容。" : "0.4 的回覆中沒有這一節，使用這裡輸入的內容。"}</div>`;
+  h += `<textarea data-dp="dv" class="mono" style="min-height:120px" placeholder="例如：
+weekday｜星期｜date｜｜交易日的星期
+breadth｜分散度｜money1、money2、money3、money4、money5｜｜捐款廣度
+breadth_w｜組內｜breadth｜｜捐款廣度的組內成分">${esc(txt)}</textarea>`;
+  if (sp.items.length) h += `<table class="dptbl"><thead><tr><th>變數</th><th>類型</th><th>來源欄</th><th>參數</th><th>計算方式</th><th>狀態</th></tr></thead><tbody>${sp.items.map(it =>
+    `<tr${it.err ? ' class="bad"' : ""}><td>${esc(it.name)}</td><td>${esc(it.raw)}</td><td>${esc(it.src.join("、"))}</td><td>${esc(it.param)}</td><td>${it.skip ? esc(it.note) : it.err ? "" : esc(dpDvRule(it))}</td><td>${it.skip ? "無法計算，不產生" : it.err ? `<span class="warn">${esc(it.err)}</span>` : "可計算"}</td></tr>`).join("")}</tbody></table>`;
+  else if (!dpDvBlank(txt)) h += `<div class="note warn">讀不到「變數名稱｜類型｜來源欄｜參數｜說明」格式的行。</div>`;
+  h += `<details class="dpsub"><summary>可用的類型</summary><ul class="hint">${(typeof DV_TYPES !== "undefined" ? DV_TYPES : DV_NAMES.map(x => [x, ""])).map(([a, b]) => `<li><b>${esc(a)}</b>${b ? "：" + esc(b) : ""}</li>`).join("")}</ul></details>
+    <p class="hint">可作為來源欄的輸出欄位：${esc(H0.join("、"))}</p></fieldset>`;
   return h;
 }
 function dpLogText() { return DP.chk && DP.cfg ? dpLogLines(DP.cfg, DP.chk).join("\n") : ""; }
@@ -847,7 +996,7 @@ async function dpSaveFile(blob, name) {
 }
 function dpDownload(blob, name) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
 async function dpOutput(what) {
-  const c = DP.cfg, k = DP.chk; if (!k || dpNeed(c, k).length || dpBlock(c).length) return;
+  const c = DP.cfg, k = DP.chk; if (!k || dpNeed(c, k).length || dpBlock(c, k).length) return;
   DP.err = ""; DP.msg = ""; dpBusy("整理資料中…"); await dpTick();
   try {
     const wide = () => { const t = dpTable2(c, k); DP.extStat = t.st; return t; };
@@ -901,6 +1050,7 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
     if (d.dpex != null) { ((c.valid ||= {})[d.dpex] ||= {}).ex = t.value; return dpCommit(false); }
     if (d.dpwt != null) { (c.wt ||= {})[d.dpwt] = t.value || null; return dpCommit(false); }
     if (d.dpnear != null) { (c.near ||= {})[d.dpnear] = Math.max(0, Math.round(+t.value || 0)); return dpCommit(false); }
+    if (d.dp === "dv") { const v = t.value; c.dvTxt = !v.trim() || v.trim() === dpDv04().trim() ? null : v; DP.extStat = null; return dpCommit(false); }
     if (d.dp === "actRep" || d.dp === "actSrc") { c[d.dp] = t.value; DP.extStat = null; return dpCommit(false); }
     if (d.dpextf != null) { if (t.files && t.files[0]) dpExtLoad(+d.dpextf, t.files[0]); return; }
     if (d.dpexts != null || d.dpextc != null || d.dpextv != null) { const i = +d.i, e = c.ext[i];
@@ -928,4 +1078,4 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
   });
 }
 
-if (typeof module !== "undefined") module.exports = { DP_NEAR, DP, dpTable, dpActs, dpActPrompt, dpExtGuess, dpExtIndex, dpExtend, dpExtLog, dpBlock, dpCty, dpSetTable, dpParseCSV, dpDecode, dpGuess, dpCheck, dpBuild, dpPivotVals, dpNeed, dpTargets, dpLogLines, dpDetailRows, dpXlsx, dpCSV, dpOpenXLSX, dpReadSheet, dpDateVal, dpFmt, dpSummary };
+if (typeof module !== "undefined") module.exports = { DP_NEAR, dpDerive, dpDvParse, dpDvLog, dpTable2, dpHead0, dpSecLast, DP, dpTable, dpActs, dpActPrompt, dpExtGuess, dpExtIndex, dpExtend, dpExtLog, dpBlock, dpCty, dpSetTable, dpParseCSV, dpDecode, dpGuess, dpCheck, dpBuild, dpPivotVals, dpNeed, dpTargets, dpLogLines, dpDetailRows, dpXlsx, dpCSV, dpOpenXLSX, dpReadSheet, dpDateVal, dpFmt, dpSummary };
