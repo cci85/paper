@@ -154,7 +154,7 @@ function dpSetTable(raw, dateHit = []) {
 // ── 欄位設定的預設值（只是建議；角色都可以改）──
 function dpGuess(old) {
   const H = DP.head, K = DP.kind, idx = re => H.findIndex(h => re.test(h));
-  const cfg = { id: null, dmode: "one", dcol: null, y: null, m: null, d: null, ychk: false, roles: {}, res: {}, flag: {}, agg: "person", wide: "day", pcol: null, pval: null, pmap: {}, pcnt: false, tot: null, parts: [] };
+  const cfg = { id: null, dmode: "one", dcol: null, y: null, m: null, d: null, ychk: false, roles: {}, res: {}, flag: {}, agg: "person", wide: "day", from: null, to: null, pcol: null, pval: null, pmap: {}, pcnt: false, tot: null, parts: [] };
   if (old && H.includes(old.id)) Object.assign(cfg, JSON.parse(JSON.stringify(old)));
   const has = c => c != null && H.includes(c);
   if (!has(cfg.id)) { const i = idx(/^(id|ID|編號|代碼|捐款人|個人代碼|會員編號)$/i); cfg.id = H[i >= 0 ? i : 0]; }
@@ -198,7 +198,7 @@ const dpPerTxt = (lv, p) => lv === "day" ? dpFmt(p) : lv === "month" ? `${Math.f
 function dpCheck(cfg) {
   const H = DP.head, col = h => H.indexOf(h), ic = col(cfg.id), dc = col(cfg.dcol), yc = col(cfg.y), mc = col(cfg.m), ddc = col(cfg.d);
   const n = DP.rows.length, okR = new Int32Array(n), okD = new Int32Array(n); let k = 0;
-  const bad = { id: [], date: [] }, ymdBad = [], totBad = [], nonNum = {};
+  const bad = { id: [], date: [] }, ymdBad = []; let outN = 0; const totBad = [], nonNum = {};
   const tc = col(cfg.tot), pc = (cfg.parts || []).map(col).filter(c => c >= 0);
   const numCols = H.map((h, c) => ["sum", "mean", "max", "min"].includes(cfg.roles[h]) ? c : -1).filter(c => c >= 0);
   const ymdOf = r => dpSerial(dpNum(r[yc]), dpNum(r[mc]), dpNum(r[ddc]));
@@ -207,6 +207,7 @@ function dpCheck(cfg) {
     if (dpBlank(r[ic])) { bad.id.push(i); continue; }
     const day = cfg.dmode === "ymd" ? ymdOf(r) : dpDateVal(r[dc]);
     if (day == null) { bad.date.push(i); continue; }
+    if ((cfg.from != null && day < cfg.from) || (cfg.to != null && day > cfg.to)) { outN++; continue; }   // 樣本期間外
     if (cfg.dmode === "one" && cfg.ychk && yc >= 0) { const d2 = ymdOf(r); if (d2 !== day) ymdBad.push([i, day, d2]); }
     if (tc >= 0 && pc.length) { const t = dpNum(r[tc]) || 0, s = pc.reduce((a, c) => a + (dpNum(r[c]) || 0), 0); if (Math.abs(t - s) > 0.005) totBad.push([i, t, s]); }
     numCols.forEach(c => { const v = r[c]; if (v != null && typeof v !== "number") nonNum[H[c]] = (nonNum[H[c]] || 0) + 1; });
@@ -234,7 +235,7 @@ function dpCheck(cfg) {
     ["day"].forEach(lv => take.forEach((h, j) => { const m = want.get(lv + "\u0002" + h + "\u0002" + id + "\u0001" + dpPer(lv, rDay[i])); if (m && r[tci[j]] != null) m.set(r[tci[j]], (m.get(r[tci[j]]) || 0) + 1); }));
   }
   Object.entries(conf).forEach(([lv, o]) => Object.entries(o.cols).forEach(([h, x]) => { x.ex = x.ex.map(key => { const [id, p] = key.split("\u0001"); return { id, per: dpPerTxt(lv, +p), vals: [...want.get(lv + "\u0002" + h + "\u0002" + key)] }; }); }));
-  return { rows: n, k, rIdx, rDay, bad, ymdBad, totBad, nonNum, dmin, dmax, ids: ids.size, take, conf, vals };
+  return { rows: n, k, rIdx, rDay, bad, outN, ymdBad, totBad, nonNum, dmin, dmax, ids: ids.size, take, conf, vals };
 }
 // 展開欄位的各個值（次數與數值合計），供合併設定
 function dpPivotVals(cfg, chk) {
@@ -325,7 +326,8 @@ function dpBuild(cfg, chk, lv, pivot) {
 function dpLogLines(cfg, chk) {
   const L = [], fmtN = x => x.toLocaleString("en-US");
   L.push(`原始檔案：${DP.name}${DP.sheets.length > 1 ? `（工作表：${DP.sheets[DP.sheet].name}）` : ""}`);
-  L.push(`讀入 ${fmtN(chk.rows)} 列；排除 ${fmtN(chk.bad.id.length + chk.bad.date.length)} 列（缺少代碼 ${fmtN(chk.bad.id.length)}、日期無法解析 ${fmtN(chk.bad.date.length)}）；納入 ${fmtN(chk.k)} 列，${fmtN(chk.ids)} 人`);
+  if (cfg.from != null || cfg.to != null) L.push(`樣本期間：${cfg.from != null ? dpFmt(cfg.from) + " 起" : ""}${cfg.from != null && cfg.to != null ? "，" : ""}${cfg.to != null ? "至 " + dpFmt(cfg.to) + " 止" : ""}`);
+  L.push(`讀入 ${fmtN(chk.rows)} 列；排除 ${fmtN(chk.bad.id.length + chk.bad.date.length + (chk.outN || 0))} 列（缺少代碼 ${fmtN(chk.bad.id.length)}、日期無法解析 ${fmtN(chk.bad.date.length)}${chk.outN ? `、樣本期間外 ${fmtN(chk.outN)}` : ""}）；納入 ${fmtN(chk.k)} 列，${fmtN(chk.ids)} 人`);
   L.push(`觀察期間：${dpFmt(chk.dmin)} 至 ${dpFmt(chk.dmax)}`);
   L.push(`代碼欄：${cfg.id}；日期：${cfg.dmode === "one" ? `${cfg.dcol}${cfg.ychk ? `（以 ${cfg.y}／${cfg.m}／${cfg.d} 核對，不一致 ${fmtN(chk.ymdBad.length)} 列）` : ""}` : `${cfg.y}／${cfg.m}／${cfg.d}`}`);
   if (cfg.tot && cfg.parts.length) L.push(`總額核對：${cfg.tot} ＝ ${cfg.parts.join("＋")}，不一致 ${fmtN(chk.totBad.length)} 列`);
@@ -473,7 +475,8 @@ function dpView() {
       <label class="chip"><input type="radio" name="dpdm" data-dp="dmode" value="ymd"${c.dmode === "ymd" ? " checked" : ""}>年、月、日三欄</label>
       <select data-dp="y">${dpOpt(H, c.y, "年")}</select><select data-dp="m">${dpOpt(H, c.m, "月")}</select><select data-dp="d">${dpOpt(H, c.d, "日")}</select>
       ${c.dmode === "one" && c.y && c.m && c.d ? `<label class="chip"><input type="checkbox" data-dp="ychk"${c.ychk ? " checked" : ""}>以年、月、日三欄核對日期</label>` : ""}</div>
-    <p class="hint">日期可以是 Excel 日期序號（例如 45943＝2025/10/13）、日期格式的儲存格、20251013、114/10/13 或 2025/10/13；年份小於 1000 視為民國年。</p>
+    <div class="dprow"><span>樣本期間</span><label>起 <input type="date" data-dp="from" value="${c.from != null ? dpFmt(c.from).replace(/\//g, "-") : ""}"></label><label>迄 <input type="date" data-dp="to" value="${c.to != null ? dpFmt(c.to).replace(/\//g, "-") : ""}"></label></div>
+    <p class="hint">樣本期間留白表示不限。期間外的交易不納入，也不用於「依前後幾天的交易判斷」。日期可以是 Excel 日期序號（例如 45943＝2025/10/13）、日期格式的儲存格、20251013、114/10/13 或 2025/10/13；年份小於 1000 視為民國年。</p>
     <table class="dptbl"><thead><tr><th>欄位</th><th>型態</th><th>前幾個值</th><th>同一人同一天有多筆時的計算方式</th></tr></thead><tbody>${H.map((x, i) => `<tr${keys.has(x) ? ' class="key"' : ""}><td>${esc(x)}</td><td>${kindT[K[i]]}</td><td class="ex">${esc(ex(i))}</td><td>${keys.has(x) ? (x === c.id ? "個人代碼" : c.dmode === "one" && x !== c.dcol ? "核對日期用" : "日期") : x === c.pcol ? "展開成寬格式（見步驟 3）" :
       `<select data-dprole="${esc(x)}">${Object.entries(DP_ROLE).filter(([r]) => K[i] === "text" ? ["take", "drop"].includes(r) : true).map(([r, t]) => `<option value="${r}"${c.roles[x] === r ? " selected" : ""}>${t}</option>`).join("")}</select>`}</td></tr>`).join("")}</tbody></table>
     <p class="hint">輸出為一人一日一筆：同一人同一天有多筆交易時，數值欄依這裡的設定加總、平均或取最大、最小值。預設值只是建議：數值欄預設加總；每人固定不變的欄位（例如首次捐款日）與文字欄預設「取值」，同一期間出現不同的值時會示警，由你選擇處理方式；看起來像單號的欄位預設刪除；不需要的變數也設為「刪除（不輸出）」。</p>
@@ -485,6 +488,7 @@ function dpView() {
   if (!k) return h + `<p class="note">設定欄位後，按「檢查資料」。</p></div>`;
   const w = [];
   if (k.bad.id.length) w.push(`缺少個人代碼 ${dpN(k.bad.id.length)} 列，已排除（Excel 列號：${k.bad.id.slice(0, 8).map(i => i + 2).join("、")}${k.bad.id.length > 8 ? "…" : ""}）`);
+  if (k.outN) w.push(`樣本期間（${c.from != null ? dpFmt(c.from) : "不限"} 至 ${c.to != null ? dpFmt(c.to) : "不限"}）外 ${dpN(k.outN)} 列，未納入`);
   if (k.bad.date.length) w.push(`日期無法解析 ${dpN(k.bad.date.length)} 列，已排除（Excel 列號：${k.bad.date.slice(0, 8).map(i => i + 2).join("、")}${k.bad.date.length > 8 ? "…" : ""}）`);
   if (k.ymdBad.length) w.push(`${c.dcol} 與年、月、日三欄不一致 ${dpN(k.ymdBad.length)} 列（以 ${c.dcol} 為準），例：` + k.ymdBad.slice(0, 3).map(([i, a, b]) => `第 ${i + 2} 列 ${dpFmt(a)}／${b == null ? "無效日期" : dpFmt(b)}`).join("；"));
   if (k.totBad.length) w.push(`${c.tot} 不等於細項合計 ${dpN(k.totBad.length)} 列，例：` + k.totBad.slice(0, 3).map(([i, t, s]) => `第 ${i + 2} 列 ${dpN(t)}／${dpN(s)}`).join("；"));
@@ -603,6 +607,7 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
     if (!c) return;
     if (["id", "dcol", "y", "m", "d"].includes(d.dp)) { c[d.dp] = t.value || null; DP.cfg = dpGuess(c); return dpCommit(true); }
     if (d.dp === "dmode") { c.dmode = t.value; if (c.dmode === "ymd") c.ychk = false; DP.cfg = dpGuess(c); return dpCommit(true); }
+    if (d.dp === "from" || d.dp === "to") { c[d.dp] = t.value ? dpDateVal(t.value) : null; return dpCommit(true); }
     if (d.dp === "ychk") { c.ychk = t.checked; DP.cfg = dpGuess(c); return dpCommit(true); }
     if (d.dprole != null) { const was = c.roles[d.dprole]; c.roles[d.dprole] = t.value;
       return dpCommit(t.value === "take" && was !== "take" && !(DP.chk && DP.chk.take.includes(d.dprole))); }   // 改成「取值」且先前沒檢查過不一致時，需要重新檢查
