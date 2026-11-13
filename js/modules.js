@@ -312,7 +312,7 @@ function pdictView(text) {
   const box = extra.length ? `<div class="needbox"><b>可再考慮的變數</b>：文獻常用、現有欄位做得出來、但研究變數尚未納入。按「加入」會寫進上方「研究變數」；加入自變數或調節變數時，研究假說與模型組也要一併考慮（可回 0.3 用「追問」確認）。想先查證文獻支持與資料來源時，到 0.2 步驟 3「候選變數的文獻檢索」，這些變數會自動帶入。
     <table class="mtbl"><tr><th>角色</th><th>變數</th><th>建構方式</th><th>納入理由</th><th></th></tr>${extra.map((r, k) => { const inV = have.includes(pmNorm((r[1] || "").replace(/[（(].*$/, "")));
       return `<tr><td>${esc(r[0] || "")}</td><td>${esc(r[1] || "")}</td><td>${esc(r[2] || "")}</td><td>${esc(r.slice(3).join("｜"))}</td><td>${inV ? "<small>已在研究變數</small>" : `<button type="button" data-addvar="${esc([r[0], r[1], r[2], r[4] || r[3] || ""].join("｜"))}">加入</button>`}</td></tr>`; }).join("")}</table></div>` : "";
-  const dv = noDv ? `<div class="note warn">回覆中還沒有「衍生變數計算規格」：請在同一個對話送出下方的「補問 Prompt」，再把回覆接在「AI 回覆」原有內容的最後。</div>` : "";
+  const dv = noDv ? `<div class="note warn">回覆中還沒有「衍生變數計算規格」：請在同一個對話送出上方的「② 第二則 Prompt」，再把回覆接在「AI 回覆」原有內容的最後。</div>` : "";
   return dv + box + mdBox(text, "閱讀整理後的回覆（資料字典、分析樣本、檢查清單、衍生變數計算規格）", true);
 }
 const pdVals = () => { const v = store.values; return { ctx: (v.as_ctx || "").trim(), con: (v.as_con || "").trim(), unit: (v.pd_unit || "").trim(), time: (v.pd_time || "").trim(),
@@ -1342,9 +1342,9 @@ const DEFS = {
       { id: "dc_conv", type: "radio", label: "對話", hint: "0.2、0.3 都在同一個對話時，不重複貼上資料欄位與變數清單，Prompt 比較短", options: [["same", "接在 0.2／0.3 的同一個對話"], ["new", "開新對話"]], value: "same" },
       { id: "pd_fields", type: "textarea", label: "現有資料欄位", hint: "與 0.2 共用；選「開新對話」時才會放進 Prompt", rows: 3, when: p => p.dc_conv === "new" },
       { id: "dc_cut", type: "text", label: "預測時點與預測期間", hint: "選填；研究目標含預測時使用", placeholder: "例如：以 2024 年 12 月為預測時點，預測 2025 年上半年是否再次捐款", when: () => pdGoal(pdVals().goal).r },
-      { id: "dc_dv", type: "promptbox", below: true, label: "補問 Prompt：衍生變數計算規格",
-        hint: "已送出資料字典、回覆中沒有「衍生變數計算規格」時，在同一個對話接著送出；回覆接在上方「AI 回覆」原有內容的最後貼上。panel 資料處理會自動讀入這一節",
-        copyLabel: "複製補問 Prompt（同一個對話接著送出）", build: () => T.pd_dv({ dpCols: dpOutCols() }) }
+      { id: "dc_dv", type: "promptbox", afterOut: true, label: "第二則 Prompt：衍生變數計算規格",
+        hint: "第一則的回覆完成後，在同一個對話接著送出；回覆接在下方「AI 回覆」原有內容的最後貼上。panel 資料處理會自動讀入這一節",
+        copyLabel: "② 複製第二則 Prompt（同一個對話接著送出）", build: () => T.pd_dv({ dpCols: dpOutCols() }) }
     ],
     rules: () => ["citation"],
     replyView: t => pdictView(t),

@@ -1200,7 +1200,7 @@ function dpDvView(c, k) {
   const src = dpDv04(), txt = dpDvText(c), H0 = dpHead0(c, k), sp = dpDvParse(txt, H0);
   let h = `<fieldset class="struct"><legend>5. 衍生變數</legend>
     <p class="hint">自動讀入 0.4「資料字典與分析樣本」AI 回覆中的「## 衍生變數計算規格」，每行「變數名稱｜類型｜來源欄｜參數｜說明」，依序附加在輸出資料的最後；後面的變數可以用前面的變數當來源欄。可直接在下方修改，輸出以這裡的內容為準；清空即改回 0.4 的內容。過去與落後類變數一律不含當天；資料只含有交易的日子，「前一期」為前一次交易日。</p>`;
-  if (!src && c.dvTxt == null) h += `<div class="note">0.4 的回覆中還沒有「衍生變數計算規格」：到 0.4「資料字典與分析樣本」，在同一個對話送出「補問 Prompt」，回覆接在原回覆的最後貼上；也可以直接在下方輸入。</div>`;
+  if (!src && c.dvTxt == null) h += `<div class="note">0.4 的回覆中還沒有「衍生變數計算規格」：到 0.4「資料字典與分析樣本」，在同一個對話送出「② 第二則 Prompt」，回覆接在原回覆的最後貼上；也可以直接在下方輸入。</div>`;
   else if (c.dvTxt != null) h += `<div class="note">${src ? "已修改，與 0.4 回覆的內容不同；輸出以這裡為準，清空即改回 0.4 的內容。" : "0.4 的回覆中沒有這一節，使用這裡輸入的內容。"}</div>`;
   h += `<textarea data-dp="dv" class="mono" style="min-height:120px" placeholder="例如：
 weekday｜星期｜date｜｜交易日的星期
