@@ -154,7 +154,7 @@ function dpSetTable(raw, dateHit = []) {
 // ── 欄位設定的預設值（只是建議；角色都可以改）──
 function dpGuess(old) {
   const H = DP.head, K = DP.kind, idx = re => H.findIndex(h => re.test(h));
-  const cfg = { id: null, dmode: "one", dcol: null, y: null, m: null, d: null, ychk: false, roles: {}, res: {}, flag: {}, agg: "person", wide: "day", from: null, to: null, pcol: null, pval: null, pmap: {}, pcnt: false, tot: null, parts: [] };
+  const cfg = { id: null, dmode: "one", dcol: null, y: null, m: null, d: null, ychk: false, roles: {}, res: {}, flag: {}, agg: "person", wide: "day", from: null, to: null, coh: false, cohCol: null, pcol: null, pval: null, pmap: {}, pcnt: false, tot: null, parts: [] };
   if (old && H.includes(old.id)) Object.assign(cfg, JSON.parse(JSON.stringify(old)));
   const has = c => c != null && H.includes(c);
   if (!has(cfg.id)) { const i = idx(/^(id|ID|編號|代碼|捐款人|個人代碼|會員編號)$/i); cfg.id = H[i >= 0 ? i : 0]; }
@@ -202,11 +202,26 @@ function dpCheck(cfg) {
   const tc = col(cfg.tot), pc = (cfg.parts || []).map(col).filter(c => c >= 0);
   const numCols = H.map((h, c) => ["sum", "mean", "max", "min"].includes(cfg.roles[h]) ? c : -1).filter(c => c >= 0);
   const ymdOf = r => dpSerial(dpNum(r[yc]), dpNum(r[mc]), dpNum(r[ddc]));
+  // 首次交易篩選：先找出每個人的首次交易日（檔案中的最早交易日，或指定的日期欄），首次交易早於起日者整個人排除
+  let coh = null;
+  if (cfg.coh && cfg.from != null) {
+    const fc = col(cfg.cohCol), fTx = new Map(), fCol = new Map(); let fileMin = Infinity;
+    for (let i = 0; i < n; i++) { const r = DP.rows[i]; if (dpBlank(r[ic])) continue;
+      const day = cfg.dmode === "ymd" ? ymdOf(r) : dpDateVal(r[dc]); if (day == null) continue;
+      const id = dpKey(r[ic]), p = fTx.get(id); if (p === undefined || day < p) fTx.set(id, day); if (day < fileMin) fileMin = day;
+      if (fc >= 0) { const v = dpDateVal(r[fc]); if (v != null) { const q = fCol.get(id); if (q === undefined || v < q) fCol.set(id, v); } } }
+    const first = fc >= 0 ? new Map([...fTx].map(([id, d]) => [id, fCol.has(id) ? fCol.get(id) : d])) : fTx;
+    const drop = new Set(); first.forEach((d, id) => { if (d < cfg.from) drop.add(id); });
+    const mis = []; let misN = 0, noCol = 0;
+    if (fc >= 0) fTx.forEach((d, id) => { if (!fCol.has(id)) { noCol++; return; } if (fCol.get(id) !== d) { misN++; if (mis.length < 5) mis.push([id, fCol.get(id), d]); } });
+    coh = { by: fc >= 0 ? cfg.cohCol : "", fileMin, drop, dropRows: 0, ids: first.size, misN, mis, noCol };
+  }
   for (let i = 0; i < n; i++) {
     const r = DP.rows[i];
     if (dpBlank(r[ic])) { bad.id.push(i); continue; }
     const day = cfg.dmode === "ymd" ? ymdOf(r) : dpDateVal(r[dc]);
     if (day == null) { bad.date.push(i); continue; }
+    if (coh && coh.drop.has(dpKey(r[ic]))) { coh.dropRows++; continue; }   // 首次交易早於起日的人
     if ((cfg.from != null && day < cfg.from) || (cfg.to != null && day > cfg.to)) { outN++; continue; }   // 樣本期間外
     if (cfg.dmode === "one" && cfg.ychk && yc >= 0) { const d2 = ymdOf(r); if (d2 !== day) ymdBad.push([i, day, d2]); }
     if (tc >= 0 && pc.length) { const t = dpNum(r[tc]) || 0, s = pc.reduce((a, c) => a + (dpNum(r[c]) || 0), 0); if (Math.abs(t - s) > 0.005) totBad.push([i, t, s]); }
@@ -235,7 +250,8 @@ function dpCheck(cfg) {
     ["day"].forEach(lv => take.forEach((h, j) => { const m = want.get(lv + "\u0002" + h + "\u0002" + id + "\u0001" + dpPer(lv, rDay[i])); if (m && r[tci[j]] != null) m.set(r[tci[j]], (m.get(r[tci[j]]) || 0) + 1); }));
   }
   Object.entries(conf).forEach(([lv, o]) => Object.entries(o.cols).forEach(([h, x]) => { x.ex = x.ex.map(key => { const [id, p] = key.split("\u0001"); return { id, per: dpPerTxt(lv, +p), vals: [...want.get(lv + "\u0002" + h + "\u0002" + key)] }; }); }));
-  return { rows: n, k, rIdx, rDay, bad, outN, ymdBad, totBad, nonNum, dmin, dmax, ids: ids.size, take, conf, vals };
+  if (coh) { coh.dropIds = coh.drop.size; delete coh.drop; }
+  return { rows: n, k, rIdx, rDay, bad, outN, coh, ymdBad, totBad, nonNum, dmin, dmax, ids: ids.size, take, conf, vals };
 }
 // 展開欄位的各個值（次數與數值合計），供合併設定
 function dpPivotVals(cfg, chk) {
@@ -327,7 +343,8 @@ function dpLogLines(cfg, chk) {
   const L = [], fmtN = x => x.toLocaleString("en-US");
   L.push(`原始檔案：${DP.name}${DP.sheets.length > 1 ? `（工作表：${DP.sheets[DP.sheet].name}）` : ""}`);
   if (cfg.from != null || cfg.to != null) L.push(`樣本期間：${cfg.from != null ? dpFmt(cfg.from) + " 起" : ""}${cfg.from != null && cfg.to != null ? "，" : ""}${cfg.to != null ? "至 " + dpFmt(cfg.to) + " 止" : ""}`);
-  L.push(`讀入 ${fmtN(chk.rows)} 列；排除 ${fmtN(chk.bad.id.length + chk.bad.date.length + (chk.outN || 0))} 列（缺少代碼 ${fmtN(chk.bad.id.length)}、日期無法解析 ${fmtN(chk.bad.date.length)}${chk.outN ? `、樣本期間外 ${fmtN(chk.outN)}` : ""}）；納入 ${fmtN(chk.k)} 列，${fmtN(chk.ids)} 人`);
+  if (chk.coh) L.push(`樣本對象：首次交易在 ${dpFmt(cfg.from)}（含）之後的人（首次交易依據：${chk.coh.by ? chk.coh.by + " 欄" : `檔案中最早的交易日，檔案自 ${dpFmt(chk.coh.fileMin)} 起`}）；排除 ${fmtN(chk.coh.dropIds)} 人`);
+  L.push(`讀入 ${fmtN(chk.rows)} 列；排除 ${fmtN(chk.bad.id.length + chk.bad.date.length + (chk.outN || 0) + (chk.coh ? chk.coh.dropRows : 0))} 列（缺少代碼 ${fmtN(chk.bad.id.length)}、日期無法解析 ${fmtN(chk.bad.date.length)}${chk.coh ? `、首次交易早於起日者 ${fmtN(chk.coh.dropRows)}` : ""}${chk.outN ? `、樣本期間外 ${fmtN(chk.outN)}` : ""}）；納入 ${fmtN(chk.k)} 列，${fmtN(chk.ids)} 人`);
   L.push(`觀察期間：${dpFmt(chk.dmin)} 至 ${dpFmt(chk.dmax)}`);
   L.push(`代碼欄：${cfg.id}；日期：${cfg.dmode === "one" ? `${cfg.dcol}${cfg.ychk ? `（以 ${cfg.y}／${cfg.m}／${cfg.d} 核對，不一致 ${fmtN(chk.ymdBad.length)} 列）` : ""}` : `${cfg.y}／${cfg.m}／${cfg.d}`}`);
   if (cfg.tot && cfg.parts.length) L.push(`總額核對：${cfg.tot} ＝ ${cfg.parts.join("＋")}，不一致 ${fmtN(chk.totBad.length)} 列`);
@@ -434,7 +451,7 @@ function dpSummary(cfg, chk) {
     return `${h}：當日 ${cfg.pcol}＝${Object.keys(cfg.pmap).filter(v => (cfg.pmap[v] || "").trim() === h).join("＋")} 的 ${cfg.pval || "筆數"} 加總`;
   };
   return {
-    unit: `個人（代碼欄 ${cfg.id}，共 ${chk.ids.toLocaleString("en-US")} 人）`,
+    unit: `個人（代碼欄 ${cfg.id}，共 ${chk.ids.toLocaleString("en-US")} 人${chk.coh ? `；只含首次交易在 ${dpFmt(cfg.from)} 之後的人` : ""}）`,
     time: `以日為單位，一人一日一筆（${chk.conf.day.groups.toLocaleString("en-US")} 筆，只含有交易的日子）；觀察期間 ${dpFmt(chk.dmin)} 至 ${dpFmt(chk.dmax)}`,
     fields: dayT.map(desc).join("\n")
   };
@@ -475,8 +492,10 @@ function dpView() {
       <label class="chip"><input type="radio" name="dpdm" data-dp="dmode" value="ymd"${c.dmode === "ymd" ? " checked" : ""}>年、月、日三欄</label>
       <select data-dp="y">${dpOpt(H, c.y, "年")}</select><select data-dp="m">${dpOpt(H, c.m, "月")}</select><select data-dp="d">${dpOpt(H, c.d, "日")}</select>
       ${c.dmode === "one" && c.y && c.m && c.d ? `<label class="chip"><input type="checkbox" data-dp="ychk"${c.ychk ? " checked" : ""}>以年、月、日三欄核對日期</label>` : ""}</div>
-    <div class="dprow"><span>樣本期間</span><label>起 <input type="date" data-dp="from" value="${c.from != null ? dpFmt(c.from).replace(/\//g, "-") : ""}"></label><label>迄 <input type="date" data-dp="to" value="${c.to != null ? dpFmt(c.to).replace(/\//g, "-") : ""}"></label></div>
-    <p class="hint">樣本期間留白表示不限。期間外的交易不納入，也不用於「依前後幾天的交易判斷」。日期可以是 Excel 日期序號（例如 45943＝2025/10/13）、日期格式的儲存格、20251013、114/10/13 或 2025/10/13；年份小於 1000 視為民國年。</p>
+    <div class="dprow"><span>樣本期間</span><label>起 <input type="date" data-dp="from" value="${c.from != null ? dpFmt(c.from).replace(/\//g, "-") : ""}"></label><label>迄 <input type="date" data-dp="to" value="${c.to != null ? dpFmt(c.to).replace(/\//g, "-") : ""}"></label>
+      ${c.from != null ? `<label class="chip"><input type="checkbox" data-dp="coh"${c.coh ? " checked" : ""}>只保留首次交易在起日（含）之後的人</label>
+      ${c.coh ? `<label>首次交易依據 <select data-dp="cohCol"><option value="">檔案中最早的交易日</option>${H.filter((x, i) => K[i] === "date" && !keys.has(x)).map(x => `<option value="${esc(x)}"${x === c.cohCol ? " selected" : ""}>${esc(x)} 欄</option>`).join("")}</select></label>` : ""}` : ""}</div>
+    <p class="hint">樣本期間留白表示不限。期間外的交易不納入，也不用於「依前後幾天的交易判斷」。勾選「只保留首次交易在起日（含）之後的人」時，首次交易早於起日的人整個排除（包括他們在起日之後的交易）；首次交易日可依檔案中每人最早的交易日判斷，或依資料裡的日期欄（例如首次捐款日）判斷，該欄空白時改用最早交易日。日期可以是 Excel 日期序號（例如 45943＝2025/10/13）、日期格式的儲存格、20251013、114/10/13 或 2025/10/13；年份小於 1000 視為民國年。</p>
     <table class="dptbl"><thead><tr><th>欄位</th><th>型態</th><th>前幾個值</th><th>同一人同一天有多筆時的計算方式</th></tr></thead><tbody>${H.map((x, i) => `<tr${keys.has(x) ? ' class="key"' : ""}><td>${esc(x)}</td><td>${kindT[K[i]]}</td><td class="ex">${esc(ex(i))}</td><td>${keys.has(x) ? (x === c.id ? "個人代碼" : c.dmode === "one" && x !== c.dcol ? "核對日期用" : "日期") : x === c.pcol ? "展開成寬格式（見步驟 3）" :
       `<select data-dprole="${esc(x)}">${Object.entries(DP_ROLE).filter(([r]) => K[i] === "text" ? ["take", "drop"].includes(r) : true).map(([r, t]) => `<option value="${r}"${c.roles[x] === r ? " selected" : ""}>${t}</option>`).join("")}</select>`}</td></tr>`).join("")}</tbody></table>
     <p class="hint">輸出為一人一日一筆：同一人同一天有多筆交易時，數值欄依這裡的設定加總、平均或取最大、最小值。預設值只是建議：數值欄預設加總；每人固定不變的欄位（例如首次捐款日）與文字欄預設「取值」，同一期間出現不同的值時會示警，由你選擇處理方式；看起來像單號的欄位預設刪除；不需要的變數也設為「刪除（不輸出）」。</p>
@@ -488,6 +507,12 @@ function dpView() {
   if (!k) return h + `<p class="note">設定欄位後，按「檢查資料」。</p></div>`;
   const w = [];
   if (k.bad.id.length) w.push(`缺少個人代碼 ${dpN(k.bad.id.length)} 列，已排除（Excel 列號：${k.bad.id.slice(0, 8).map(i => i + 2).join("、")}${k.bad.id.length > 8 ? "…" : ""}）`);
+  if (k.coh) { const o = k.coh;
+    w.push(`首次交易早於 ${dpFmt(c.from)} 的 ${dpN(o.dropIds)} 人（${dpN(o.dropRows)} 列）已整個排除；首次交易在 ${dpFmt(c.from)} 之後的有 ${dpN(o.ids - o.dropIds)} 人（依據：${o.by ? o.by + " 欄" : "檔案中最早的交易日"}）`);
+    if (!o.by && o.fileMin >= c.from) w.push(`檔案最早的交易日是 ${dpFmt(o.fileMin)}，不早於起日，無法分辨誰在起日之前已有交易，所有人都會被保留`);
+    else if (!o.by) w.push(`檔案最早的交易日是 ${dpFmt(o.fileMin)}：首次交易在起日之後，指的是 ${dpFmt(o.fileMin)} 起的檔案中沒有更早的交易；更早以前是否捐過，這份檔案無法判斷`);
+    if (o.by && o.misN) w.push(`${o.by} 與檔案中最早的交易日不同 ${dpN(o.misN)} 人（以 ${o.by} 為準），例：` + o.mis.map(([id, a, b]) => `${id} ${dpFmt(a)}／${dpFmt(b)}`).join("；"));
+    if (o.by && o.noCol) w.push(`${o.by} 空白 ${dpN(o.noCol)} 人，改用檔案中最早的交易日`); }
   if (k.outN) w.push(`樣本期間（${c.from != null ? dpFmt(c.from) : "不限"} 至 ${c.to != null ? dpFmt(c.to) : "不限"}）外 ${dpN(k.outN)} 列，未納入`);
   if (k.bad.date.length) w.push(`日期無法解析 ${dpN(k.bad.date.length)} 列，已排除（Excel 列號：${k.bad.date.slice(0, 8).map(i => i + 2).join("、")}${k.bad.date.length > 8 ? "…" : ""}）`);
   if (k.ymdBad.length) w.push(`${c.dcol} 與年、月、日三欄不一致 ${dpN(k.ymdBad.length)} 列（以 ${c.dcol} 為準），例：` + k.ymdBad.slice(0, 3).map(([i, a, b]) => `第 ${i + 2} 列 ${dpFmt(a)}／${b == null ? "無效日期" : dpFmt(b)}`).join("；"));
@@ -607,6 +632,8 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
     if (!c) return;
     if (["id", "dcol", "y", "m", "d"].includes(d.dp)) { c[d.dp] = t.value || null; DP.cfg = dpGuess(c); return dpCommit(true); }
     if (d.dp === "dmode") { c.dmode = t.value; if (c.dmode === "ymd") c.ychk = false; DP.cfg = dpGuess(c); return dpCommit(true); }
+    if (d.dp === "coh") { c.coh = t.checked; return dpCommit(true); }
+    if (d.dp === "cohCol") { c.cohCol = t.value || null; return dpCommit(true); }
     if (d.dp === "from" || d.dp === "to") { c[d.dp] = t.value ? dpDateVal(t.value) : null; return dpCommit(true); }
     if (d.dp === "ychk") { c.ychk = t.checked; DP.cfg = dpGuess(c); return dpCommit(true); }
     if (d.dprole != null) { const was = c.roles[d.dprole]; c.roles[d.dprole] = t.value;
