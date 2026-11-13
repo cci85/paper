@@ -784,7 +784,7 @@ function dpView() {
     <p class="hint">支援 .xlsx 與 .csv（UTF-8 或 Big5 皆可），一列一筆交易的長格式資料。資料只在這台電腦的瀏覽器處理，不會上傳；研究存檔只記住欄位設定與處理摘要，下次上傳同樣欄位的檔案會自動套用。建議大小：xlsx 約 50 MB、CSV 約 200 MB 以內；.xls 請先在 Excel 另存為 .xlsx 或 CSV。</p>
     <input type="file" data-dp="file" accept=".xlsx,.xlsm,.csv,.txt">
     <div class="note" id="dpbusy"${DP.busy ? "" : " hidden"}>${esc(DP.busy)}</div>${DP.err ? `<div class="note warn">${esc(DP.err)}</div>` : ""}${DP.msg ? `<div class="note">${esc(DP.msg)}</div>` : ""}
-    ${!H.length && store.values.dp_log ? `<p class="hint">這份研究上次的處理紀錄在本頁最下方，可直接複製；要重新輸出資料，請再上傳原始檔案（欄位設定會自動套用）。</p>` : ""}
+    ${!H.length && store.values.dp_log ? `<p class="hint">這份研究上次的處理紀錄在本頁最下方，可展開檢視；要重新輸出資料，請再上傳原始檔案（欄位設定會自動套用）。</p>` : ""}
     ${H.length ? `<p class="dpinfo">已讀入 <b>${esc(DP.name)}</b>${DP.sheets.length > 1 ? `，工作表 <select data-dp="sheet">${DP.sheets.map((x, k) => `<option value="${k}"${k === DP.sheet ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select>` : ""}：${dpN(DP.rows.length)} 列、${H.length} 欄</p>` : ""}</fieldset>`;
   if (!H.length || !c) return h + "</div>";
   const keys = dpKeys(c), numH = H.filter((_, i) => K[i] !== "text"), ex = i => { const u = []; for (const r of DP.rows) { const v = r[i]; if (v != null && !u.includes(v)) u.push(v); if (u.length >= 3) break; } return u.map(v => K[i] === "date" && typeof v === "number" ? dpFmt(v) : String(v)).join("、"); };

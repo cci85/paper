@@ -207,12 +207,14 @@ function update() {
   const out = m.build(p, R);
   $("out").textContent = out || "";
   $("copy").disabled = !out;
+  $("copy").hidden = !!m.noCopy;   // 內容已存進研究存檔，只供檢視
   const two = m.fields.some(f => f.afterOut && f.type === "promptbox" && (!f.when || f.when(p)));   // 分兩則送出
   $("copy").textContent = m.copyLabel || `${two ? "① 複製第一則 Prompt" : "複製 Prompt"}（${COPY_TO[m.target] || "貼到 AI"}）`;
   const over = !!out && out.length > 3000 && m.target === "nlm";   // 一般 AI 沒有這個上限
-  $("count").textContent = out ? `${out.length.toLocaleString()} 字元` + (over ? "（可能超過 NotebookLM 單次輸入上限）" : "") : (m.empty || "");
+  $("count").textContent = out && m.noCopy ? "" : out ? `${out.length.toLocaleString()} 字元` + (over ? "（可能超過 NotebookLM 單次輸入上限）" : "") : (m.empty || "");
   $("count").classList.toggle("over", over);
   $("outd").hidden = !out;
+  outSum();
   $("next").textContent = ref(m.next);
   renderReplyView();
   m.fields.filter(f => f.type === "cands").forEach(f => { const el = $("cands-" + f.id); if (el) el.innerHTML = f.render(p); });
@@ -596,9 +598,9 @@ $("copy").addEventListener("click", async () => {
 });
 
 showAll();
-$("outd").addEventListener("toggle", () => {
-  $("outd").querySelector("summary").textContent = $("outd").open ? "收合 Prompt" : "展開 Prompt";
-});
+function outSum() { const w = mod().outLabel || "Prompt";
+  $("outd").querySelector("summary").textContent = ($("outd").open ? "收合" : "展開") + w; }
+$("outd").addEventListener("toggle", outSum);
 
 // 網站更新提示：定期（與切回分頁時）讀取最新的 index.html，比對程式版本；不同時顯示提示，按下即載入新版
 (() => {

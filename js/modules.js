@@ -1094,11 +1094,11 @@ const DEFS = {
   },
   dprep: {
     label: "panel 資料處理", target: "tool",
-    hint: "上傳一列一筆交易的原始資料，依個人代碼與日期合併成一人一日一筆的寬格式資料。下方「處理紀錄」可複製，貼進論文的資料處理說明或研究日誌。",
+    hint: "上傳一列一筆交易的原始資料，依個人代碼與日期合併成一人一日一筆的寬格式資料。下方「處理紀錄」會自動存入研究存檔（.md），可展開檢視。",
     fields: [{ id: "dp_view", type: "cands", label: "", render: () => typeof dpView === "function" ? dpView() : "" }],
     build: () => typeof dpLogShown === "function" ? dpLogShown() : (store.values.dp_log || ""),
     empty: "（完成「檢查資料」後，這裡會顯示處理紀錄）",
-    copyLabel: "複製處理紀錄",
+    noCopy: true, outLabel: "處理紀錄",
     next: "panel data 研究：處理完成後到 0.2「資料結構與估計目標」，觀察單位、時間與資料欄位留白時會自動帶入。"
   },
   tbfill: {
