@@ -289,12 +289,20 @@ function mdView(text) {
   return out.join("");
 }
 const mdBox = (text, title, open) => blank(text) ? "" : `<details class="sview mdv"${open ? " open" : ""}><summary>${esc(title)}</summary>${mdView(text)}</details>`;
+// 0.2 步驟 3：候選變數（0.2 資料缺口中可取得者、0.4 可再考慮的變數），每行「名稱：取得方式」
+function pdCandText() {
+  const r = (typeof store !== "undefined" && store.replies) || {}, out = [], seen = new Set();
+  const add = (n, how) => { const k = pmNorm(String(n).replace(/[（(].*$/, "")); if (!n || seen.has(k)) return; seen.add(k); out.push(how ? `${n}：${how}` : n); };
+  pipeLines(mdSec(r["s0-4|pdata"], "資料缺口")).split("\n").filter(Boolean).forEach(l => { const c = l.split(/[｜|]/).map(x => x.trim()); if (!/無法取得/.test(c[1] || "")) add(c[0], c[1]); });
+  pipeLines(mdSec(r["s0-6|pdict"], "可再考慮的變數")).split("\n").filter(Boolean).forEach(l => { const c = l.split(/[｜|]/).map(x => x.trim()); add(c[1], c[2]); });
+  return out.join("\n");
+}
 // 0.4 資料字典：回覆中的「可再考慮的變數」可逐一加入研究變數
 function pdictView(text) {
   if (blank(text)) return "";
   const extra = pipeLines(mdSec(text, "可再考慮的變數")).split("\n").filter(Boolean).map(l => l.split(/[｜|]/).map(x => x.trim()));
   const have = pmNorm(pdVarText());
-  const box = extra.length ? `<div class="needbox"><b>可再考慮的變數</b>：文獻常用、現有欄位做得出來、但研究變數尚未納入。按「加入」會寫進上方「研究變數」；加入自變數或調節變數時，研究假說與模型組也要一併考慮（可回 0.3 用「追問」確認）。
+  const box = extra.length ? `<div class="needbox"><b>可再考慮的變數</b>：文獻常用、現有欄位做得出來、但研究變數尚未納入。按「加入」會寫進上方「研究變數」；加入自變數或調節變數時，研究假說與模型組也要一併考慮（可回 0.3 用「追問」確認）。想先查證文獻支持與資料來源時，到 0.2 步驟 3「候選變數的文獻檢索」，這些變數會自動帶入。
     <table class="mtbl"><tr><th>角色</th><th>變數</th><th>建構方式</th><th>納入理由</th><th></th></tr>${extra.map((r, k) => { const inV = have.includes(pmNorm((r[1] || "").replace(/[（(].*$/, "")));
       return `<tr><td>${esc(r[0] || "")}</td><td>${esc(r[1] || "")}</td><td>${esc(r[2] || "")}</td><td>${esc(r.slice(3).join("｜"))}</td><td>${inV ? "<small>已在研究變數</small>" : `<button type="button" data-addvar="${esc([r[0], r[1], r[2], r[4] || r[3] || ""].join("｜"))}">加入</button>`}</td></tr>`; }).join("")}</table></div>` : "";
   return box + mdBox(text, "閱讀整理後的回覆（資料字典、分析樣本、檢查清單）", true);
@@ -1241,6 +1249,22 @@ const DEFS = {
     build: (p, R) => T.pd_model({ ...pdVals(), n: p.pm_n, dv: (p.pm_dv || "").trim(), must: (p.pm_must || "").trim() }) + R,
     status: () => blank(store.values.pd_unit) ? "上一步「資料結構與估計目標」還沒有填觀察單位；這一步要接在同一個對話，請先完成上一步。" : "",
     next: "下一步：回覆貼到下方「AI 回覆」，確認或修改「選定的研究模型組」，再到 0.3 檢核模型設定。"
+  },
+  pdvlit: {
+    label: "候選變數的文獻檢索", target: "ai",
+    hint: "資料裡沒有、但可以用日期或地區串接外部資料庫，或由既有變數計算出來的變數（例如空氣品質、颱風假、連假、氣溫異常）：先請有網路搜尋的一般 AI 查證文獻支持與台灣可用的資料來源，再把找到的論文下載後上傳到 NotebookLM。",
+    fields: [
+      { id: "vl_vars", type: "textarea", label: "候選變數", hint: "每行一個；可附取得方式，例如「空氣品質指數（AQI）：以日期 × 縣市串接環境部空品測站」", rows: 6,
+        placeholder: "空氣品質指數（AQI）：以日期 × 縣市串接環境部空氣品質監測資料\n颱風假：以日期 × 縣市串接人事行政總處停班停課公告\n氣溫異常：當日氣溫減該節氣常態氣溫" },
+      { id: "vl_dv", type: "text", label: "依變數", hint: "選填；留白時取「研究變數」中的依變數", placeholder: "例如：當日捐款金額" }
+    ],
+    seed: () => ({ vl_vars: pdCandText() }), seedFrom: "0.2 步驟 1 回覆的「資料缺口」與 0.4 回覆的「可再考慮的變數」",
+    seedNote: "候選變數由 0.2 步驟 1 回覆的「資料缺口」（可取得者）與 0.4 回覆的「可再考慮的變數」帶入，可自行增刪",
+    build: p => { const vars = (p.vl_vars || "").trim(); if (!vars) return "";
+      const dv = (p.vl_dv || "").trim() || ((pdVarText().split("\n").find(l => /^依變數/.test(l)) || "").split(/[｜|]/)[1] || "").trim();
+      return T.pd_varlit({ ...pdVals(), vars, dv }); },
+    empty: "（請填入至少一個候選變數）",
+    next: "下一步：依回覆的檢索式下載論文，上傳到 NotebookLM；決定納入的變數寫進步驟 1 最下方的「研究變數」，再到 0.3 檢核（或用 0.3 的「追問」確認它對假說與模型組的影響）。"
   },
   mchk: {
     label: "依文獻檢核模型設定", target: "nlm",
@@ -2369,10 +2393,11 @@ const OUTLINE = [
       { mod: "m5b", note: "選用（整批文獻全貌）：同一個對話接續，以文字說明各變數的定義、測量與角色，並畫關係圖；用來理解變數，挑選變數請用 0.2。", go: [{ to: "s0-1", step: 4, when: "同一個對話接續" }] },
       { mod: "m5c", note: "選用（整批文獻全貌）：同一個對話接續，從變數、理論、情境與方法四個面向，找出整個領域的研究缺口與研究主題建議。", go: [{ to: "s0-4", step: 0, when: "看完全貌、選定研究方向後" }] }] },
     { id: "s0-4", no: "0.2", title: "形成研究架構",
-      mtitle: "形成研究模型", mdesc: "追蹤資料研究的重點在於估計目標與模型設定：先描述資料、收斂解釋與預測目標（步驟 1），再請 AI 提出彼此競爭的候選模型、比較策略與各種比較結果的策略意涵（步驟 2），選定研究模型組。",
+      mtitle: "形成研究模型", mdesc: "追蹤資料研究的重點在於估計目標與模型設定：先描述資料、收斂解釋與預測目標（步驟 1），再請 AI 提出彼此競爭的候選模型、比較策略與各種比較結果的策略意涵（步驟 2），選定研究模型組。資料裡沒有、但可串接外部資料或計算出來的變數，可用步驟 3 查證文獻支持。",
       msteps: [
       { mod: "pdata", note: "在已上傳文獻的 NotebookLM 開新對話。文獻以使用追蹤資料或紀錄資料、研究相同或相近依變數的實證研究為主。", go: [{ to: "s0-4", step: 1, when: "回覆貼上、選定依變數定義後" }] },
-      { mod: "pmodel", note: "接在步驟 1 的同一個對話。", go: [{ to: "s0-5", step: 0, when: "選定研究模型組後" }] }], desc: "兩種做法：有研究主題與情境時，先由 AI 提出候選架構（步驟 1），再到步驟 2 勾選變數、畫出路徑；自變數與依變數已確定時，直接到步驟 2，勾選「自變數與依變數已確定」。組合好的架構到 0.3 檢核；已有自己的架構或只有架構圖圖片，直接到 0.3 選「自行設計或匯入」。", steps: [
+      { mod: "pmodel", note: "接在步驟 1 的同一個對話。", go: [{ to: "s0-5", step: 0, when: "選定研究模型組後" }, { to: "s0-4", step: 2, when: "想加入需串接外部資料或計算的變數時" }] },
+      { mod: "pdvlit", note: "選用：資料裡沒有、但可串接或計算出來的變數，先查證文獻支持與資料來源。貼到有網路搜尋的一般 AI，不需上傳文獻。", go: [{ to: "s0-4", step: 0, when: "決定納入的變數寫進「研究變數」" }, { to: "s0-5", step: 0, when: "變數確定後檢核模型設定" }] }], desc: "兩種做法：有研究主題與情境時，先由 AI 提出候選架構（步驟 1），再到步驟 2 勾選變數、畫出路徑；自變數與依變數已確定時，直接到步驟 2，勾選「自變數與依變數已確定」。組合好的架構到 0.3 檢核；已有自己的架構或只有架構圖圖片，直接到 0.3 選「自行設計或匯入」。", steps: [
       { mod: "asf", note: "由 AI 提出幾個合理的研究架構，再由你挑選；已確定依變數時可填入。需要更完整的變數時，勾選最下方的「補充變數清單」。", go: [{ to: "s0-4", step: 1, when: "回覆貼到「AI 回覆」後，勾選變數、請 AI 提出候選架構" }] },
       { mod: "asmix", note: "勾選變數（同一角色可勾多個候選）→ 請 AI 提出候選架構 → 網頁畫出各候選，選定最適合者 → 到 0.3 檢核。自變數與依變數已確定時，先勾選上方的「已確定」，請 AI 建議中介與調節變數。", go: [{ to: "s0-5", step: 0, when: "選定架構後，檢核合理性並產生研究缺口與學術貢獻" }] }] },
     { id: "s0-5", no: "0.3", title: "研究架構合理性檢核",
