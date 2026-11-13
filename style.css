@@ -493,3 +493,6 @@ table.apa td[contenteditable]:focus, .tbl-note[contenteditable]:focus { outline:
 .dp .dplg { font-size: 13px; margin: 4px 0; }
 .dp .dplg .ln { display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--accent); vertical-align: middle; margin: 0 4px 0 10px; }
 .dp .dplg .ln.ly { border-top: 2px dashed var(--muted); }
+/* 比較候選架構：一列一個架構，圖放大較易閱讀 */
+#cands-cf_view { grid-template-columns: minmax(0, 1fr); }
+#cands-cf_view .cand-svg svg { max-width: 960px; display: block; margin: 8px auto 0; }
