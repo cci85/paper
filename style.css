@@ -464,3 +464,24 @@ table.apa td[contenteditable]:focus, .tbl-note[contenteditable]:focus { outline:
 .mdv .mtbl, .needbox .mtbl { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0; }
 .mdv .mtbl th, .mdv .mtbl td, .needbox .mtbl th, .needbox .mtbl td { border: 1px solid var(--line); padding: 5px 7px; vertical-align: top; text-align: left; }
 .mdv .mtbl th, .needbox .mtbl th { background: var(--bg); }
+
+/* 資料處理 */
+#cands-dp_view { display: block; }
+.dp .dprow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; font-size: 14px; }
+.dp .dprow > span:first-child { font-weight: 600; min-width: 4.5em; }
+.dp select, .dp input[type=text] { padding: 4px 6px; font-size: 14px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.dp select:disabled { opacity: .5; }
+.dp .dpinfo { margin: 10px 0 0; font-size: 14px; }
+.dp table.dptbl { border-collapse: collapse; font-size: 13px; margin: 8px 0; width: 100%; }
+.dp .dptbl th, .dp .dptbl td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: left; vertical-align: middle; }
+.dp .dptbl th { font-weight: 600; background: var(--accent-soft); }
+.dp .dptbl tr.key td { color: var(--muted); }
+.dp .dptbl td.ex { color: var(--muted); max-width: 22em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dp .dptbl td.r { text-align: right; font-variant-numeric: tabular-nums; }
+.dp .dptbl input[type=text] { width: 12em; }
+.dp .dpsub { margin-top: 14px; }
+.dp details.dpsub summary { cursor: pointer; font-size: 14px; }
+.dp .dpconf { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 8px 0; font-size: 14px; }
+.dp .dpconf.todo { border-color: var(--warn); background: var(--warn-soft); }
+.dp .dpconf .ex { color: var(--muted); font-size: 13px; margin: 4px 0; }
+.dp .dpbtns { display: flex; flex-wrap: wrap; gap: 8px; }

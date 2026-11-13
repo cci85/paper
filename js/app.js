@@ -332,6 +332,7 @@ $("pane").addEventListener("paste", e => {   // 貼上時只保留純文字
 });
 $("pane").addEventListener("input", e => {
   const t = e.target;
+  if (t.closest && t.closest(".dp")) return;   // 資料處理區自行處理（js/dataprep.js）
   if (t.dataset && t.dataset.pmrole != null) {   // 0.2 panel data：為候選模型選角色，重寫選定的研究模型組
     (store.values.pm_roles ||= {})[t.dataset.pmrole] = t.value; pmApply(); save(); renderPane(); update(); return;
   }
