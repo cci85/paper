@@ -4,7 +4,7 @@
 
 const DP = { name: "", head: [], rows: [], kind: [], sheets: [], zip: null, sheet: 0, chk: null, busy: "", err: "", log: [] };
 const DP_LV = { day: "一人一日", month: "一人一月", year: "一人一年", person: "一人一筆（整個期間）" };
-const DP_RES = [["near", "依前後幾天的交易判斷"], ["wt", "依某數值欄的金額決定"], ["mode", "取出現次數最多者"], ["first", "取第一筆"], ["last", "取最後一筆"], ["uniq", "串接不重複的值"], ["all", "串接全部值"]];
+const DP_RES = [["near", "依前後幾天的交易判斷"], ["wt", "依某數值欄的金額決定"], ["mode", "取出現次數最多者"], ["first", "取第一筆"], ["last", "取最後一筆"]];
 const DP_ROLE = { sum: "加總", mean: "平均", max: "最大", min: "最小", take: "取值（不一致時示警）", drop: "刪除（不輸出）" };
 const DP_XLS_MAX = 1048575;   // Excel 每個工作表最多 1,048,576 列（含標題列）
 
@@ -173,6 +173,7 @@ function dpGuess(old) {
     else if (uniq.size > rows.length * 0.9 || /(no|id|編號|單號|序號|號碼|收據)$/i.test(h)) cfg.roles[h] = "drop";   // 看起來像單號
     else cfg.roles[h] = "sum";
   });
+  Object.keys(cfg.res || {}).forEach(h => { if (!DP_RES.some(x => x[0] === cfg.res[h])) delete cfg.res[h]; });   // 已取消的處理方式（例如串接）需重新選擇
   Object.keys(cfg.roles).forEach(h => { if (!H.includes(h) || keys.has(h)) delete cfg.roles[h]; });
   if (cfg.pcol && !H.includes(cfg.pcol)) cfg.pcol = null;
   if (cfg.pval && !H.includes(cfg.pval)) cfg.pval = null;
