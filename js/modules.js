@@ -1093,7 +1093,7 @@ const DEFS = {
     next: "下一步：貼到一般 AI（不需要上傳文獻）。"
   },
   dprep: {
-    label: "資料處理", target: "tool",
+    label: "panel 資料處理", target: "tool",
     hint: "上傳一列一筆交易的原始資料，依個人代碼與日期合併成一人一日一筆的寬格式資料。下方「處理紀錄」可複製，貼進論文的資料處理說明或研究日誌。",
     fields: [{ id: "dp_view", type: "cands", label: "", render: () => typeof dpView === "function" ? dpView() : "" }],
     build: () => typeof dpLogShown === "function" ? dpLogShown() : (store.values.dp_log || ""),
@@ -1243,9 +1243,9 @@ const DEFS = {
     replyView: t => mdBox(t, "閱讀整理後的回覆", false),
     autoReply: t => pdataAuto(t),
     rules: () => ["citation"],
-    seed: () => { const s = seedFrom01(), d = store.values.dp_sum || {}; return { as_ctx: s.as_ctx, as_con: s.as_con, pd_unit: d.unit || "", pd_time: d.time || "", pd_fields: d.fields || "" }; }, seedFrom: "0.1「研究方向聚焦」與「資料處理」",
+    seed: () => { const s = seedFrom01(), d = store.values.dp_sum || {}; return { as_ctx: s.as_ctx, as_con: s.as_con, pd_unit: d.unit || "", pd_time: d.time || "", pd_fields: d.fields || "" }; }, seedFrom: "0.1「研究方向聚焦」與「panel 資料處理」",
     seedQuiet: ["pd_unit", "pd_time", "pd_fields"],
-    seedNote: "研究情境與研究問題由 0.1「研究方向聚焦」的 AI 回覆帶入；觀察單位、時間與資料欄位由「常用 → 資料處理」的處理結果帶入；都可自行修改",
+    seedNote: "研究情境與研究問題由 0.1「研究方向聚焦」的 AI 回覆帶入；觀察單位、時間與資料欄位由「常用 → panel 資料處理」的處理結果帶入；都可自行修改",
     build: (p, R) => blank(p.as_ctx) || blank(p.pd_unit) ? "" : T.pd_data({ ...pdVals(), ...{ ctx: p.as_ctx.trim(), con: (p.as_con || "").trim(), unit: p.pd_unit.trim(), time: (p.pd_time || "").trim(), fields: (p.pd_fields || "").trim(), feat: p.pd_feat, goal: p.pd_goal } }) + R,
     empty: "（請填入研究情境與觀察單位）",
     next: "下一步：回覆貼到下方「AI 回覆」，從「依變數的定義選項」選定一種，接著到{#pmodel}（同一個對話）。"
@@ -1323,7 +1323,7 @@ const DEFS = {
       { id: "pd_fields", type: "textarea", label: "現有資料欄位", hint: "與 0.2 共用；選「開新對話」時才會放進 Prompt", rows: 3, when: p => p.dc_conv === "new" },
       { id: "dc_cut", type: "text", label: "預測時點與預測期間", hint: "選填；研究目標含預測時使用", placeholder: "例如：以 2024 年 12 月為預測時點，預測 2025 年上半年是否再次捐款", when: () => pdGoal(pdVals().goal).r },
       { id: "dc_dv", type: "promptbox", below: true, label: "補問 Prompt：衍生變數計算規格",
-        hint: "已送出資料字典、回覆中沒有「衍生變數計算規格」時，在同一個對話接著送出；回覆接在上方「AI 回覆」原有內容的最後貼上。資料處理會自動讀入這一節",
+        hint: "已送出資料字典、回覆中沒有「衍生變數計算規格」時，在同一個對話接著送出；回覆接在上方「AI 回覆」原有內容的最後貼上。panel 資料處理會自動讀入這一節",
         copyLabel: "複製補問 Prompt（同一個對話接著送出）", build: () => T.pd_dv({ dpCols: dpOutCols() }) }
     ],
     rules: () => ["citation"],
@@ -2403,7 +2403,7 @@ const OUTLINE = [
       { mod: "vdeep", note: "一次問一個變數；文獻不足時，先針對這個變數補上傳文獻再問。「施測情境」常因原文只簡短交代而標示「未提及」，請回到原文的方法章節或附錄查看。" },
       { mod: "vcomp", note: "每行填一個變數；可直接從組合研究架構的勾選區複製名稱。" },
       { mod: "smethod", note: "貼到有網路搜尋的 AI 對話，不需要上傳文獻。" }] },
-    { id: "q-data", no: "", title: "資料處理", desc: "把長格式的原始資料（一列一筆交易，同一人同一天可能有多筆）整理成一人一日一筆的寬格式資料：數值欄可選加總、平均、最大或最小；某個文字欄（例如基金別）的各個值可展開成欄，並可合併。合併時文字欄位的值不一致會示警，由你選擇處理方式。全部在瀏覽器處理，資料不會上傳。", steps: [
+    { id: "q-data", no: "", title: "panel 資料處理", desc: "把長格式的原始資料（一列一筆交易，同一人同一天可能有多筆）整理成一人一日一筆的寬格式資料：數值欄可選加總、平均、最大或最小；某個文字欄（例如基金別）的各個值可展開成欄，並可合併。合併時文字欄位的值不一致會示警，由你選擇處理方式。全部在瀏覽器處理，資料不會上傳。", steps: [
       { mod: "dprep", note: "依序上傳檔案 → 確認欄位的處理方式 → 檢查資料 → 處理不一致 → 下載。" }] }
   ] },
   { ch: "第零章 研究準備", secs: [

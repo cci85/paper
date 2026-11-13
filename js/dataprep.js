@@ -603,7 +603,7 @@ const dpHead0 = (cfg, chk) => dpExtend(dpBuild(cfg, { ...chk, k: Math.min(chk.k,
 function dpDvLog(cfg) {
   const L = [], sp = dpDvParse(dpDvText(cfg), DP.chk ? dpHead0(cfg, DP.chk) : []), S = DP.extStat && DP.extStat.dv, fmtN = x => x.toLocaleString("en-US");
   if (!sp.items.length) return L;
-  L.push(`衍生變數（依 0.4「資料字典與分析樣本」的衍生變數計算規格${cfg.dvTxt != null ? "，並在資料處理修改" : ""}）：` + sp.order.map(it => `${it.name}＝${dpDvRule(it)}`).join("；"));
+  L.push(`衍生變數（依 0.4「資料字典與分析樣本」的衍生變數計算規格${cfg.dvTxt != null ? "，並在 panel 資料處理修改" : ""}）：` + sp.order.map(it => `${it.name}＝${dpDvRule(it)}`).join("；"));
   L.push("　過去與落後類變數一律不含當天；資料只含有交易的日子，「前一期」為前一次交易日，「過去 N 天」以日曆天計算；組內、組間的個人平均以輸出資料中該人所有交易日計算，空白不列入");
   if (S) {
     if (S.trunc.length) L.push(cfg.coh ? "　時間窗：樣本只含首次交易在起日之後的人，起日之前沒有交易，時間窗不受觀察期間起日影響"
