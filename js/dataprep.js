@@ -966,16 +966,75 @@ function dpAeRun(c, k, T) {
   const stat = (g, a0, W) => { const pre = win(g, a0 - W, a0 - 1, W), post = win(g, a0, a0 + W - 1, W), lpre = win(g, a0 - W - DP_LY, a0 - 1 - DP_LY, W), lpost = win(g, a0 - DP_LY, a0 + W - 1 - DP_LY, W);
     return [0, 1, 2].map(j => { const p = pre && pre[j], q = post && post[j], lp = lpre && lpre[j], lq = lpost && lpost[j], r1 = p > 0 && q != null ? q / p : null, r0 = lp > 0 && lq != null ? lq / lp : null;
       return { p, q, lp, lq, r1, r0, rr: r1 != null && r0 > 0 ? r1 / r0 : null }; }); };
+  // 單日最高值（Y1）：今年與前一年同期的事前、事後窗口，各列最高 3 天與占窗口合計的比例
+  const tops = (g, a0, W) => { const one = (s0, sh) => { const L = []; let tot = 0; for (let u = 0; u < W; u++) { const d = a0 + s0 + u - sh; if (d < k.dmin || d > k.dmax) return null; const v = g(d), y = v ? v[0] : 0; tot += y; L.push([s0 + u, y]); }
+      return { tot, top: L.sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t, y]) => ({ t, y, sh: tot > 0 ? y / tot : null })) }; };
+    return { pre: one(-W, 0), post: one(0, 0), lpre: one(-W, DP_LY), lpost: one(0, DP_LY) }; };
   // 事件時間圖：短期逐日，長期每 7 天一點（每日平均）；今年與 364 天前同一段日期
   const series = (g, a0, W, step) => { const one = sh => { const out = []; for (let t = -W; t < W; t += step) { let s = [0, 0, 0], n = 0;
       for (let u = t; u < Math.min(t + step, W); u++) { const d = a0 + u - sh; if (d < k.dmin || d > k.dmax) { n = -1; break; } const v = g(d); if (v) for (let j = 0; j < 3; j++) s[j] += v[j]; n++; }
       out.push({ t, v: n > 0 ? s.map(x => x / n) : null }); } return out; }; return { cur: one(0), ly: one(DP_LY) }; };
   const res = dpAeScreen(c, k).filter(r => r.keep).map(r => { const a0 = r.a.from, step = r.kind === "s" ? 1 : 7;
     const scopes = r.cty ? [[r.cty, getC(r.cty)], ["其他縣市", getO(r.cty)]] : [["全國", getAll]];
-    return { r, step, scopes: scopes.map(([nm, g]) => ({ nm, st: stat(g, a0, r.W), se: series(g, a0, r.W, step) })) }; });
+    return { r, step, scopes: scopes.map(([nm, g]) => ({ nm, st: stat(g, a0, r.W), se: series(g, a0, r.W, step), top: tops(g, a0, r.W) })) }; });
   DP.ae = { key: dpAeStateKey(c, k), res, ylab: dpAeYlab(c), ccol: ci >= 0 ? ccol : "" };
   return DP.ae;
 }
+// 文獻寫法 Prompt（NotebookLM）：文獻如何解讀事件時間圖與事件前後比較
+const DP_AELIT = [
+  "請依據上傳文獻，整理文獻如何解讀「事件時間圖」（事件前後各期的數值或係數圖）與「事件前後窗口的比較」，作為我解讀描述性數據時的寫法依據。只能依據上傳文獻，未提及者寫「上傳文獻未提及」。",
+  "",
+  "請逐項說明，每項附出處（作者, 年份），並摘錄文獻中代表性的解讀句型（以中文轉述）：",
+  "1. 解讀的順序：文獻先看什麼、再看什麼（例如事前是否平穩、事件當期的跳升、事後的持續或衰退、結束後的變化）。",
+  "2. 事前期間：如何判斷事前沒有異常趨勢或提前反應，以及出現事前變化時如何描述。",
+  "3. 效果的時間型態：如何描述效果集中在事件當期、持續一段時間、逐漸衰退、延遲出現，或回到原水準。",
+  "4. 季節與時間趨勢：如何以前一年同期、對照組或時間趨勢說明變化是否來自季節或既有趨勢。",
+  "5. 極端值：如何處理或描述少數幾期造成的高點（例如剔除、取對數、另外說明）。",
+  "6. 描述性結果與正式估計的分際：文獻如何在圖形或前後比較的描述中避免因果用語，以及用哪些措辭。",
+  "",
+  "規則：以條列撰寫，不使用表格；用詞一律使用「變數」，不得使用「變項」。"
+].join("\n");
+// 解讀 Prompt（一般 AI）：表二、分段平均與單日最高值；回覆依「### act1 …」分節，顯示在各圖下方
+function dpAeIntPrompt(c, ae) {
+  const F = (x, d = 1) => x == null ? "—" : Number(x).toLocaleString("en-US", { maximumFractionDigits: d }), P = x => x == null ? "—" : (x * 100).toFixed(1) + "%";
+  const out = [
+    "以下是一份捐款資料中，各活動起日前後的描述性數據。請依數據解讀每個活動前後的變化，供研究者判斷活動是否可能有效果。解讀的寫法必須依照最後「文獻的解讀寫法」：依其中的判讀項目、順序與用語撰寫，文獻未涵蓋的項目才依下方格式補充。",
+    "",
+    "數據說明：",
+    `- Y1＝${ae.ylab}的每日合計；Y2＝每日捐款人數；首次捐款人數＝當天為此人在資料中第一個交易日的人數。沒有交易的日子為 0。`,
+    "- 每個活動以起日為第 0 天，比較起日前與起日後同樣天數的窗口；「事前」「事後」為窗口內的每日平均。",
+    `- 前一年同期為 ${DP_LY} 天前的同一段日期（星期幾一致），用來對照季節；「比值÷去年比值」大於 1 表示今年起日前後的變化大於去年同一段日期。`,
+    "- 「分段平均」把窗口切成數段，列出每段的每日平均（今年／前一年同期），用來看變化集中在起日附近、持續，或延遲出現。",
+    "- 「單日最高」列出 Y1 在窗口內最高的 3 天與占該窗口合計的比例，用來判斷變化是否主要來自少數幾天。",
+    "- 樣本只含首次交易在樣本起日之後的人時，捐款人數會隨時間累積，事後÷事前會因此偏高，窗口越長越明顯。",
+    "- 「—」表示窗口超出觀察期間或分母為 0。", ""];
+  ae.res.forEach(x => x.scopes.forEach(sc => { const r = x.r, W = r.W, g = r.kind === "s" ? 7 : 28, ab = dpAbNow(r.a);
+    out.push(`## ${r.a.v}${ab ? " " + ab : ""}｜${r.a.name}｜${dpFmt(r.a.from)} 至 ${dpFmt(r.a.to)}｜${r.kind === "s" ? "短期" : "長期"}，前後各 ${W} 天｜範圍：${sc.nm}`);
+    sc.st.forEach((s, j) => out.push(`${DP_AEM[j]}：事前 ${F(s.p)}、事後 ${F(s.q)}、事後÷事前 ${F(s.r1, 2)}；去年事前 ${F(s.lp)}、去年事後 ${F(s.lq)}、去年比值 ${F(s.r0, 2)}；比值÷去年比值 ${F(s.rr, 2)}`));
+    const daily = sc.se.cur.length === 2 * W, seg = (arr, m) => { const L = []; for (let t = -W; t < W; t += g) { const pts = arr.filter(p => p.t >= t && p.t < t + g && p.v); if (!pts.length || pts.length * (daily ? 1 : 7) < Math.min(g, W - t) - (daily ? 0 : 6)) { L.push("—"); continue; }
+        L.push(F(pts.reduce((a, p) => a + p.v[m], 0) / pts.length)); } return L; };
+    const lab = []; for (let t = -W; t < W; t += g) lab.push(`${t}~${Math.min(t + g, W) - 1}`);
+    out.push(`分段平均（每 ${g} 天一段，第 ${lab.join("、")} 天）：`);
+    [0, 1, 2].forEach(m => { const a = seg(sc.se.cur, m), b = seg(sc.se.ly, m); out.push(`- ${DP_AEM[m]}：` + a.map((v, i) => `${v}／${b[i]}`).join("、")); });
+    const tp = sc.top, T = (o, n) => o ? `${n}合計 ${F(o.tot, 0)}，最高：` + o.top.map(z => `第 ${z.t} 天 ${F(z.y, 0)}（${P(z.sh)}）`).join("、") : `${n}：—`;
+    if (tp) out.push(`單日最高（Y1）：${T(tp.pre, "事前")}；${T(tp.post, "事後")}；${T(tp.lpre, "去年事前")}；${T(tp.lpost, "去年事後")}`);
+    out.push(""); }));
+  out.push("請依下列格式回覆，每個活動一節，標題照抄「### 變數與簡稱」（例如「### act1 淑麗代言」），同一活動有多個範圍時寫在同一節：",
+    "1. 起日前後的變化：Y1、Y2、首次捐款人數各一句，附數字。",
+    "2. 與前一年同期比較：變化是否也出現在去年同一段日期，是否可能是季節性。",
+    "3. 單日極端值：變化是否主要來自少數幾天，附占窗口合計的比例。",
+    "4. 時間型態：依分段平均，說明變化集中在起日附近、在窗口內持續、延遲出現，或看不出變化。",
+    "5. 小結：一至兩句，只描述數據呈現的型態與需要留意之處。",
+    "所有活動之後加一節「### 整體」，比較各活動的型態異同。",
+    "",
+    "", "文獻的解讀寫法（由 NotebookLM 依研究者上傳的文獻整理）：", "---", String(c.aeLit || "").trim(), "---", "",
+    "規則：解讀依上方文獻的寫法；引用文獻寫法時附上其中的出處，不得自行新增文獻；只能依據上列數據，不得推測數據以外的原因（例如媒體報導、特定捐款人）；這些是描述性比較，不得寫成活動造成、證實有效等因果結論；數字保留原樣，不自行換算未提供的數值；以繁體中文、一般讀者看得懂的文字撰寫，不使用表格；用詞一律使用「變數」，不得使用「變項」。");
+  return out.join("\n");
+}
+const dpAeIntParse = txt => { const o = {}; let cur = null; String(txt || "").replace(/\*\*/g, "").split(/\r?\n/).forEach(l => {
+    const m = l.match(/^#{1,4}\s*(act\d+|整體)/); if (m) { cur = m[1] === "整體" ? "_all" : m[1]; o[cur] = ""; return; }
+    if (cur) o[cur] += (o[cur] ? "\n" : "") + l; });
+  Object.keys(o).forEach(k => o[k] = o[k].trim()); return o; };
 const dpAeF = (x, d = 1) => x == null ? "—" : Number(x).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
 function dpAeChart(sc, W, step, m) {
   const w = 640, h = 200, L = 64, R = 14, T = 12, B = 34, X = t => L + (t + W) / (2 * W) * (w - L - R);
@@ -1023,7 +1082,16 @@ function dpAeView(c, k) {
     <table class="dptbl"><thead><tr>${DP_AEH2.slice(1).map(x => `<th>${x}</th>`).join("")}</tr></thead><tbody>${dpAeRows2(ae).map(r => `<tr><td>${r[1]}</td><td>${esc(r[2])}</td><td>${r[3]}</td><td class="r">${r[4]}</td><td>${esc(r[5])}</td><td>${r[6]}</td>${r.slice(7).map((v, i) => `<td class="r">${dpAeF(v, [2, 5, 6].includes(i) ? 2 : 1)}</td>`).join("")}</tr>`).join("")}</tbody></table>
     <div class="dprow"><span>事件時間圖</span>${DP_AEM.map((t, m) => `<label class="chip"><input type="radio" name="dpaecy" data-dpae="cy" value="${m}"${+o.cy === m ? " checked" : ""}>${t}</label>`).join("")}</div>
     <p class="dplg"><span class="ln"></span>活動當年 <span class="ln ly"></span>前一年同期（${DP_LY} 天前）　<small>滑鼠移到圖上可看數值</small></p>`;
-  ae.res.forEach(x => x.scopes.forEach(sc => { h += `<div class="dpaebox"><b>${x.r.a.v}${dpAbNow(x.r.a) ? " " + esc(dpAbNow(x.r.a)) : ""}｜${esc(x.r.a.name)}</b>　<small>${dpFmt(x.r.a.from)} 起，${x.r.kind === "s" ? "短期" : "長期"}，前後各 ${x.r.W} 天；${esc(sc.nm)}</small>${dpAeChart(sc, x.r.W, x.step, +o.cy)}</div>`; }));
+  const IT = dpAeIntParse(c.aeInt);
+  ae.res.forEach(x => x.scopes.forEach((sc, si) => { const it = si === x.scopes.length - 1 ? IT[x.r.a.v] : "";
+    h += `<div class="dpaebox"><b>${x.r.a.v}${dpAbNow(x.r.a) ? " " + esc(dpAbNow(x.r.a)) : ""}｜${esc(x.r.a.name)}</b>　<small>${dpFmt(x.r.a.from)} 起，${x.r.kind === "s" ? "短期" : "長期"}，前後各 ${x.r.W} 天；${esc(sc.nm)}</small>${dpAeChart(sc, x.r.W, x.step, +o.cy)}${it ? `<div class="note dpaeint">${esc(it)}</div>` : ""}</div>`; }));
+  h += `<div class="dpsub"><b>圖形與數據解讀</b>
+    <p class="hint">分兩步。① 按「複製文獻寫法 Prompt」，貼到已上傳事件效果文獻的 NotebookLM 對話，請它整理文獻如何解讀事件時間圖與事件前後的比較，回覆貼到第一個欄位。② 按「複製解讀 Prompt」，貼到一般 AI（Claude、ChatGPT、Gemini）；Prompt 已含表二與各活動前後的數據，並要求依 ① 的文獻寫法解讀。AI 的回覆貼到第二個欄位，各活動的解讀會顯示在對應的圖下方，並存入研究存檔。設定或資料變更後請重新計算表二，再重新產生解讀。</p>
+    <p><button type="button" data-dpcopy="aelit">① 複製文獻寫法 Prompt（貼到 NotebookLM）</button> <span class="hint" id="dpcopymsg3"></span></p>
+    <textarea data-dp="aeLit" class="mono" style="min-height:72px" placeholder="NotebookLM 的回覆貼在這裡">${esc(c.aeLit || "")}</textarea>
+    <p><button type="button" data-dpcopy="aeint"${String(c.aeLit || "").trim() ? "" : " disabled"}>② 複製解讀 Prompt（貼到一般 AI）</button> <span class="hint" id="dpcopymsg2">${String(c.aeLit || "").trim() ? "" : "請先貼上 ① 的回覆。"}</span></p>
+    <textarea data-dp="aeInt" class="mono" style="min-height:96px" placeholder="AI 的回覆貼在這裡（每個活動一節，標題為「### act1 …」）">${esc(c.aeInt || "")}</textarea>
+    ${IT._all ? `<div class="note dpaeint">${esc(IT._all)}</div>` : ""}</div>`;
   return h + `</div>`;
 }
 // 4. 活動期間與外部資料
@@ -1219,6 +1287,7 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
       if (a && v === a.ab0) delete o[d.dpab]; else o[d.dpab] = v; return dpCommit(false); }
     if (d.dpaecty != null) { dpAeCfg(c).cty[d.dpaecty] = t.value; return dpCommit(false); }
     if (d.dp === "dv") { const v = t.value; c.dvTxt = !v.trim() || v.trim() === dpDv04().trim() ? null : v; DP.extStat = null; return dpCommit(false); }
+    if (d.dp === "aeInt" || d.dp === "aeLit") { c[d.dp] = t.value; return dpCommit(false); }
     if (d.dp === "actRep" || d.dp === "actSrc") { c[d.dp] = t.value; DP.extStat = null; return dpCommit(false); }
     if (d.dpextf != null) { if (t.files && t.files[0]) dpExtLoad(+d.dpextf, t.files[0]); return; }
     if (d.dpexts != null || d.dpextc != null || d.dpextv != null) { const i = +d.i, e = c.ext[i];
@@ -1242,6 +1311,10 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
     else if (b.dataset.dpaerun) dpAeGo();
     else if (b.dataset.dpcopy === "act") { const m = document.getElementById("dpcopymsg");
       navigator.clipboard.writeText(dpActPrompt()).then(() => { if (m) m.textContent = "已複製；貼到一般 AI，再於最後貼上活動資料。"; }, () => { if (m) m.textContent = "無法複製，請改用 Chrome。"; }); }
+    else if (b.dataset.dpcopy === "aelit") { const m = document.getElementById("dpcopymsg3");
+      navigator.clipboard.writeText(DP_AELIT).then(() => { if (m) m.textContent = "已複製；貼到 NotebookLM。"; }, () => { if (m) m.textContent = "無法複製，請改用 Chrome。"; }); }
+    else if (b.dataset.dpcopy === "aeint") { const m = document.getElementById("dpcopymsg2"), t = DP.ae ? dpAeIntPrompt(DP.cfg, DP.ae) : "";
+      if (!t) { if (m) m.textContent = "請先計算表二。"; } else navigator.clipboard.writeText(t).then(() => { if (m) m.textContent = "已複製；貼到一般 AI。"; }, () => { if (m) m.textContent = "無法複製，請改用 Chrome。"; }); }
     else if (b.dataset.dpextadd) { (DP.cfg.ext ||= []).push({ src: "", url: "", got: "", use: [], vars: {}, wv: "x" }); dpCommit(false); }
     else if (b.dataset.dpextdel != null) { const i = +b.dataset.dpextdel; DP.cfg.ext.splice(i, 1); DP.ext.splice(i, 1); DP.extIx.splice(i, 1); DP.extStat = null; dpCommit(false); }
   });
