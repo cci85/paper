@@ -1064,10 +1064,40 @@ const DP_AEH2 = ["活動", "變數", "簡稱", "類型", "窗口天數", "範圍
 const dpAeRows2 = ae => ae.res.flatMap(x => x.scopes.flatMap(sc => sc.st.map((s, j) => [x.r.a.name, x.r.a.v, dpAbNow(x.r.a), x.r.kind === "s" ? "短期" : "長期", x.r.W, sc.nm, DP_AEM[j], s.p, s.q, s.r1, s.lp, s.lq, s.r0, s.rr])));
 const DP_AEH1 = ["變數", "簡稱", "活動名稱", "起日", "迄日", "天數", "類型", "窗口天數", "起日確定", "事前窗口完整", "事後窗口完整", "延續到截止日", "窗口重疊", "地區", "保留"];
 const dpAeRows1 = (c, k) => dpAeScreen(c, k).map(r => [r.a.v, r.a.ab || "", r.a.name, dpFmt(r.a.from), dpFmt(r.a.to), r.days, r.kind === "s" ? "短期" : "長期", r.W, r.exact ? "是" : "否", r.preOK ? "是" : "否", r.postOK ? "是" : "否", r.toEnd ? "是" : "否", r.ov.map(([v, n]) => `${v} ${n} 天`).join("、"), r.cty || "全國", r.keep ? "是" : "否"]);
+// 方法說明：描述性比較各工具在檢查什麼、對應模型中的哪一種變數（文獻依據）
+const DP_AEDOC = `<details class="dpdoc"><summary>方法說明：這些表與圖在檢查什麼、和模型的關係</summary>
+  <p><b>整體流程</b></p>
+  <ul><li>先用描述性比較看活動前後的型態（表一、表二、事件時間圖、分段平均、單日最高）。</li>
+    <li>再用模型估計活動效果（第 4 部分「模型用的事件變數」）。</li>
+    <li>最後依文獻的寫法解讀（「圖形與數據解讀」）。</li></ul>
+  <p>描述性比較沒有控制時間趨勢、季節與其他同時進行的活動，只能看出型態與需要留意之處；活動是否有效果，以模型估計為準。</p>
+  <p><b>表一：只看日期</b></p>
+  <ul><li>檢查：活動天數、起日是否確定、前後窗口是否完整、與其他活動的窗口是否重疊。</li>
+    <li>用途：決定保留哪些活動、分為短期或長期；先決定再看捐款數據，避免依結果挑選活動。</li></ul>
+  <p>窗口重疊時，前後的變化可能混入其他活動；文獻對重疊事件的處理是剔除，或在模型中同時放入各事件的變數（Garthwaite, 2014；Miller, 2023）。</p>
+  <p><b>表二：起日前後各一個平均</b></p>
+  <ul><li>檢查：起日後的每日平均比起日前高或低多少（事後÷事前），以及去年同一段日期是否也有同樣的變化（比值÷去年比值）。</li>
+    <li>對應模型：長期活動的階梯變數 _s（起日後為 1），估計起日後整體水準的變化（Cornelsen et al., 2017；Elberse &amp; Verleun, 2012）。</li></ul>
+  <p>前一年同期（${DP_LY} 天前，星期幾一致）是季節的描述性對照；模型中對應的是季節控制，例如一年中的週別（Garthwaite, 2014）或 52 週的季節項（Elberse &amp; Verleun, 2012）。</p>
+  <p><b>事件時間圖與分段平均：起日前後一段一段看</b></p>
+  <ul><li>檢查：變化發生在哪幾段、是集中在起日附近、持續一段時間，還是逐漸消退；起日前是否已有變化。</li>
+    <li>分段平均的算法：從起日往前、往後，每隔固定天數切成一段（不重疊、不跨越起日），每段算平均每天的捐款；不是移動平均。</li>
+    <li>對應模型：事件時間各期變數（短期活動的 _b、_a），每一段估計一個值（Garthwaite, 2014；Miller, 2023）。把相鄰的期數合成一段，文獻稱為 binning（Miller, 2023）。</li></ul>
+  <p>起日前各段若有明顯起伏，表示活動前捐款本來就在變，前後比較要保守看待；文獻以事前各期是否平穩，檢查是否有既有趨勢或提前反應（Garthwaite, 2014；Miller, 2023）。</p>
+  <p><b>單日最高：變化是否只來自少數幾天</b></p>
+  <ul><li>檢查：窗口內最高的 3 天占該窗口合計的比例。</li>
+    <li>用途：比例很高時，事後÷事前主要由這幾天決定，平均會被拉高。</li></ul>
+  <p>文獻以對數轉換降低少數高值的影響（Garthwaite, 2014 使用對數銷售量）。</p>
+  <p><b>長期活動的其他設定</b></p>
+  <ul><li>起日後天數 _t：起日後成長速度是否改變（Miller, 2023）。</li>
+    <li>結束後 _e、_et：活動結束後是否回落（Sheng &amp; Astvansh, 2026）。</li>
+    <li>所有人同時受影響、又沒有對照單位時，長期活動與年份固定效果完全重疊，因此改以時間趨勢 time 加季節控制（Miller, 2023；Cornelsen et al., 2017）。</li></ul>
+  <p>樣本只含首次交易在樣本起日之後的人時，捐款人數會隨時間累積，事後÷事前會偏高；文獻以每人平均（Cornelsen et al., 2017 以來客數標準化）或對數轉換處理規模的變化。</p>
+</details>`;
 function dpAeView(c, k) {
   if (!k || !dpActs(c).list.length) return "";
   const o = dpAeCfg(c), S = dpAeScreen(c, k), ctys = [...DP_TW], yo = dpAeYopts(c), y = dpAeY(c), cc = dpCtyCols(), YN = (b, warn) => b ? "是" : `<span class="${warn ? "warn" : ""}">否</span>`;
-  let h = `<div class="dpsub"><b>活動初步評估</b>
+  let h = `<div class="dpsub"><b>活動初步評估</b>${DP_AEDOC}
     <p class="hint">分兩段進行。表一只用日期資訊（天數、起日、窗口是否完整、重疊），不看捐款資料，請依此先決定要保留的活動與分類；表二才比較保留活動的 Y，只用於描述，不用來挑選活動。每個活動以起日（對外公開日）為事件日，比較起日前後同樣天數的窗口；前一年同期為 ${DP_LY} 天前的同一段日期（星期幾一致），用來對照季節性。</p>
     <div class="dprow"><label>短期窗口 <input type="number" min="1" step="1" data-dpae="short" value="${o.short}" style="width:5em"> 天</label><label>長期窗口 <input type="number" min="1" step="1" data-dpae="long" value="${o.long}" style="width:5em"> 天</label><label>天數 <input type="number" min="1" step="1" data-dpae="cut" value="${o.cut}" style="width:5em"> 天以內預設為短期</label></div>
     <table class="dptbl"><thead><tr><th>保留</th><th>變數</th><th>簡稱</th><th>活動名稱</th><th>起日</th><th>天數</th><th>類型</th><th>起日確定</th><th>事前窗口</th><th>事後窗口</th><th>延續到截止日</th><th>窗口重疊</th><th>地區</th></tr></thead><tbody>${S.map(r => `<tr>
