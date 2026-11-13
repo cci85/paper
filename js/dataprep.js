@@ -1122,14 +1122,14 @@ function dpAeView(c, k) {
       <td><select data-dpaecty="${esc(r.key)}"><option value="">全國</option>${ctys.map(x => `<option${x === r.cty ? " selected" : ""}>${x}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table>
     <p class="hint">事前、事後窗口「否」表示窗口超出觀察期間（${dpFmt(k.dmin)} 至 ${dpFmt(k.dmax)}），該段不計算。起日落在月初者可能是以年或月登錄的概估日期，查證後再勾選「起日確定」。窗口重疊列出與其他活動窗口重疊的天數（含未保留的活動）。延續到截止日、或長達數年的活動屬於長期結構轉變，以起日前後的變化描述。地區活動（名稱中的縣市會自動判斷）比較該縣市與其他縣市。</p>`;
   const keep = S.filter(r => r.keep);
-  if (!keep.length) return h + `<p class="note">勾選要保留的活動後，可計算表二。</p></div>`;
+  if (!keep.length) return h + `<p class="note">勾選要保留的活動後，可計算活動前後比較。</p></div>`;
   const anyC = keep.some(r => r.cty);
   h += `<div class="dprow"><label>Y1 的金額欄 <select data-dpae="y1">${yo.map(([v, t]) => `<option value="${esc(v)}"${v === y ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></label>
     ${anyC ? `<label>縣市欄 <select data-dpae="ccol">${dpOpt(cc, o.ccol || cc[0] || "", cc.length ? null : "（沒有縣市欄）")}</select></label>` : ""}
-    <button type="button" class="copy" data-dpaerun="1">${DP.ae ? "重新計算表二" : "計算表二（Y 比較）"}</button></div>`;
+    <button type="button" class="copy" data-dpaerun="1">${DP.ae ? "重新計算活動前後比較" : "計算活動前後比較"}</button></div>`;
   const ae = DP.ae;
   if (!ae) return h + `<p class="hint">表二以每日彙總計算：Y1＝當天所有捐款人的金額合計，Y2＝當天有捐款的人數，首次捐款人數＝當天為此人在輸出資料中第一個交易日的人數；沒有交易的日子為 0，事前、事後的值都是窗口內的每日平均。計算需要整理全部資料，按鈕按下後稍候。</p></div>`;
-  if (ae.key !== dpAeStateKey(c, k)) h += `<div class="note warn">設定或資料已變更，請按「重新計算表二」。</div>`;
+  if (ae.key !== dpAeStateKey(c, k)) h += `<div class="note warn">設定或資料已變更，請按「重新計算活動前後比較」。</div>`;
   if (anyC && !ae.ccol) h += `<div class="note warn">沒有可用的縣市欄，地區活動無法分縣市比較。</div>`;
   h += `<p class="hint">Y1＝${esc(ae.ylab)}的每日合計；比值大於 1 表示事後高於事前。「比值÷去年比值」扣除季節性：大於 1 表示今年起日前後的變化大於去年同一段日期。樣本只含首次交易在起日之後的人時，捐款人數會隨時間累積，事後÷事前會因此偏高，窗口越長越明顯，請一併看去年比值。「—」表示窗口超出觀察期間或事前為 0。</p>
     <table class="dptbl"><thead><tr>${DP_AEH2.slice(1).map(x => `<th>${x}</th>`).join("")}</tr></thead><tbody>${dpAeRows2(ae).map(r => `<tr><td>${r[1]}</td><td>${esc(r[2])}</td><td>${r[3]}</td><td class="r">${r[4]}</td><td>${esc(r[5])}</td><td>${r[6]}</td>${r.slice(7).map((v, i) => `<td class="r">${dpAeF(v, [2, 5, 6].includes(i) ? 2 : 1)}</td>`).join("")}</tr>`).join("")}</tbody></table>
@@ -1139,7 +1139,7 @@ function dpAeView(c, k) {
   ae.res.forEach(x => x.scopes.forEach((sc, si) => { const it = si === x.scopes.length - 1 ? IT[x.r.a.v] : "";
     h += `<div class="dpaebox"><b>${x.r.a.v}${dpAbNow(x.r.a) ? " " + esc(dpAbNow(x.r.a)) : ""}｜${esc(x.r.a.name)}</b>　<small>${dpFmt(x.r.a.from)} 起，${x.r.kind === "s" ? "短期" : "長期"}，前後各 ${x.r.W} 天；${esc(sc.nm)}</small>${dpAeChart(sc, x.r.W, x.step, +o.cy)}${it ? `<div class="note dpaeint">${esc(it)}</div>` : ""}</div>`; }));
   h += `<div class="dpsub"><b>圖形與數據解讀</b>
-    <p class="hint">分兩步。① 按「複製文獻寫法 Prompt」，貼到已上傳事件效果文獻的 NotebookLM 對話，請它整理文獻如何解讀事件時間圖與事件前後的比較，回覆貼到第一個欄位。② 按「複製解讀 Prompt」，貼到一般 AI（Claude、ChatGPT、Gemini）；Prompt 已含表二與各活動前後的數據，並要求依 ① 的文獻寫法解讀。AI 的回覆貼到第二個欄位，各活動的解讀會顯示在對應的圖下方，並存入研究存檔。設定或資料變更後請重新計算表二，再重新產生解讀。</p>
+    <p class="hint">分兩步。① 按「複製文獻寫法 Prompt」，貼到已上傳事件效果文獻的 NotebookLM 對話，請它整理文獻如何解讀事件時間圖與事件前後的比較，回覆貼到第一個欄位。② 按「複製解讀 Prompt」，貼到一般 AI（Claude、ChatGPT、Gemini）；Prompt 已含表二與各活動前後的數據，並要求依 ① 的文獻寫法解讀。AI 的回覆貼到第二個欄位，各活動的解讀會顯示在對應的圖下方，並存入研究存檔。設定或資料變更後請重新計算活動前後比較，再重新產生解讀。</p>
     <p><button type="button" data-dpcopy="aelit">① 複製文獻寫法 Prompt（貼到 NotebookLM）</button> <span class="hint" id="dpcopymsg3"></span></p>
     <textarea data-dp="aeLit" class="mono" style="min-height:72px" placeholder="NotebookLM 的回覆貼在這裡">${esc(c.aeLit || "")}</textarea>
     <p><button type="button" data-dpcopy="aeint"${String(c.aeLit || "").trim() ? "" : " disabled"}>② 複製解讀 Prompt（貼到一般 AI）</button> <span class="hint" id="dpcopymsg2">${String(c.aeLit || "").trim() ? "" : "請先貼上 ① 的回覆。"}</span></p>
@@ -1367,7 +1367,7 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
     else if (b.dataset.dpcopy === "aelit") { const m = document.getElementById("dpcopymsg3");
       navigator.clipboard.writeText(DP_AELIT).then(() => { if (m) m.textContent = "已複製；貼到 NotebookLM。"; }, () => { if (m) m.textContent = "無法複製，請改用 Chrome。"; }); }
     else if (b.dataset.dpcopy === "aeint") { const m = document.getElementById("dpcopymsg2"), t = DP.ae ? dpAeIntPrompt(DP.cfg, DP.ae) : "";
-      if (!t) { if (m) m.textContent = "請先計算表二。"; } else navigator.clipboard.writeText(t).then(() => { if (m) m.textContent = "已複製；貼到一般 AI。"; }, () => { if (m) m.textContent = "無法複製，請改用 Chrome。"; }); }
+      if (!t) { if (m) m.textContent = "請先計算活動前後比較。"; } else navigator.clipboard.writeText(t).then(() => { if (m) m.textContent = "已複製；貼到一般 AI。"; }, () => { if (m) m.textContent = "無法複製，請改用 Chrome。"; }); }
     else if (b.dataset.dpextadd) { (DP.cfg.ext ||= []).push({ src: "", url: "", got: "", use: [], vars: {}, wv: "x" }); dpCommit(false); }
     else if (b.dataset.dpextdel != null) { const i = +b.dataset.dpextdel; DP.cfg.ext.splice(i, 1); DP.ext.splice(i, 1); DP.extIx.splice(i, 1); DP.extStat = null; dpCommit(false); }
   });
