@@ -210,7 +210,7 @@ function dpCheck(cfg) {
   let dmin = Infinity, dmax = -Infinity; for (let i = 0; i < k; i++) { if (rDay[i] < dmin) dmin = rDay[i]; if (rDay[i] > dmax) dmax = rDay[i]; }
   const take = H.filter(h => cfg.roles[h] === "take"), tci = take.map(col), conf = {};
   const ids = new Set(); for (let i = 0; i < k; i++) ids.add(dpKey(DP.rows[rIdx[i]][ic]));
-  ["day", "month", "year", "person"].forEach(lv => {
+  ["day"].forEach(lv => {
     const g = new Map(), cnt = take.map(() => 0), ex = take.map(() => []); let groups = 0, multi = 0;
     for (let i = 0; i < k; i++) {
       const r = DP.rows[rIdx[i]], key = dpKey(r[ic]) + "\u0001" + dpPer(lv, rDay[i]);
@@ -224,7 +224,7 @@ function dpCheck(cfg) {
   const want = new Map(); Object.entries(conf).forEach(([lv, o]) => Object.entries(o.cols).forEach(([h, x]) => x.ex.forEach(key => want.set(lv + "\u0002" + h + "\u0002" + key, new Map()))));
   if (want.size) for (let i = 0; i < k; i++) {
     const r = DP.rows[rIdx[i]], id = dpKey(r[ic]);
-    ["day", "month", "year", "person"].forEach(lv => take.forEach((h, j) => { const m = want.get(lv + "\u0002" + h + "\u0002" + id + "\u0001" + dpPer(lv, rDay[i])); if (m && r[tci[j]] != null) m.set(r[tci[j]], (m.get(r[tci[j]]) || 0) + 1); }));
+    ["day"].forEach(lv => take.forEach((h, j) => { const m = want.get(lv + "\u0002" + h + "\u0002" + id + "\u0001" + dpPer(lv, rDay[i])); if (m && r[tci[j]] != null) m.set(r[tci[j]], (m.get(r[tci[j]]) || 0) + 1); }));
   }
   Object.entries(conf).forEach(([lv, o]) => Object.entries(o.cols).forEach(([h, x]) => { x.ex = x.ex.map(key => { const [id, p] = key.split("\u0001"); return { id, per: dpPerTxt(lv, +p), vals: [...want.get(lv + "\u0002" + h + "\u0002" + key)] }; }); }));
   return { rows: n, k, rIdx, rDay, bad, ymdBad, totBad, nonNum, dmin, dmax, ids: ids.size, take, conf };
@@ -237,7 +237,7 @@ function dpPivotVals(cfg, chk) {
   return [...m].map(([v, e]) => ({ v, n: e.n, s: e.s })).sort((a, b) => b.n - a.n);
 }
 // 尚未選擇處理方式、但在用到的層級有不一致的文字欄位
-const dpLevels = cfg => [...new Set(["day", cfg.agg, cfg.wide])];
+const dpLevels = () => ["day"];   // 只輸出一人一日（寬格式）
 const dpNeed = (cfg, chk) => chk.take.filter(h => cfg.roles[h] === "take" && dpLevels(cfg).some(lv => chk.conf[lv].cols[h].n) && !cfg.res[h]);
 // 展開後的欄名：依合併設定的順序；全部是「名稱＋編號」（例如 money1–money5）時依編號排列
 const dpTargets = cfg => { const t = new Set(); Object.values(cfg.pmap || {}).forEach(x => { x = (x || "").trim(); if (x) t.add(x); }); const a = [...t]; return a.every(x => /\d$/.test(x)) ? a.sort(dpCmp) : a; };
@@ -305,7 +305,6 @@ function dpLogLines(cfg, chk) {
   L.push("欄位處理：" + DP.head.filter(h => cfg.roles[h]).map(h => `${h}＝${cfg.roles[h] === "take" ? (cfg.res[h] ? DP_RES.find(x => x[0] === cfg.res[h])[1] : "取值（無不一致）") : DP_ROLE[cfg.roles[h]]}${cfg.flag[h] ? "＋不一致旗標" : ""}`).join("；"));
   dpLevels(cfg).forEach(lv => { const o = chk.conf[lv], c = Object.entries(o.cols).filter(([h, x]) => x.n && cfg.roles[h] === "take");
     L.push(`${DP_LV[lv]}：${fmtN(o.groups)} 筆（含多筆交易者 ${fmtN(o.multi)} 筆）${c.length ? "；不一致：" + c.map(([h, x]) => `${h} ${fmtN(x.n)} 筆`).join("、") : ""}`); });
-  L.push(`加總資料：${DP_LV[cfg.agg]}；寬格式：${DP_LV[cfg.wide]}`);
   if (cfg.pcol) { const tg = dpTargets(cfg);
     L.push(`寬格式展開：${cfg.pcol} 的各個值 → ${cfg.pval ? cfg.pval + " 加總" : "筆數"}；` + tg.map(t => `${t}＝${Object.keys(cfg.pmap).filter(v => (cfg.pmap[v] || "").trim() === t).map(v => v || "（空白）").join("＋")}`).join("；"));
     const skip = Object.keys(cfg.pmap).filter(v => !(cfg.pmap[v] || "").trim()); if (skip.length) L.push(`未納入寬格式：${skip.map(v => v || "（空白）").join("、")}`); }
@@ -445,9 +444,9 @@ function dpView() {
       <select data-dp="y">${dpOpt(H, c.y, "年")}</select><select data-dp="m">${dpOpt(H, c.m, "月")}</select><select data-dp="d">${dpOpt(H, c.d, "日")}</select>
       ${c.dmode === "one" && c.y && c.m && c.d ? `<label class="chip"><input type="checkbox" data-dp="ychk"${c.ychk ? " checked" : ""}>以年、月、日三欄核對日期</label>` : ""}</div>
     <p class="hint">日期可以是 Excel 日期序號（例如 45943＝2025/10/13）、日期格式的儲存格、20251013、114/10/13 或 2025/10/13；年份小於 1000 視為民國年。</p>
-    <table class="dptbl"><thead><tr><th>欄位</th><th>型態</th><th>前幾個值</th><th>合併同一人同一期間的多筆時</th></tr></thead><tbody>${H.map((x, i) => `<tr${keys.has(x) ? ' class="key"' : ""}><td>${esc(x)}</td><td>${kindT[K[i]]}</td><td class="ex">${esc(ex(i))}</td><td>${keys.has(x) ? (x === c.id ? "個人代碼" : c.dmode === "one" && x !== c.dcol ? "核對日期用" : "日期") :
+    <table class="dptbl"><thead><tr><th>欄位</th><th>型態</th><th>前幾個值</th><th>同一人同一天有多筆時的計算方式</th></tr></thead><tbody>${H.map((x, i) => `<tr${keys.has(x) ? ' class="key"' : ""}><td>${esc(x)}</td><td>${kindT[K[i]]}</td><td class="ex">${esc(ex(i))}</td><td>${keys.has(x) ? (x === c.id ? "個人代碼" : c.dmode === "one" && x !== c.dcol ? "核對日期用" : "日期") :
       `<select data-dprole="${esc(x)}">${Object.entries(DP_ROLE).filter(([r]) => K[i] === "text" ? ["take", "drop"].includes(r) : true).map(([r, t]) => `<option value="${r}"${c.roles[x] === r ? " selected" : ""}>${t}</option>`).join("")}</select>`}</td></tr>`).join("")}</tbody></table>
-    <p class="hint">預設值只是建議：數值欄預設加總；每人固定不變的欄位（例如首次捐款日）與文字欄預設「取值」，同一期間出現不同的值時會示警，由你選擇處理方式；看起來像單號的欄位預設不輸出。</p>
+    <p class="hint">輸出為一人一日一筆：同一人同一天有多筆交易時，數值欄依這裡的設定加總、平均或取最大、最小值。預設值只是建議：數值欄預設加總；每人固定不變的欄位（例如首次捐款日）與文字欄預設「取值」，同一期間出現不同的值時會示警，由你選擇處理方式；看起來像單號的欄位預設不輸出。</p>
     <details class="dpsub"${c.tot ? " open" : ""}><summary>總額核對（選用）</summary><p class="hint">原始資料已有總額與細項（例如 mtotal 與 money1–money5）時，逐列核對總額是否等於細項合計，不一致時示警。</p>
       <label>總額欄 <select data-dp="tot">${dpOpt(numH, c.tot, "（不核對）")}</select></label>
       ${c.tot ? `<div class="chips">${numH.filter(x => x !== c.tot).map(x => `<label class="chip"><input type="checkbox" data-dppart="${esc(x)}"${c.parts.includes(x) ? " checked" : ""}>${esc(x)}</label>`).join("")}</div>` : ""}</details>
@@ -460,29 +459,27 @@ function dpView() {
   if (k.ymdBad.length) w.push(`${c.dcol} 與年、月、日三欄不一致 ${dpN(k.ymdBad.length)} 列（以 ${c.dcol} 為準），例：` + k.ymdBad.slice(0, 3).map(([i, a, b]) => `第 ${i + 2} 列 ${dpFmt(a)}／${b == null ? "無效日期" : dpFmt(b)}`).join("；"));
   if (k.totBad.length) w.push(`${c.tot} 不等於細項合計 ${dpN(k.totBad.length)} 列，例：` + k.totBad.slice(0, 3).map(([i, t, s]) => `第 ${i + 2} 列 ${dpN(t)}／${dpN(s)}`).join("；"));
   Object.entries(k.nonNum).forEach(([x, n]) => w.push(`${x} 有 ${dpN(n)} 個非數值的內容，計算時視為空白`));
-  const lvRadio = (key, opts) => `<span class="chips">${opts.map(l => `<label class="chip"><input type="radio" name="dp${key}" data-dp="${key}" value="${l}"${c[key] === l ? " checked" : ""}>${DP_LV[l]}</label>`).join("")}</span>`;
   h += `<fieldset class="struct"><legend>3. 檢查結果與處理方式</legend>
     <p>納入 ${dpN(k.k)} 列交易、${dpN(k.ids)} 人，期間 ${dpFmt(k.dmin)} 至 ${dpFmt(k.dmax)}；一人一日 ${dpN(k.conf.day.groups)} 筆，其中 ${dpN(k.conf.day.multi)} 筆由同一天的多筆交易合併。</p>
     ${w.length ? `<div class="note warn">${w.map(esc).join("\n")}</div>` : `<p class="hint">代碼與日期都沒有問題。</p>`}
-    <div class="dprow"><span>加總資料</span>${lvRadio("agg", ["person", "year", "month"])}</div>
-    <div class="dprow"><span>寬格式</span>${lvRadio("wide", ["day", "month", "year", "person"])}</div>`;
+`;
   // 寬格式：展開文字欄的各個值
   const textH = H.filter((x, i) => K[i] === "text" && !keys.has(x));
-  h += `<div class="dpsub"><b>寬格式展開</b><div class="dprow"><label>展開欄位 <select data-dp="pcol">${dpOpt(textH, c.pcol, "（不展開）")}</select></label>
+  h += `<div class="dpsub"><b>寬格式展開（選用）</b><div class="dprow"><label>展開欄位 <select data-dp="pcol">${dpOpt(textH, c.pcol, "（不展開）")}</select></label>
       ${c.pcol ? `<label>數值 <select data-dp="pval">${dpOpt(numH.filter(x => !keys.has(x)), c.pval, "（只計筆數）")}</select></label><label class="chip"><input type="checkbox" data-dp="pcnt"${c.pcnt ? " checked" : ""}>同時輸出各欄的交易筆數</label>` : ""}</div>`;
   if (c.pcol) {
     const pv = DP.pv || [];
-    h += `<p class="hint">每個值展開成一欄，內容為該期間${c.pval ? ` ${esc(c.pval)} 的加總` : "的筆數"}。要合併的值填相同的欄名（例如「長照基金50」填「長照基金」）；欄名留白則不納入寬格式。欄名全部以數字結尾（例如 money1–money5）時依編號排列，否則依下表順序。</p>
+    h += `<p class="hint">每個值展開成一欄，內容為當天${c.pval ? ` ${esc(c.pval)} 的加總` : "的筆數"}。要合併的值填相同的欄名（例如「長照基金50」填「長照基金」）；欄名留白則不納入寬格式。欄名全部以數字結尾（例如 money1–money5）時依編號排列，否則依下表順序。</p>
       <table class="dptbl"><thead><tr><th>${esc(c.pcol)} 的值</th><th>筆數</th>${c.pval ? `<th>${esc(c.pval)} 合計</th>` : ""}<th>寬格式欄名<br><small>要合併的值填相同名稱；留白則不納入</small></th></tr></thead><tbody>${pv.map(x => `<tr><td>${esc(x.v || "（空白）")}</td><td class="r">${dpN(x.n)}</td>${c.pval ? `<td class="r">${dpN(x.s)}</td>` : ""}<td><input type="text" data-dpmap="${esc(x.v)}" value="${esc((c.pmap || {})[x.v] ?? "")}"></td></tr>`).join("")}</tbody></table>
       <p class="hint" id="dptg">展開後的欄位：${esc(dpTargets(c).join("、") || "（無）")}</p>`;
   }
   h += `</div>`;
   // 不一致的文字欄位
   const lvs = dpLevels(c), cc = k.take.filter(x => c.roles[x] === "take" && lvs.some(lv => k.conf[lv].cols[x].n));
-  h += `<div class="dpsub"><b>同一期間的值不一致</b>` + (!cc.length ? `<p class="hint">設為「取值」的欄位，在用到的層級（${lvs.map(l => DP_LV[l]).join("、")}）都沒有不一致。</p>` :
-    `<p class="hint">以下欄位在同一人同一期間出現不同的值，請逐一選擇處理方式（空白不列入比較）；選好之後才能輸出。同一欄的處理方式套用到所有輸出。</p>` + cc.map(x => {
-      const exs = lvs.flatMap(lv => k.conf[lv].cols[x].ex.slice(0, lv === "day" ? 3 : 2).map(e => `${e.id}｜${e.per}：${e.vals.map(([v, n]) => `${K[H.indexOf(x)] === "date" && typeof v === "number" ? dpFmt(v) : v} ×${n}`).join("、")}`));
-      return `<div class="dpconf${c.res[x] ? "" : " todo"}"><div><b>${esc(x)}</b>　${lvs.map(lv => `${DP_LV[lv]} ${dpN(k.conf[lv].cols[x].n)} 筆`).join("、")}</div>
+  h += `<div class="dpsub"><b>同一天的值不一致</b>` + (!cc.length ? `<p class="hint">設為「取值」的欄位，同一人同一天的值都一致。</p>` :
+    `<p class="hint">以下欄位在同一人同一天出現不同的值，請逐一選擇處理方式（空白不列入比較）；選好之後才能輸出。</p>` + cc.map(x => {
+      const exs = lvs.flatMap(lv => k.conf[lv].cols[x].ex.slice(0, 5).map(e => `${e.id}｜${e.per}：${e.vals.map(([v, n]) => `${K[H.indexOf(x)] === "date" && typeof v === "number" ? dpFmt(v) : v} ×${n}`).join("、")}`));
+      return `<div class="dpconf${c.res[x] ? "" : " todo"}"><div><b>${esc(x)}</b>　${dpN(k.conf.day.cols[x].n)} 個人日不一致</div>
         <div class="ex">${exs.map(esc).join("<br>")}</div>
         <div class="chips">${DP_RES.map(([r, t]) => `<label class="chip"><input type="radio" name="dpres-${esc(x)}" data-dpres="${esc(x)}" value="${r}"${c.res[x] === r ? " checked" : ""}>${t}</label>`).join("")}
         <label class="chip"><input type="checkbox" data-dpflag="${esc(x)}"${c.flag[x] ? " checked" : ""}>另加「${esc(x)}_conflict」旗標欄（0／1）</label></div></div>`;
@@ -491,11 +488,9 @@ function dpView() {
   const need = dpNeed(c, k);
   h += `<fieldset class="struct"><legend>4. 輸出</legend>`;
   if (need.length) h += `<div class="note warn">請先在上方選擇這些欄位的處理方式：${need.map(esc).join("、")}</div>`;
-  h += `<p class="hint">Excel 檔含「一人一日」「加總（${DP_LV[c.agg]}）」「寬格式（${DP_LV[c.wide]}）」「處理紀錄」「檢查明細」五個工作表；日期欄為 Excel 日期格式。CSV 為 UTF-8（含 BOM），Excel 可直接開啟，Stata、R、SPSS 也能讀取。每列含 n_tx（合併的交易筆數）；加總資料另含 n_days（有交易的日數），一人一筆時另含 first_date、last_date。只輸出有交易的期間，沒有交易的期間不補列。已開啟研究資料夾時，檔案直接存進該資料夾（檔名前加研究名稱）；沒有開啟時下載到瀏覽器的下載資料夾。</p>
-    <p class="dpbtns"><button type="button" class="copy" data-dpout="xlsx"${need.length ? " disabled" : ""}>下載 Excel（全部工作表）</button>
-    <button type="button" data-dpout="day"${need.length ? " disabled" : ""}>CSV：一人一日</button>
-    <button type="button" data-dpout="agg"${need.length ? " disabled" : ""}>CSV：加總（${DP_LV[c.agg]}）</button>
-    <button type="button" data-dpout="wide"${need.length ? " disabled" : ""}>CSV：寬格式（${DP_LV[c.wide]}）</button></p>
+  h += `<p class="hint">輸出一人一日一筆的寬格式資料：每列含 id、date（Excel 日期格式）、year、month、day、n_tx（當天合併的交易筆數）、各欄位依上方設定計算的值${c.pcol ? "，以及展開後的欄位" : ""}。只輸出有交易的日子，沒有交易的日子不補列。Excel 檔另含「處理紀錄」與「檢查明細」工作表；CSV 為 UTF-8（含 BOM），Excel、Stata、R、SPSS 都能讀取。已開啟研究資料夾時，檔案直接存進該資料夾（檔名前加研究名稱）；沒有開啟時下載到瀏覽器的下載資料夾。</p>
+    <p class="dpbtns"><button type="button" class="copy" data-dpout="xlsx"${need.length ? " disabled" : ""}>下載 Excel</button>
+    <button type="button" data-dpout="wide"${need.length ? " disabled" : ""}>下載 CSV</button></p>
     ${RT() === "model" ? `<p class="hint">0.2「資料結構與估計目標」的觀察單位、時間與資料欄位留白時，會自動帶入這裡的處理結果。</p>` : ""}</fieldset></div>`;
   return h;
 }
@@ -546,9 +541,9 @@ async function dpOutput(what) {
   const c = DP.cfg, k = DP.chk; if (!k || dpNeed(c, k).length) return;
   DP.err = ""; DP.msg = ""; dpBusy("整理資料中…"); await dpTick();
   try {
-    const day = () => dpBuild(c, k, "day", false), agg = () => dpBuild(c, k, c.agg, false), wide = () => dpBuild(c, k, c.wide, true);
+    const wide = () => dpBuild(c, k, "day", true);
     if (what === "xlsx") {
-      const sh = [{ name: "一人一日", ...day() }, { name: `加總（${DP_LV[c.agg].replace(/（.*）/, "")}）`, ...agg() }, { name: `寬格式（${DP_LV[c.wide].replace(/（.*）/, "")}）`, ...wide() }];
+      const sh = [{ name: "一人一日", ...wide() }];
       const big = sh.filter(x => x.rows.length > DP_XLS_MAX);
       const det = dpDetailRows(c, k);
       sh.push({ name: "處理紀錄", head: ["處理紀錄"], rows: dpLogLines(c, k).map(x => [x]), dateCol: new Set() }, { name: "檢查明細", head: det[0], rows: det.slice(1), dateCol: new Set() });
@@ -557,8 +552,7 @@ async function dpOutput(what) {
       await dpSaveFile(blob, `${dpBase()}_處理後.xlsx`);
       if (big.length) DP.err = `${big.map(x => x.name).join("、")} 超過 Excel 的 1,048,576 列上限，未放入 Excel 檔，請改下載 CSV。`;
     } else {
-      const t = what === "day" ? day() : what === "agg" ? agg() : wide();
-      await dpSaveFile(dpCSV(t), `${dpBase()}_${what === "day" ? "一人一日" : what === "agg" ? "加總_" + dpLvShort[c.agg] : "寬格式_" + dpLvShort[c.wide]}.csv`);
+      await dpSaveFile(dpCSV(wide()), `${dpBase()}_一人一日.csv`);
     }
   } catch (e) { DP.err = "輸出失敗：" + (e && e.message || e); }
   dpBusy(""); update();
@@ -578,7 +572,6 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
       return dpCommit(t.value === "take" && was !== "take" && !(DP.chk && DP.chk.take.includes(d.dprole))); }   // 改成「取值」且先前沒檢查過不一致時，需要重新檢查
     if (d.dp === "tot") { c.tot = t.value || null; c.parts = []; return dpCommit(true); }
     if (d.dppart != null) { c.parts = t.checked ? [...new Set([...c.parts, d.dppart])] : c.parts.filter(x => x !== d.dppart); return dpCommit(true); }
-    if (d.dp === "agg" || d.dp === "wide") { c[d.dp] = t.value; return dpCommit(false); }
     if (d.dp === "pcol") { c.pcol = t.value || null; if (c.pcol && c.roles[c.pcol] === "take") c.roles[c.pcol] = "drop"; dpPivotInit(); return dpCommit(false); }
     if (d.dp === "pval") { c.pval = t.value || null; DP.pv = DP.chk ? dpPivotVals(c, DP.chk) : null; return dpCommit(false); }
     if (d.dp === "pcnt") { c.pcnt = t.checked; return dpCommit(false); }
