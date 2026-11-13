@@ -277,6 +277,7 @@ function dpBuild(cfg, chk, lv, pivot) {
   take.forEach(o => { if (DP.kind[o.c] === "date" && cfg.res[o.h] !== "uniq" && cfg.res[o.h] !== "all") dateCol.add(head.length); head.push(o.h); });
   const flags = take.filter(o => cfg.flag[o.h]); flags.forEach(o => head.push(o.h + "_conflict"));
   tg.forEach(t => head.push(t)); if (cfg.pcnt) tg.forEach(t => head.push(t + "_n"));
+  const seen = new Set(); head.forEach((h, i) => { let x = h; while (seen.has(x)) x += "_原"; seen.add(x); head[i] = x; });   // 與產生的欄名（date、year…）同名時加「_原」
   const rows = [...g.values()].sort((a, b) => dpCmp(a.id, b.id) || a.p - b.p).map(e => {
     const row = [e.idv];
     if (lv === "day") { const [y, m, d] = dpYMD(e.p); row.push(e.p, y, m, d); }
