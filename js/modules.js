@@ -647,10 +647,17 @@ const DEFS = {
       { id: "cf_q", type: "textarea", below: true, label: "追問選定的架構", hint: "按「選這個」後，選定的架構會取代上方「我的草圖」；可先在草圖上修改（加減變數、改箭頭），再寫下想追問的問題，Prompt 會以草圖目前的架構為準", rows: 3,
         placeholder: "例如：個人成長放在知覺歸屬感之前是否有理論依據？\n加入數位素養作為調節變數是否合適？", when: () => !blank(store.values.cf_text) },
       { id: "cf_qp", type: "promptbox", below: true, label: "追問 Prompt", when: () => !blank(store.values.cf_text),
-        hint: "貼到候選架構所用的同一個 NotebookLM 對話；若 AI 建議調整架構，回覆最後會列出調整後的完整架構",
+        hint: "貼到候選架構所用的同一個 NotebookLM 對話；若 AI 建議調整架構，回覆最後會從「候選架構二」開始列出調整後的完整架構。複製時會記下草圖目前的架構，作為下方的「候選架構一（修改後草圖）」",
         copyLabel: "複製追問 Prompt（貼到 NotebookLM 同一個對話）", empty: "（請先寫下想追問的問題）",
+        onCopy: () => { store.values.cf_qarch = sketchText(); },
         build: p => blank(p.cf_q) || !sketchText() ? "" : T.ask_follow({ arch: sketchText(), q: p.cf_q.trim() }) + citeText() },
-      { id: "cf_qreply", type: "textarea", below: true, label: "追問的 AI 回覆", hint: "貼上後會存入研究存檔；回覆中若有「## 候選架構一」，可以把它整段貼到上方「候選架構的 AI 回覆」最後面，再按「選這個」", rows: 5, when: () => !blank(store.values.cf_text) },
+      { id: "cf_qreply", type: "textarea", below: true, label: "追問的 AI 回覆", hint: "只保留最新一輪：再次追問時，按「編輯」換成新的回覆", rows: 5, when: () => !blank(store.values.cf_text),
+        fold: p => qReplyView(p.cf_qreply) },
+      { id: "cf_qview", type: "cands", below: true, label: "追問後的候選架構", hint: "候選架構一是送出追問時的草圖；二、三……是 AI 追問後建議的架構。按「選這個」會更新「選定的研究架構」並取代「我的草圖」，可再追問下一輪",
+        when: p => !blank(store.values.cf_text) && !blank(p.cf_qreply), render: p => renderQCands(p), choose: i => chooseQCand(i) },
+      { id: "cf_qfix", type: "promptbox", below: true, label: "補列調整後的架構", when: p => !blank(store.values.cf_text) && !blank(p.cf_qreply) && !parseCands(deLatex(p.cf_qreply)).length,
+        hint: "回覆中沒有調整後的完整架構，網頁無法畫出。若 AI 在回覆中建議了調整（例如增減變數、改變路徑），複製這段貼到同一個對話，再把新的回覆接在原回覆後面",
+        copyLabel: "複製補列 Prompt（貼到 NotebookLM 同一個對話）", build: () => T.ask_follow_fix() },
       { id: "cf_sync", type: "button", below: true, label: "以草圖更新選定的架構", hint: "在草圖上修改後按這裡，「選定的研究架構」與 0.3 檢核會改用草圖的版本", when: () => !blank(store.values.cf_text),
         run: () => sketchToFinal() }
     ],
@@ -1729,7 +1736,40 @@ function chooseCand(i) {
   const c = parseCands(store.values.cf_reply)[i]; if (!c) return;
   store.values.cf_text = candText(c.A); store.values.cf_sel = i; store.values.cf_title = c.title;
   const d = dgData("fin_diag"); d.sig = null; d.pos = {};
+  store.values.cf_qsel = -1;
   applyToSketch(c.A, true);   // 選定的架構同時取代「我的草圖」，可在草圖上修改後追問
+}
+// 追問的 AI 回覆：整理後的閱讀檢視（候選架構各節改畫成下方的卡片，不重複列出）
+function qReplyView(text) {
+  const t = deLatex(String(text || "")), i = t.search(/^#{1,2}\s*候選架構/m), body = i >= 0 ? t.slice(0, i) : t;
+  return `<div class="sview mdv">${mdView(body) || `<p class="hint">（回覆只有調整後的架構）</p>`}${i >= 0 ? `<p class="note">調整後的架構畫在下方「追問後的候選架構」。</p>` : ""}</div>`;
+}
+// 追問後的候選架構：一＝送出追問時的草圖，二、三……＝回覆中的架構
+const qSig = () => String((store.values.cf_qreply || "").length) + "|" + (store.values.cf_qreply || "").slice(0, 80);
+function qCands() {
+  const v = store.values, base = parseArch(v.cf_qarch || sketchText());
+  const one = base.vars.length ? [{ title: "候選架構一（修改後草圖）", A: base, reason: "", fresh: [] }] : [];
+  const zh = "一二三四五六七八九十";   // AI 的架構依序編為二、三……（即使回覆中編為一）
+  return one.concat(parseCands(deLatex(v.cf_qreply)).map((c, k) => ({ ...c, title: c.title.replace(/^候選架構[一二三四五六七八九十]+/, "候選架構" + (zh[k + one.length] || k + one.length + 1)) })));
+}
+function renderQCands() {
+  const v = store.values, cs = qCands();
+  return cs.map((c, i) => {
+    const d = { pos: {}, edges: c.A.edges.map(({ from, to }) => ({ from, to })), mods: c.A.mods.map(({ from, edge }) => ({ from, edge })) };
+    dgAutoPos(c.A.vars, d.pos, true);
+    const on = v.cf_qsel === i && v.cf_qsig === qSig() && !blank(v.cf_text);
+    return `<div class="cand${on ? " on" : ""}"><div class="cand-head"><b>${esc(c.title)}</b><button type="button" class="copy" data-cand="${i}" data-cf="cf_qview">${on ? "已選定 ✓" : "選這個"}</button></div>
+      <div class="cand-svg">${dgSvg(c.A.vars, d, null, false)}</div>
+      ${c.fresh.length ? `<p class="hint">新增變數：${esc(c.fresh.join("、"))}</p>` : ""}
+      ${c.reason ? `<details><summary>理由與文獻支持</summary><div class="cand-reason">${esc(c.reason)}</div></details>` : ""}</div>`;
+  }).join("") + (cs.length < 2 ? `<p class="hint" style="grid-column:1/-1;margin:0">回覆中沒有調整後的架構（AI 可能認為不需要調整）；需要時可用下方的補列 Prompt。</p>` : "");
+}
+function chooseQCand(i) {
+  const c = qCands()[i]; if (!c) return;
+  const v = store.values;
+  v.cf_text = candText(c.A); v.cf_title = c.title; v.cf_sel = -1; v.cf_qsel = i; v.cf_qsig = qSig();
+  const d = dgData("fin_diag"); d.sig = null; d.pos = {};
+  applyToSketch(c.A, true);
 }
 // 草圖修改後，更新選定的研究架構（0.3 檢核取用）
 function sketchToFinal() {
@@ -1737,7 +1777,7 @@ function sketchToFinal() {
   const v = store.values, old = parseArch(v.cf_text || ""), nm = k => dgLabel((old.vars.find(x => x.key === k) || { name: k }).name)[0];
   const dir = {}; old.edges.forEach(e => { if (e.dir) dir[nm(e.from) + "→" + nm(e.to)] = e.dir; });   // 保留原本標示的方向
   t = t.replace(/^(H\d+｜)(.+?) → (.+?)｜未標示$/gm, (all, h, a, b) => dir[a + "→" + b] ? `${h}${a} → ${b}｜${dir[a + "→" + b]}` : all);
-  v.cf_text = t; v.cf_sel = -1; v.cf_title = (v.cf_title || "候選架構").replace(/（依草圖修改）$/, "") + "（依草圖修改）";
+  v.cf_text = t; v.cf_sel = -1; v.cf_qsel = -1; v.cf_title = (v.cf_title || "候選架構").replace(/（依草圖修改）$/, "") + "（依草圖修改）";
   const d = dgData("fin_diag"); d.sig = null; d.pos = {};
   return "已依草圖更新選定的研究架構。";
 }

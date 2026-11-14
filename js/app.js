@@ -4,6 +4,7 @@ const blank = s => !s || !String(s).trim();
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 const KEY = "research-prompts-v3";
+const FOLD_OPEN = {};   // 收合欄位目前是否展開編輯（不存檔）
 let store = { values: {}, rules: {}, replies: {}, name: "", sec: "s0-1", step: {} };
 try { Object.assign(store, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch {}
 // 沿用舊版已填的欄位與規則勾選
@@ -164,6 +165,11 @@ function renderPane() {
       <details><summary>展開 Prompt</summary><pre class="pboxpre" id="pbox-${f.id}"></pre></details></div>`;
     if (f.type === "textarea" && f.reseed) return lab + `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px" placeholder="${esc(f.placeholder || "")}">${esc(p[f.id])}</textarea>` +
       `<p class="hint seedrow"><button type="button" data-reseed="field" data-jump="${esc(f.reseed.jump || "")}">重新帶入</button> ${esc(f.reseed.note || "")}<span class="seedmsg"></span></p>`;
+    if (f.type === "textarea" && f.fold && !blank(p[f.id])) {   // fold：有內容時收合文字框，只顯示整理後的閱讀檢視
+      const open = !!FOLD_OPEN[f.id];
+      return lab + `<p class="hint seedrow"><button type="button" data-fold="${f.id}">${open ? "收合" : "編輯"}</button> ${open ? "修改或換成新的回覆後，按「收合」" : "要修改或換成新的回覆時，按「編輯」"}</p>` +
+        (open ? `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px">${esc(p[f.id])}</textarea>` : "") + `<div id="fold-${f.id}">${f.fold(p)}</div>`;
+    }
     if (f.type === "textarea") return lab + `<textarea data-f="${f.id}" class="${f.mono ? "mono" : ""}" style="min-height:${(f.rows || 4) * 24}px" placeholder="${esc(f.placeholder || "")}">${esc(p[f.id])}</textarea>`;
     return lab + `<input type="text" data-f="${f.id}" value="${esc(p[f.id])}" placeholder="${esc(f.placeholder || "")}">`;
   };
@@ -263,6 +269,7 @@ function update() {
   outSum();
   $("next").textContent = ref(m.next);
   renderReplyView(); histRow(m);
+  m.fields.filter(f => f.fold).forEach(f => { const el = $("fold-" + f.id); if (el) el.innerHTML = f.fold(p); });
   m.fields.filter(f => f.type === "cands").forEach(f => { const el = $("cands-" + f.id); if (el) el.innerHTML = f.render(p); });
   m.fields.filter(f => f.type === "promptbox").forEach(f => {
     const el = $("pbox-" + f.id); if (!el) return;
@@ -371,6 +378,11 @@ function runAuto(t) {
 }
 $("pane").addEventListener("paste", e => { const t = e.target; if (t && t.tagName === "TEXTAREA") setTimeout(() => runAuto(t), 0); });
 $("pane").addEventListener("change", e => { const t = e.target; if (t && t.tagName === "TEXTAREA") runAuto(t); });
+$("pane").addEventListener("change", e => {   // 收合欄位：手動輸入完、離開文字框時收合
+  const t = e.target; if (!t || t.tagName !== "TEXTAREA" || !t.dataset.f) return;
+  const f = mod().fields.find(x => x.id === t.dataset.f);
+  if (f && f.fold && !FOLD_OPEN[f.id] && !blank(t.value) && !document.getElementById("fold-" + f.id)) { const y = window.scrollY; renderPane(); update(); window.scrollTo(0, y); }
+});
 $("pane").addEventListener("change", e => {   // 切換紀錄：帶入該筆的欄位與回覆；「新的查詢」清空本步驟的欄位與回覆
   const t = e.target; if (!t || !t.dataset || !t.dataset.hist) return;
   const m = mod(), k = replyKey(), H = histOf(k), C = store.values.__histCur ||= {}, n = t.value;
@@ -479,7 +491,11 @@ $("pane").addEventListener("input", e => {
     return;
   }
   if (t.dataset.f) {
+    const ff = mod().fields.find(x => x.id === t.dataset.f), was = store.values[vkey(t.dataset.f)];
     store.values[vkey(t.dataset.f)] = t.value;
+    if (ff && ff.fold && !FOLD_OPEN[ff.id] && blank(was) && !blank(t.value) && e.inputType === "insertFromPaste") {   // 貼上回覆後立即收合
+      const y = window.scrollY; save(); renderPane(); update(); window.scrollTo(0, y); return;
+    }
     if (t.dataset.f === "ch2_plan" || t.dataset.f === "hy_paths") { rebuildCh2(); renderToc(); }   // 第二章分節即時更新目錄
     if (t.type === "radio") {
       if (mod().fields.some(f => f.when)) { renderPane(); }   // 有條件顯示的欄位時，重畫欄位
@@ -595,9 +611,12 @@ $("pane").addEventListener("click", async e => {
     }
     fr.textContent = "已複製 ✓"; setTimeout(() => (fr.textContent = old), 1500); return;
   }
+  const fo = e.target.closest("button[data-fold]");
+  if (fo) { const id = fo.dataset.fold; FOLD_OPEN[id] = !FOLD_OPEN[id]; const y = window.scrollY; save(); renderPane(); update(); window.scrollTo(0, y); return; }
   const pc = e.target.closest("button[data-pcopy]");
   if (pc) {   // 欄位中的第二個 Prompt（例如讀圖 Prompt）
     const text = $("pbox-" + pc.dataset.pcopy).textContent, old = pc.textContent;
+    const pf = mod().fields.find(x => x.id === pc.dataset.pcopy); if (pf && pf.onCopy) { pf.onCopy(); save(); }
     try { await navigator.clipboard.writeText(text); } catch {
       const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
     }
