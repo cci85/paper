@@ -335,10 +335,11 @@ const TARGETS = {
 const FOCUS_Q = [
   { name: "Google Scholar Labs", re: /^(?:Google\s*)?Scholar\s*Labs/i, note: "英文提問，貼到 Google Scholar 的 Labs" },
   { name: "Google Scholar", re: /^(?:Google\s*Scholar(?!\s*Labs)|英文布林字串)/i, note: "英文檢索字串", url: q => "https://scholar.google.com/scholar?q=" + encodeURIComponent(q) },
-  { name: "華藝線上圖書館", re: /^(?:華藝|中文關鍵字組合)/, note: "中文檢索字串，可貼入華藝的檢索欄位" }
+  { name: "華藝線上圖書館", re: /^(?:華藝|中文關鍵字組合)/, note: "中文檢索字串，可貼入華藝的檢索欄位" },
+  { name: "臺灣博碩士論文知識加值系統", re: /^(?:臺灣博碩士|台灣博碩士|博碩士論文)/, note: "中文檢索字串，查找國內學位論文" }
 ];
 function focusQueries(text) {
-  const L = String(text || "").replace(/\r\n?/g, "\n").split("\n").map(x => x.replace(/^[\s>*•\-–\d.、()（）a-z]*?(?=【|Google|Scholar|英文布林|中文關鍵字|華藝)/i, "").replace(/\*\*/g, "").trim());
+  const L = String(text || "").replace(/\r\n?/g, "\n").split("\n").map(x => x.replace(/^[\s>*•\-–\d.、()（）a-z]*?(?=【|Google|Scholar|英文布林|中文關鍵字|華藝|臺灣博碩士|台灣博碩士)/i, "").replace(/\*\*/g, "").trim());
   const got = {};
   for (let i = 0; i < L.length; i++) {
     const head = L[i].replace(/^【([^】]+)】/, "$1：").replace(/^`+|`+$/g, "");
