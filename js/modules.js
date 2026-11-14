@@ -2444,9 +2444,9 @@ const OUTLINE = [
   { ch: "常用", quick: true, secs: [
     { id: "q-draft", no: "", title: "修訂論文", desc: "補強：段落還缺東西時使用，字數不減。精簡：內容齊全但太冗長，字數必須減少，可設定目標長度。整節統整：整節去除重複、調整段落順序與邏輯。融合：把幾段合併成一段。都會先核實引用，任何一章都可以用。", steps: [
       { mod: "dr", note: "先在上方「改寫方向」選擇做法。補強、精簡一次一段；整節統整會自動帶入本節全文；融合可選多段。" }] },
-    { id: "q-var", no: "", title: "定義：變數", desc: "步驟 1 定義變數：填一個變數時，依文獻整理定義、維度、理論、操作型定義與量表、施測情境、前因與後果、相近構念；填兩個以上時，區辨這些相近變數在研究架構上的異同。步驟 2 事件變數：panel data 研究中，整理活動資料、依文獻篩選可分析的活動並核對事件變數，結果自動帶回「panel 資料處理」。任何階段都可以用，各步驟可單獨使用。", steps: [
+    { id: "q-var", no: "", title: "定義：變數", desc: "填一個變數時，依文獻整理定義、維度、理論、操作型定義與量表、施測情境、前因與後果、相近構念；填兩個以上時，區辨這些相近變數在研究架構上的異同。", mdesc: "步驟 1 定義變數：填一個變數時，依文獻整理定義、維度、理論、操作型定義與量表、施測情境、前因與後果、相近構念；填兩個以上時，區辨這些相近變數在研究架構上的異同。步驟 2 事件變數：panel data 研究中，整理活動資料、依文獻篩選可分析的活動並核對事件變數，結果自動帶回「panel 資料處理」。任何階段都可以用，各步驟可單獨使用。", steps: [
       { mod: "vdef", note: "一次問一個變數，或把看起來很像的幾個變數一起比較；文獻不足時，先補上傳文獻再問。「施測情境」常因原文只簡短交代而標示「未提及」，請回到原文的方法章節或附錄查看。" },
-      { mod: "evspec", note: "panel data 研究用；整理活動資料、依文獻篩選活動並定義事件變數，結果自動帶回「panel 資料處理」。" }] },
+      { mod: "evspec", rt: "model", note: "panel data 研究用；整理活動資料、依文獻篩選活動並定義事件變數，結果自動帶回「panel 資料處理」。" }] },
     { id: "q-model", no: "", title: "模型說明", desc: "步驟 1 模型講義：以本研究為例，講解本研究所用的統計模型（教學用的寫法；論文的寫法在第三章）。步驟 2 方法導向檢索：找特定領域中、實際使用某種統計方法的實證論文作為模仿範例，產生 Google Scholar 檢索式與 Scholar Labs 問句。", steps: [
       { mod: "mlect", note: "預設帶入 0.2／0.3 的研究模型組；一次可講解一個或多個模型。" },
       { mod: "smethod", note: "貼到有網路搜尋的 AI 對話，不需要上傳文獻。" }] },
@@ -2765,7 +2765,7 @@ function hlItems() {
 }
 function hlText() { const it = hlItems(); return it.length ? "依據第二章的推導，本研究提出以下假說：\n\n" + it.join("\n") : ""; }
 function hlView() { const it = hlItems(); return it.length ? `<ol class="hlist">${it.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : `<p class="hint">第二章各變數一節還沒有出現「H1：……」形式的假說敘述。</p>`; }
-const stepsOf = sec => [...((RT() === "model" && sec.msteps) || sec.steps), ...(sec.finish || []).map(m => ({ mod: m, note: FINISH_NOTE[m], finish: true }))];
+const stepsOf = sec => [...((RT() === "model" && sec.msteps) || sec.steps).filter(secOn), ...(sec.finish || []).map(m => ({ mod: m, note: FINISH_NOTE[m], finish: true }))];
 // 研究類型為 panel data 時，第零章部分節改用模型導向的標題與說明
 // 只在某一研究類型出現的節（rt）
 const secOn = s => !s.rt || s.rt === RT();
