@@ -335,11 +335,12 @@ const TARGETS = {
 const FOCUS_Q = [
   { name: "Google Scholar Labs", re: /^(?:Google\s*)?Scholar\s*Labs/i, note: "英文提問，貼到 Google Scholar 的 Labs" },
   { name: "Google Scholar", re: /^(?:Google\s*Scholar(?!\s*Labs)|英文布林字串)/i, note: "英文檢索字串", url: q => "https://scholar.google.com/scholar?q=" + encodeURIComponent(q) },
-  { name: "華藝線上圖書館", re: /^(?:華藝|中文關鍵字組合)/, note: "中文檢索字串，可貼入華藝的檢索欄位" },
-  { name: "臺灣博碩士論文知識加值系統", re: /^(?:臺灣博碩士|台灣博碩士|博碩士論文)/, note: "中文檢索字串，查找國內學位論文" }
+  { name: "中文簡易查詢", re: /^中文簡易查詢/, note: "貼到華藝或臺灣博碩士論文知識加值系統首頁的查詢框，一次一組；建議選模糊檢索", split: v => v.split(/[；;]/) },
+  { name: "中文進階查詢", re: /^(?:中文進階查詢|華藝|中文關鍵字組合|臺灣博碩士|台灣博碩士|博碩士論文)/, note: "進入「進階查詢」，一個概念填一列，列與列之間選 AND",
+    split: v => (/[／]/.test(v) ? v.split("／") : v.split(/\s+AND\s+/i)).map(x => x.trim().replace(/^[(（]\s*|\s*[)）]$/g, "")) }
 ];
 function focusQueries(text) {
-  const L = String(text || "").replace(/\r\n?/g, "\n").split("\n").map(x => x.replace(/^[\s>*•\-–\d.、()（）a-z]*?(?=【|Google|Scholar|英文布林|中文關鍵字|華藝|臺灣博碩士|台灣博碩士)/i, "").replace(/\*\*/g, "").trim());
+  const L = String(text || "").replace(/\r\n?/g, "\n").split("\n").map(x => x.replace(/^[\s>*•\-–\d.、()（）a-z]*?(?=【|Google|Scholar|英文布林|中文關鍵字|中文簡易|中文進階|華藝|臺灣博碩士|台灣博碩士)/i, "").replace(/\*\*/g, "").trim());
   const got = {};
   for (let i = 0; i < L.length; i++) {
     const head = L[i].replace(/^【([^】]+)】/, "$1：").replace(/^`+|`+$/g, "");
@@ -359,8 +360,10 @@ function focusQueries(text) {
 function focusQView(t) {
   const Q = focusQueries(t); if (!Q.length) return "";
   return `<details class="qlist" open><summary><b>檢索字串（依檢索平台）</b></summary>` + Q.map(q =>
+    q.split ? `<div class="qrow"><p><b>${esc(q.name)}</b>　<small class="hint">${esc(q.note)}</small></p><ol class="qparts">${q.split(q.text).map(x => x.trim()).filter(Boolean).map(x =>
+      `<li><code>${esc(x)}</code> <button type="button" data-copytext="${esc(x)}">複製</button></li>`).join("")}</ol></div>` :
     `<div class="qrow"><p><b>${esc(q.name)}</b>　<small class="hint">${esc(q.note)}</small>　<button type="button" data-copytext="${esc(q.text)}">複製</button>${q.url ? `　<a href="${esc(q.url(q.text))}" target="_blank" rel="noopener">在 Google Scholar 開啟 →</a>` : ""}</p><pre class="pboxpre">${esc(q.text)}</pre></div>`).join("") +
-    `<p class="hint">AI 回覆中更新過檢索字串時，這裡顯示最後一次的版本。</p></details>`;
+    `<p class="hint">AI 回覆中更新過檢索字串時，這裡顯示最後一次的版本。中文資料庫查詢結果為 0 筆時：改用模糊檢索、拿掉第三個概念，或在 AI 對話中選 (e) 的 C「太窄或搜尋不到」。</p></details>`;
 }
 // 受訪者版問卷（0.4 與常用「問卷資料處理」共用；欄位存同一個值）
 const RV_FIELDS = [
