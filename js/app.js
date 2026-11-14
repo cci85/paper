@@ -205,13 +205,13 @@ function renderRules() {
 function renderPickers(m, p) {
   m.fields.filter(f => f.type === "picker").forEach(f => {
     const box = $("pick-" + f.id); if (!box) return;
-    const opts = f.source(p), sig = JSON.stringify(opts), on = p[f.id] || [];
+    const opts = f.source(p).map(o => ({ ...o, scale: typeof scaleTag === "function" ? scaleTag(o.name) : null })), sig = JSON.stringify(opts), on = p[f.id] || [];
     if (box.dataset.sig === sig) return;
     box.dataset.sig = sig;
     box.innerHTML = opts.length ? f.roles.map(([r, label]) => {
       const vs = opts.filter(o => o.role === r).sort((a, b) => a.extra - b.extra);   // 架構中的變數在前，「未納入架構」在後
       return `<div class="pickrole"><small>${esc(label)}</small><div class="chips">${vs.length ? vs.map(o =>
-        `<label class="chip${o.extra ? " extra" : ""}${o.def ? " hasdef" : ""}" title="${esc([o.src, o.frames].filter(Boolean).join("｜"))}"><input type="checkbox" data-c="${f.id}" value="${esc(o.key)}" ${on.includes(o.key) ? "checked" : ""}><span>${esc(o.name)}${o.frames ? ` <small>${esc(o.frames)}</small>` : ""}${o.def ? `<span class="def">${esc(o.def)}</span>` : ""}</span></label>`).join("")
+        `<label class="chip${o.extra ? " extra" : ""}${o.def || o.scale ? " hasdef" : ""}" title="${esc([o.src, o.frames].filter(Boolean).join("｜"))}"><input type="checkbox" data-c="${f.id}" value="${esc(o.key)}" ${on.includes(o.key) ? "checked" : ""}><span>${esc(o.name)}${o.frames ? ` <small>${esc(o.frames)}</small>` : ""}${o.def ? `<span class="def">${esc(o.def)}</span>` : ""}${o.scale ? `<span class="scale${o.scale.ok ? " ok" : ""}">${esc(o.scale.text)}</span>` : ""}</span></label>`).join("")
         : `<small>（無）</small>`}</div></div>`;
     }).join("") : `<p class="hint">（貼上回覆後，這裡會列出可勾選的變數）</p>`;
   });

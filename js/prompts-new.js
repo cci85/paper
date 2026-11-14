@@ -91,7 +91,7 @@ const MATRIX_COLS = [
   { key: "med", label: "中介變數", desc: "" },
   { key: "mod", label: "調節變數", desc: "" },
   { key: "ctrl", label: "控制變數", desc: "" },
-  { key: "method", label: "量表與研究方法", desc: "主要構念所採用的量表來源與維度、研究設計（問卷調查、實驗或次級資料）、樣本，以及分析方法" },
+  { key: "method", label: "量表與研究方法", desc: "先寫各構念的量表，每個構念寫成「英文原文（中文翻譯）：量表來源（作者, 年份），N 題」，有維度者附上維度，多個構念以分號分隔；原文未報告題數者寫「題數未提及」，以分組或操弄形成的變數寫「操弄」，未以量表衡量者寫「無量表」。再寫研究設計（問卷調查、實驗或次級資料）、樣本，以及分析方法" },
   { key: "finding", label: "主要發現", desc: "各條假說是否獲得支持，以及關係的方向" },
   { key: "conclusion", label: "研究結論", desc: "作者依發現提出的結論" },
   { key: "limit", label: "研究限制", desc: "作者自述的研究限制" },
@@ -121,7 +121,7 @@ function buildMatrix(on) {
   if (mm) rules.push("以紀錄資料計算的變數（例如捐款次數、距上次捐款的月數），一句話定義寫成「以……計算，數值愈高，代表……」。");
   if (pairs.length) rules.push(`${pairs.join("，")}；若原文中兩者無法對應，請在該欄加註「待確認」。`);
   rules.push(has("method")
-    ? "每個欄位以一至兩句精簡描述（變數欄的一句話定義不在此限）；「量表與研究方法」欄可稍長，但以三句為限。使用繁體中文。"
+    ? "每個欄位以一至兩句精簡描述（變數欄的一句話定義不在此限）；「量表與研究方法」欄可稍長：量表部分逐一列出各構念，研究設計、樣本與分析方法以兩句為限。使用繁體中文。"
     : "每個欄位以一至兩句精簡描述（變數欄的一句話定義不在此限）。使用繁體中文。");
   return [
     "請將筆記本中的每一篇文獻整理為表格的一列，欄位依序如下：",
@@ -624,6 +624,44 @@ const GAPSEL_STEP4 = `最後，請我從上述研究缺口候選中選擇一個�
 `;
 // 文獻比較表步驟貼上的 AI 回覆（試算表內容）；選定變數時若沒有另外貼表格，就沿用這份
 const matrixReply = () => Object.entries(store.replies || {}).filter(([k, v]) => k.endsWith("|matrix") && !blank(v)).map(([, v]) => v)[0] || "";
+// 依文獻比較表（「建立文獻比較表」貼上的試算表）查變數的量表與題數：變數名稱出現在「量表與研究方法」欄中，取該段的題數
+let _scaleTbl = { t: null, rows: null };
+function scaleTable() {
+  const t = matrixReply();
+  if (_scaleTbl.t !== t) _scaleTbl = { t, rows: blank(t) || typeof parseTsv !== "function" ? null : parseTsv(t) };
+  return _scaleTbl.rows;
+}
+function scaleInfo(name) {
+  const rows = scaleTable(); if (!rows) return null;
+  const h = rows[0].map(x => x.trim()), mi = h.findIndex(x => /量表/.test(x));
+  if (mi < 0) return null;
+  const vc = h.map((x, i) => /自變|依變|中介|調節|控制/.test(x) ? i : -1).filter(i => i >= 0);
+  const norm = x => String(x).toLowerCase().replace(/[\s　]+/g, "");
+  const m = String(name).match(/^(.*?)[（(]([^）)]+)[）)]\s*$/);
+  const keys = (m ? [m[2], m[1]] : [name]).map(norm).filter(k => k.length >= 2);
+  const hit = x => { const n = norm(x); return keys.some(k => n.includes(k)); };
+  const papers = [];
+  let seen = 0;
+  rows.slice(1).forEach(r => {
+    const paper = (r[0] || "").split(/\n/)[0].replace(/（?僅有摘要）?/, "").trim() || "（未命名）";
+    const segs = (r[mi] || "").split(/[；;。\n]/).filter(hit);
+    if (!segs.length && !vc.some(i => hit(r[i] || ""))) return;
+    seen++;
+    if (!segs.length) return;
+    const seg = segs.join("；"), n = seg.match(/(\d+)\s*個?題/);
+    papers.push({ paper, n: n ? +n[1] : null, op: /操弄/.test(seg) && !n, none: /無量表/.test(seg) && !n });
+  });
+  return { seen, papers: papers.filter(x => !x.none) };
+}
+// 勾選清單上顯示的量表提示
+function scaleTag(name) {
+  const s = scaleInfo(name); if (!s) return null;
+  if (!s.seen) return { ok: false, text: "文獻比較表中未找到此變數" };
+  const ps = s.papers.filter(x => !x.op);
+  if (!ps.length) return { ok: false, text: s.papers.length ? "以操弄形成，無量表" : `出現於 ${s.seen} 篇，皆未載量表` };
+  const show = ps.slice(0, 3).map(x => `${x.paper} ${x.n ? x.n + " 題" : "題數未提及"}`).join("、");
+  return { ok: true, text: `有量表（${ps.length} 篇）：${show}${ps.length > 3 ? " 等" : ""}` };
+}
 function buildGapsel(p) {
   const tbl = blank(p.gs_table) ? matrixReply() : p.gs_table;
   const paste = p.gs_mode === "paste";
