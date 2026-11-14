@@ -392,11 +392,29 @@ const FOCUS_SCALE = `本次檢索的限定：只蒐集「以多題項量表衡�
 - 【Google Scholar Labs】在問句最後加上：Include only empirical quantitative studies that measured the key variables with multi-item scales, and report each study's scale source, number of items, and reliability. Exclude conceptual papers, reviews, and qualitative studies.
 - 【中文簡易查詢】【中文進階查詢】不加入「量表」等詞（中文資料庫多只比對篇名、摘要與關鍵詞，加入會漏掉文獻）；改在 (f) 檢索任務中提醒我：閱讀摘要時，只存入摘要寫明以問卷調查或量表施測的研究；摘要看不出來者先存入，並在 Zotero 加上「待確認量表」標籤，讀全文確認後再決定是否保留。
 - 不得自行推定某篇文獻有使用量表。`;
+// 0.1 研究方向聚焦：有研究範圍資料（貼上文字或另附檔案）時，選項限定在範圍內，並標註可取得的樣本數
+function focusScope(p) {
+  const txt = !blank(p.f_scope), file = isOn(p.f_scopefile);
+  if (!txt && !file) return "";
+  const src = txt && file ? "我另外附上的研究範圍檔案，以及下列資料" : file ? "我另外附上的研究範圍檔案" : "下列資料";
+  return [
+    "研究範圍的限制（本段優先於第二節的提問順序）：",
+    `本研究只能在${src}所描述的範圍內進行${txt ? "：" : "。"}`,
+    ...(txt ? ["---", p.f_scope.trim(), "---"] : []),
+    "1. 第二節三題的順序改為：研究情境 → 研究對象 → 最想解釋的結果（依變數）。研究情境的選項取自研究範圍中的場域、課程或活動類型，可以是單一類型，也可以是數個場域或課程的合併；研究對象的選項依所選情境界定，例如全體學員，或僅限參與某類課程的學員。",
+    "2. 研究情境與研究對象的每個選項，都標註依研究範圍資料估計的可取得樣本數，並寫出估計方式（例如「5 班，每班 16 人，約 80 人」）；資料中沒有人數者標註「人數不明，需向承辦單位查詢」。估計時區分總人數與人次、全體學員與參與特定課程的學員，避免重複計算。",
+    "3. 估計的樣本數可能不足以進行預計的統計分析時，標註「樣本可能不足」，並寫出判斷依據的文獻（作者，年份）與該文獻建議的樣本數下限，讓我可以查證；沒有把握的依據寫明「需查證」，並附上可貼到 Google Scholar 的英文檢索字串。同時提出可行的調整，例如合併多個場域或課程、擴大研究對象，或改變研究設計。",
+    "4. 依變數的選項，以所選情境與研究對象能合理衡量者為限。",
+    "5. 若「感興趣的現象或研究方向」中有標示【碩博士論文整理】的研究方向，依第一節第 4 點回覆時，逐一說明這些方向在此研究範圍內是否可行，以及可行時對應的情境與對象。",
+    "6. (a) 的「研究情境：」一行，寫明所選的場域與課程或活動類型。"
+  ].join("\n");
+}
 function buildFocus(p) {
-  const filled = ["f_phen", "f_dir", "f_res", "f_prev"].some(k => !blank(p[k]));
+  const filled = ["f_phen", "f_dir", "f_res", "f_prev", "f_scope"].some(k => !blank(p[k])) || isOn(p.f_scopefile);
+  const sc = focusScope(p), scb = sc ? [sc, ""] : [];
   const mm = typeof RT === "function" && RT() === "model";
   const pn = mm ? [FOCUS_PANEL, ""] : isOn(p.f_scale) ? [FOCUS_SCALE, ""] : [];
-  if (!filled) return [T.focus_head, "", T.focus_zero, "", T.focus_body, "", ...pn, T.focus_start].join("\n");
+  if (!filled) return [T.focus_head, "", T.focus_zero, "", T.focus_body, "", ...pn, T.focus_start].join("\n");   // 沒填任何欄位（研究範圍也沒有）
   const val = k => blank(p[k]) ? "無" : p[k].trim();
   const zero = [
     "零、我已提供的資訊",
@@ -404,7 +422,8 @@ function buildFocus(p) {
     `- 感興趣的現象或研究方向：${val("f_phen")}`,
     `- 想要的研究方向：${val("f_dir")}`,
     `- 可運用的資源：${val("f_res")}`,
-    `- 前次的研究問題草稿與檢索字串：${val("f_prev")}`
+    `- 前次的研究問題草稿與檢索字串：${val("f_prev")}`,
+    ...(sc ? ["- 研究範圍：見下方「研究範圍的限制」"] : [])
   ].join("\n");
   const redo = !blank(p.f_prev) && p.f_redo === "redo";
   const start = redo
@@ -414,7 +433,7 @@ function buildFocus(p) {
     : !blank(p.f_phen)
       ? "請依第一節第 4 點回覆後，從第二節的第一題開始。"
       : "請先只問我一個問題：「請描述你感興趣的現象或研究方向。」並附上 2–3 個口語描述的例子；我回答後，依第一節第 4 點回覆，再從第二節的第一題開始。";
-  return [T.focus_head, "", zero, "", T.focus_body, "", ...pn, start].join("\n");
+  return [T.focus_head, "", zero, "", T.focus_body, "", ...pn, ...scb, start].join("\n");
 }
 
 // 第一章：研究背景與動機
