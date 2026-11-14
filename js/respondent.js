@@ -162,7 +162,7 @@ function gfScript(p) {
     parts: M.parts.map(x => { const gate = /^(知情同意確認|資格題)$/.test(x.title);
       return { label: x.label, notes: x.notes, gate, qs: x.qs.map(q => ({ t: `${q.n}. ${q.q}`, opts: q.opts, multi: q.multi, likert: q.likert,
         stop: gate && !q.multi ? q.opts.map((o, i) => stop.test(o.trim()) ? i : -1).filter(i => i >= 0) : [] })) }; }) };
-  return `// 由「你論了嗎」依定稿問卷產生：${M.title}
+  return `// 由「你論了沒」依定稿問卷產生：${M.title}
 // 使用方式：script.google.com → 新專案 → 刪除預設內容後貼上 → 儲存 → 選擇 createForm 執行（第一次需授權）
 // 完成後，「執行記錄」會顯示表單的編輯網址與填答網址；表單建在你的 Google 雲端硬碟
 function createForm() {
