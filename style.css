@@ -501,3 +501,7 @@ table.apa td[contenteditable]:focus, .tbl-note[contenteditable]:focus { outline:
 /* 比較候選架構：一列一個架構，圖放大較易閱讀 */
 #cands-cf_view { grid-template-columns: minmax(0, 1fr); }
 #cands-cf_view .cand-svg svg { max-width: 960px; display: block; margin: 8px auto 0; }
+/* 0.1 檢索字串（依檢索平台） */
+.qlist { margin-top: 12px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.qlist summary { cursor: pointer; }
+.qlist .qrow p { margin: 10px 0 4px; }

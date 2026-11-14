@@ -331,6 +331,36 @@ const TARGETS = {
 };
 
 // 說明文字中的{#id}會換成本頁編號，{@id} 會換成另一頁的「頁名 [編號]」
+// 0.1 研究方向聚焦：回覆中各檢索平台的檢索字串（取最後一次出現者；也讀舊格式「英文布林字串／中文關鍵字組合／Scholar Labs 英文提問」）
+const FOCUS_Q = [
+  { name: "Google Scholar Labs", re: /^(?:Google\s*)?Scholar\s*Labs/i, note: "英文提問，貼到 Google Scholar 的 Labs" },
+  { name: "Google Scholar", re: /^(?:Google\s*Scholar(?!\s*Labs)|英文布林字串)/i, note: "英文檢索字串", url: q => "https://scholar.google.com/scholar?q=" + encodeURIComponent(q) },
+  { name: "華藝線上圖書館", re: /^(?:華藝|中文關鍵字組合)/, note: "中文檢索字串，可貼入華藝的檢索欄位" }
+];
+function focusQueries(text) {
+  const L = String(text || "").replace(/\r\n?/g, "\n").split("\n").map(x => x.replace(/^[\s>*•\-–\d.、()（）a-z]*?(?=【|Google|Scholar|英文布林|中文關鍵字|華藝)/i, "").replace(/\*\*/g, "").trim());
+  const got = {};
+  for (let i = 0; i < L.length; i++) {
+    const head = L[i].replace(/^【([^】]+)】/, "$1：").replace(/^`+|`+$/g, "");
+    const d = FOCUS_Q.find(x => x.re.test(head)); if (!d) continue;
+    let v = head.replace(/^[^：:]*[：:]\s*/, "").replace(/^`+|`+$/g, "").trim();
+    if (!v || !/[：:]/.test(head)) {   // 字串寫在下一行（或程式碼區塊）
+      v = ""; for (let j = i + 1; j < L.length; j++) { const x = L[j].replace(/^```\w*$/, "").trim();
+        if (/^```/.test(L[j])) { if (v) break; continue; }
+        if (!x) { if (v) break; continue; }
+        if (FOCUS_Q.some(y => y.re.test(x.replace(/^【([^】]+)】/, "$1："))) || /^\(?[a-f]\)|^#/.test(x)) break;
+        v += (v ? " " : "") + x; }
+    }
+    if (v) got[d.name] = v;
+  }
+  return FOCUS_Q.filter(d => got[d.name]).map(d => ({ ...d, text: got[d.name] }));
+}
+function focusQView(t) {
+  const Q = focusQueries(t); if (!Q.length) return "";
+  return `<details class="qlist" open><summary><b>檢索字串（依檢索平台）</b></summary>` + Q.map(q =>
+    `<div class="qrow"><p><b>${esc(q.name)}</b>　<small class="hint">${esc(q.note)}</small>　<button type="button" data-copytext="${esc(q.text)}">複製</button>${q.url ? `　<a href="${esc(q.url(q.text))}" target="_blank" rel="noopener">在 Google Scholar 開啟 →</a>` : ""}</p><pre class="pboxpre">${esc(q.text)}</pre></div>`).join("") +
+    `<p class="hint">AI 回覆中更新過檢索字串時，這裡顯示最後一次的版本。</p></details>`;
+}
 // 受訪者版問卷（0.4 與常用「問卷資料處理」共用；欄位存同一個值）
 const RV_FIELDS = [
   { id: "rv_title", type: "text", label: "受訪者版問卷：問卷標題", hint: "留白時用「研究情境＋購物經驗調查問卷」；不要用論文題目，以免透露研究目的", placeholder: "例如：蝦皮購物經驗調查問卷" },
@@ -349,6 +379,7 @@ const DEFS = {
       { id: "f_prev", type: "textarea", label: "前次的研究問題草稿與檢索字串", hint: "在新視窗接續時才需要；填了會直接從第三節開始", rows: 3 }
     ],
     build: p => buildFocus(p),
+    replyView: t => focusQView(t),
     next: "下一步：貼到一般 AI 的新對話，依提問逐題作答；檢索到的文獻存進 Zotero 後，上傳到 NotebookLM，接著用{#matrix}。"
   },
   matrix: {
