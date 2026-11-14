@@ -333,14 +333,15 @@ const TARGETS = {
 // 說明文字中的{#id}會換成本頁編號，{@id} 會換成另一頁的「頁名 [編號]」
 // 0.1 研究方向聚焦：回覆中各檢索平台的檢索字串（取最後一次出現者；也讀舊格式「英文布林字串／中文關鍵字組合／Scholar Labs 英文提問」）
 const FOCUS_Q = [
-  { name: "Google Scholar Labs", re: /^(?:Google\s*)?Scholar\s*Labs/i, note: "英文提問，貼到 Google Scholar 的 Labs" },
   { name: "Google Scholar", re: /^(?:Google\s*Scholar(?!\s*Labs)|英文布林字串)/i, note: "英文檢索字串", url: q => "https://scholar.google.com/scholar?q=" + encodeURIComponent(q) },
+  { name: "Google Scholar Labs", re: /^(?:Google\s*)?Scholar\s*Labs/i, note: "英文提問，貼到 Google Scholar 的 Labs" },
   { name: "中文簡易查詢", re: /^中文簡易查詢/, note: "貼到華藝或臺灣博碩士論文知識加值系統首頁的查詢框，一次一組；建議選模糊檢索", split: v => v.split(/[；;]/) },
   { name: "中文進階查詢", re: /^(?:中文進階查詢|華藝|中文關鍵字組合|臺灣博碩士|台灣博碩士|博碩士論文)/, note: "進入「進階查詢」，一個概念填一列，列與列之間選 AND",
-    split: v => (/[／]/.test(v) ? v.split("／") : v.split(/\s+AND\s+/i)).map(x => x.trim().replace(/^[(（]\s*|\s*[)）]$/g, "")) }
+    split: v => (/[／]/.test(v) ? v.split("／") : v.split(/\s+AND\s+/i)).map(x => x.trim().replace(/^[(（]\s*|\s*[)）]$/g, "")) },
+  { name: "量表查詢", re: /^量表查詢/, note: "每個構念一組：英文貼到 Google Scholar，中文貼到華藝或臺灣博碩士論文知識加值系統", split: v => v.split(/[；;]/) }
 ];
 function focusQueries(text) {
-  const L = String(text || "").replace(/\r\n?/g, "\n").split("\n").map(x => x.replace(/^[\s>*•\-–\d.、()（）a-z]*?(?=【|Google|Scholar|英文布林|中文關鍵字|中文簡易|中文進階|華藝|臺灣博碩士|台灣博碩士)/i, "").replace(/\*\*/g, "").trim());
+  const L = String(text || "").replace(/\r\n?/g, "\n").split("\n").map(x => x.replace(/^[\s>*•\-–\d.、()（）a-z]*?(?=【|Google|Scholar|英文布林|中文關鍵字|中文簡易|中文進階|量表查詢|華藝|臺灣博碩士|台灣博碩士)/i, "").replace(/\*\*/g, "").trim());
   const got = {};
   for (let i = 0; i < L.length; i++) {
     const head = L[i].replace(/^【([^】]+)】/, "$1：").replace(/^`+|`+$/g, "");

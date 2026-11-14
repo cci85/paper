@@ -384,7 +384,7 @@ T.discuss = p => {
 };
 
 // 研究方向聚焦：有填欄位時，以已提供的資訊取代第零節
-const FOCUS_PANEL = "資料類型的限制：本研究預計使用追蹤資料（panel data），也就是同一批觀察單位（例如捐款者、門市、會員）在多個時間點的紀錄資料，而不是問卷。收斂研究問題時，只提出能以這類紀錄資料回答的問題，並在適當時機詢問我可取得哪些資料欄位與觀察期間；產生檢索字串時，加入 panel data、longitudinal data 或與資料來源相關的英文詞彙，以找到使用相同資料類型的實證研究。";
+const FOCUS_PANEL = "資料類型的限制：本研究預計使用追蹤資料（panel data），也就是同一批觀察單位（例如捐款者、門市、會員）在多個時間點的紀錄資料，而不是問卷。收斂研究問題時，只提出能以這類紀錄資料回答的問題，並在適當時機詢問我可取得哪些資料欄位與觀察期間；產生檢索字串時，英文檢索字串加入 panel data、longitudinal data 或與資料來源相關的英文詞彙，以找到使用相同資料類型的實證研究；本研究不使用量表，不輸出【量表查詢】。";
 function buildFocus(p) {
   const filled = ["f_phen", "f_dir", "f_res", "f_prev"].some(k => !blank(p[k]));
   const pn = typeof RT === "function" && RT() === "model" ? [FOCUS_PANEL, ""] : [];
