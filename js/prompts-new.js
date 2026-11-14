@@ -1582,8 +1582,49 @@ const trayNote = id => trayOf(id).length ? `\n待選區還有 ${trayOf(id).lengt
 // 路線 B 勾選的變數（all 為 true 時含待選區）
 function mixPicked(p, all) {
   const on = new Set(p.as_pick || []), tr = all ? [] : trayOf("as_diag");
-  return parseVarList(p.as_vlist).filter(v => on.has(v.key) && !tr.includes(v.key));
+  return mixVars(p).filter(v => on.has(v.key) && !tr.includes(v.key));
 }
+// 組合研究架構可勾選的變數：變數清單＋選定候選架構時新增的變數（as_extra）
+function mixVars(p) {
+  const vl = parseVarList(p.as_vlist), keys = new Set(vl.map(v => v.key));
+  return vl.concat((store.values.as_extra || []).filter(v => !keys.has(v.key)));
+}
+// 把一個架構（parseArch 的結果）畫到「我的草圖」：勾選其變數、設定路徑；addMissing 時，清單中沒有的變數加入 as_extra
+function applyToSketch(A, addMissing) {
+  const v = store.values, K = n => archKey(n), map = {}, miss = [];
+  const find = a => { const vl = mixVars(v); return vl.find(x => K(x.name) === K(a.name) && x.role === a.role) || vl.find(x => K(x.name) === K(a.name)); };
+  A.vars.forEach(a => {
+    let h = find(a);
+    if (!h && addMissing) { const role = a.role || "iv"; h = { key: role + "｜" + a.name, role, name: a.name, def: "", src: "", frames: "候選架構新增", extra: false, infer: false }; (v.as_extra ||= []).push(h); }
+    if (h) map[a.key] = h.key; else miss.push(dgLabel(a.name)[0]);
+  });
+  v.as_pick = [...new Set(Object.values(map))];
+  const d = dgData("as_diag");
+  d.edges = A.edges.filter(e => map[e.from] && map[e.to]).map(e => ({ from: map[e.from], to: map[e.to] }));
+  d.mods = A.mods.map(m => { const [a, b] = m.edge.split(">"); return map[m.from] && map[a] && map[b] ? { from: map[m.from], edge: map[a] + ">" + map[b] } : null; }).filter(Boolean);
+  d.pos = {}; d.tray = []; d.lab = {};
+  return miss;
+}
+// 草圖目前的架構文字（追問與更新選定架構用）
+const sketchText = () => archFromDiagram(mixPicked(store.values), store.values.as_diag, x => x.role);
+T.ask_follow = p => [
+  "延續上一段回覆，我選定了以下研究架構（可能已依我的想法修改）：",
+  "",
+  p.arch,
+  "",
+  "我想追問：",
+  p.q,
+  "",
+  "請依據上傳文獻回答；若建議調整架構，請在回答最後依下列格式列出調整後的完整架構：",
+  "## 候選架構一：調整後的架構名稱",
+  "### 變數",
+  "每行一個：角色｜中文名稱（英文原文）｜勾選或新增。",
+  "### 路徑",
+  "每行一條：H1｜起點 → 終點｜方向（正向／負向／未標示）；調節路徑寫成：H5｜調節變數 × （起點 → 終點）｜方向；中介路徑拆成兩條直接路徑列出。",
+  "這兩節不使用表格、條列符號或程式碼區塊。",
+  "",
+  "規則：只能依據上傳文獻；上傳文獻未提及者，寫「來源中未找到依據」，不得以上傳文獻以外的知識補足。用詞一律使用「變數」，不得使用「變項」；變數關係一律以純文字箭頭「→」表示；統計量一律以純文字書寫，不得使用 LaTeX 語法或 $ 符號。"
+].join("\n");
 // 0.3 取用的組合架構：已選定候選架構時用選定版本（含圖上微調），否則用勾選的變數與草圖
 const mixArchText = () => {
   const v = store.values;
@@ -1731,14 +1772,8 @@ function suggestFrames(text) {
 // 套用為草圖：勾選該架構的變數，並把路徑畫到「我的草圖」
 function useSuggest(i) {
   const c = suggestFrames((store.replies || {})["s0-4|asf"])[i]; if (!c) return "";
-  const v = store.values, vl = parseVarList(v.as_vlist), K = n => archKey(n), map = {}, miss = [];
-  c.A.vars.forEach(a => { const h = vl.find(x => K(x.name) === K(a.name) && x.role === a.role) || vl.find(x => K(x.name) === K(a.name)); if (h) map[a.key] = h.key; else miss.push(dgLabel(a.name)[0]); });
-  if ((v.as_pick || []).length && !confirm(`套用「${c.title}」會取代目前勾選的變數與草圖，確定嗎？`)) return "";
-  v.as_pick = [...new Set(Object.values(map))];
-  const d = dgData("as_diag");
-  d.edges = c.A.edges.filter(e => map[e.from] && map[e.to]).map(e => ({ from: map[e.from], to: map[e.to] }));
-  d.mods = c.A.mods.map(m => { const [a, b] = m.edge.split(">"); return map[m.from] && map[a] && map[b] ? { from: map[m.from], edge: map[a] + ">" + map[b] } : null; }).filter(Boolean);
-  d.pos = {}; d.tray = []; d.lab = {};
+  if ((store.values.as_pick || []).length && !confirm(`套用「${c.title}」會取代目前勾選的變數與草圖，確定嗎？`)) return "";
+  const miss = applyToSketch(c.A, false);
   return miss.length ? `已套用；以下變數不在變數清單中，未能畫入：${miss.join("、")}` : "";
 }
 function renderSuggest() {

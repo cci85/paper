@@ -625,7 +625,7 @@ const DEFS = {
     fields: [
       { id: "am_on", type: "checks", label: "自變數與依變數已確定", options: [["on", "已確定：先在清單勾選自變數與依變數，再請 AI 建議中介與調節變數"]], value: [] },
       { id: "as_vlist", type: "textarea", label: "前面步驟的回覆", hint: "自動帶入步驟 1 與下方篩選的 AI 回覆；也可直接貼上各次回覆", rows: 6, mono: true },
-      { id: "as_pick", type: "picker", label: "勾選要用的變數", hint: "上方勾選「已確定」時：先勾自變數（可多個）與依變數；AI 建議的中介與調節變數貼回後才會出現，再勾選。每個變數下方提示是否有量表及題數（取自變數清單的「量表」欄；舊版清單沒有此欄時，改查「建立文獻比較表」貼上的表格）", source: p => parseVarList(p.as_vlist), roles: MIX_ROLES, value: [] },
+      { id: "as_pick", type: "picker", label: "勾選要用的變數", hint: "上方勾選「已確定」時：先勾自變數（可多個）與依變數；AI 建議的中介與調節變數貼回後才會出現，再勾選。每個變數下方提示是否有量表及題數（取自變數清單的「量表」欄；舊版清單沒有此欄時，改查「建立文獻比較表」貼上的表格）", source: p => mixVars(p), roles: MIX_ROLES, value: [] },
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", hint: "選填；用來判斷文獻能否類推", placeholder: "例如：蝦皮電商平台", when: p => isOn(p.am_on) },
       { id: "am_prompt", type: "promptbox", label: "篩選 Prompt", when: p => isOn(p.am_on),
         hint: "依你勾選的自變數與依變數產生；貼到已上傳相關文獻的 NotebookLM 對話，AI 會判定每個候選為建議納入、可考慮或不建議，找不到時直接寫「未找到」",
@@ -643,7 +643,16 @@ const DEFS = {
       { id: "fin_diag", type: "diagram", afterOut: true, label: "選定的研究架構", hint: "可在圖上微調：點一個方塊再點另一個方塊加上箭頭；未選方塊時點箭頭可刪除；按「依文字重畫」回到 AI 的版本",
         when: p => !blank(store.values.cf_text), emptyHint: "（尚未選定）",
         source: p => parseArch(store.values.cf_text).vars,
-        seed: p => { const A = parseArch(store.values.cf_text); return { sig: JSON.stringify([A.edges, A.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: A.edges.map(({ from, to }) => ({ from, to })), mods: A.mods.map(({ from, edge }) => ({ from, edge })) }; } }
+        seed: p => { const A = parseArch(store.values.cf_text); return { sig: JSON.stringify([A.edges, A.mods].map(l => l.map(x => [x.from, x.to || x.edge]))), edges: A.edges.map(({ from, to }) => ({ from, to })), mods: A.mods.map(({ from, edge }) => ({ from, edge })) }; } },
+      { id: "cf_q", type: "textarea", below: true, label: "追問選定的架構", hint: "按「選這個」後，選定的架構會取代上方「我的草圖」；可先在草圖上修改（加減變數、改箭頭），再寫下想追問的問題，Prompt 會以草圖目前的架構為準", rows: 3,
+        placeholder: "例如：個人成長放在知覺歸屬感之前是否有理論依據？\n加入數位素養作為調節變數是否合適？", when: () => !blank(store.values.cf_text) },
+      { id: "cf_qp", type: "promptbox", below: true, label: "追問 Prompt", when: () => !blank(store.values.cf_text),
+        hint: "貼到候選架構所用的同一個 NotebookLM 對話；若 AI 建議調整架構，回覆最後會列出調整後的完整架構",
+        copyLabel: "複製追問 Prompt（貼到 NotebookLM 同一個對話）", empty: "（請先寫下想追問的問題）",
+        build: p => blank(p.cf_q) || !sketchText() ? "" : T.ask_follow({ arch: sketchText(), q: p.cf_q.trim() }) + citeText() },
+      { id: "cf_qreply", type: "textarea", below: true, label: "追問的 AI 回覆", hint: "貼上後會存入研究存檔；回覆中若有「## 候選架構一」，可以把它整段貼到上方「候選架構的 AI 回覆」最後面，再按「選這個」", rows: 5, when: () => !blank(store.values.cf_text) },
+      { id: "cf_sync", type: "button", below: true, label: "以草圖更新選定的架構", hint: "在草圖上修改後按這裡，「選定的研究架構」與 0.3 檢核會改用草圖的版本", when: () => !blank(store.values.cf_text),
+        run: () => sketchToFinal() }
     ],
     init: () => autoPickDV(),
     seed: () => { const v = store.values, r = store.replies || {};
@@ -1720,6 +1729,17 @@ function chooseCand(i) {
   const c = parseCands(store.values.cf_reply)[i]; if (!c) return;
   store.values.cf_text = candText(c.A); store.values.cf_sel = i; store.values.cf_title = c.title;
   const d = dgData("fin_diag"); d.sig = null; d.pos = {};
+  applyToSketch(c.A, true);   // 選定的架構同時取代「我的草圖」，可在草圖上修改後追問
+}
+// 草圖修改後，更新選定的研究架構（0.3 檢核取用）
+function sketchToFinal() {
+  let t = sketchText(); if (!t) return "草圖上沒有變數。";
+  const v = store.values, old = parseArch(v.cf_text || ""), nm = k => dgLabel((old.vars.find(x => x.key === k) || { name: k }).name)[0];
+  const dir = {}; old.edges.forEach(e => { if (e.dir) dir[nm(e.from) + "→" + nm(e.to)] = e.dir; });   // 保留原本標示的方向
+  t = t.replace(/^(H\d+｜)(.+?) → (.+?)｜未標示$/gm, (all, h, a, b) => dir[a + "→" + b] ? `${h}${a} → ${b}｜${dir[a + "→" + b]}` : all);
+  v.cf_text = t; v.cf_sel = -1; v.cf_title = (v.cf_title || "候選架構").replace(/（依草圖修改）$/, "") + "（依草圖修改）";
+  const d = dgData("fin_diag"); d.sig = null; d.pos = {};
+  return "已依草圖更新選定的研究架構。";
 }
 
 // 0.3 步驟 2：架構圖資料（依文字建立，保留圖上的手動修改）與送出的架構文字
