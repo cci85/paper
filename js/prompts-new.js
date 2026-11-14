@@ -385,9 +385,16 @@ T.discuss = p => {
 
 // 研究方向聚焦：有填欄位時，以已提供的資訊取代第零節
 const FOCUS_PANEL = "資料類型的限制：本研究預計使用追蹤資料（panel data），也就是同一批觀察單位（例如捐款者、門市、會員）在多個時間點的紀錄資料，而不是問卷。收斂研究問題時，只提出能以這類紀錄資料回答的問題，並在適當時機詢問我可取得哪些資料欄位與觀察期間；產生檢索字串時，英文檢索字串加入 panel data、longitudinal data 或與資料來源相關的英文詞彙，以找到使用相同資料類型的實證研究；本研究不使用量表，不輸出【量表查詢】。";
+// 單次限定：只蒐集有量表的文獻（僅問卷／實驗模式）
+const FOCUS_SCALE = `本次檢索的限定：只蒐集「以多題項量表衡量研究變數」的實證研究（例如以李克特量表施測、報告量表來源或 Cronbach's α 者）；概念性文章、文獻回顧、質性研究，以及未報告量表的研究，一律不蒐集。此限定優先於第二節「『問卷』『量表』不加入主檢索」的原則，(d) 的檢索字串依下列方式調整：
+- 【Google Scholar】在字串最後加上 AND (Likert OR Cronbach OR "measurement scale")；總長度仍不得超過 256 個字元，超過時減少同義詞，不得刪除這一組。
+- 【Google Scholar Labs】在問句最後加上：Include only empirical quantitative studies that measured the key variables with multi-item scales, and report each study's scale source, number of items, and reliability. Exclude conceptual papers, reviews, and qualitative studies.
+- 【中文簡易查詢】【中文進階查詢】不加入「量表」等詞（中文資料庫多只比對篇名、摘要與關鍵詞，加入會漏掉文獻）；改在 (f) 檢索任務中提醒我：閱讀摘要時，只存入摘要寫明以問卷調查或量表施測的研究；摘要看不出來者先存入，並在 Zotero 加上「待確認量表」標籤，讀全文確認後再決定是否保留。
+- 不得自行推定某篇文獻有使用量表。`;
 function buildFocus(p) {
   const filled = ["f_phen", "f_dir", "f_res", "f_prev"].some(k => !blank(p[k]));
-  const pn = typeof RT === "function" && RT() === "model" ? [FOCUS_PANEL, ""] : [];
+  const mm = typeof RT === "function" && RT() === "model";
+  const pn = mm ? [FOCUS_PANEL, ""] : isOn(p.f_scale) ? [FOCUS_SCALE, ""] : [];
   if (!filled) return [T.focus_head, "", T.focus_zero, "", T.focus_body, "", ...pn, T.focus_start].join("\n");
   const val = k => blank(p[k]) ? "無" : p[k].trim();
   const zero = [

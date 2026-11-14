@@ -381,7 +381,8 @@ const DEFS = {
       { id: "f_phen", type: "textarea", label: "感興趣的現象或研究方向", hint: "選填", rows: 2, placeholder: "例如：為什麼有些人願意排隊買網紅商品" },
       { id: "f_dir", type: "text", label: "想要的研究方向", hint: "選填", placeholder: "例如：價格對購買的影響、指導教授建議的方向" },
       { id: "f_res", type: "text", label: "可運用的資源", hint: "選填", placeholder: "例如：可取得的樣本、合作企業、熟悉的理論或方法" },
-      { id: "f_prev", type: "textarea", label: "前次的研究問題草稿與檢索字串", hint: "在新視窗接續時才需要；填了會直接從第三節開始", rows: 3 }
+      { id: "f_prev", type: "textarea", label: "前次的研究問題草稿與檢索字串", hint: "在新視窗接續時才需要；填了會直接從第三節開始", rows: 3 },
+      { id: "f_scale", type: "checks", label: "本次檢索限定", hint: "單次限定，需要時才勾選；只在「問卷／實驗」模式出現", options: [["on", "只蒐集有量表的文獻（以多題項量表衡量變數的實證研究）"]], value: [], when: () => RT() !== "model" }
     ],
     build: p => buildFocus(p),
     replyView: t => focusQView(t),
