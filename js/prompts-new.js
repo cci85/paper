@@ -625,6 +625,32 @@ const GAPSEL_STEP4 = `最後，請我從上述研究缺口候選中選擇一個�
 `;
 // 文獻比較表步驟貼上的 AI 回覆（試算表內容）；選定變數時若沒有另外貼表格，就沿用這份
 const matrixReply = () => Object.entries(store.replies || {}).filter(([k, v]) => k.endsWith("|matrix") && !blank(v)).map(([, v]) => v)[0] || "";
+// 建立文獻比較表：表格抓不到題數時，請 NotebookLM 逐篇重抓量表（只處理量化研究）；回覆由 scaleInfo 讀回
+T.ask_scales = () => [
+  "請逐篇檢查筆記本中的文獻，整理每一篇所使用的量表與題數。只處理量化實證研究（問卷調查、實驗，或以量表衡量變數的研究）；質性研究、文獻回顧、概念性論文與只有摘要的文獻略過，不列出。筆記本中名稱含「文獻比較表」的來源不是文獻，也略過。",
+  "",
+  "## 量表清單",
+  "每行一個構念，格式為：文獻（作者, 年份）｜構念英文原文（中文翻譯）｜量表來源（原始發展者, 年份）｜題數｜維度",
+  "",
+  "規則：",
+  "1. 每篇文獻所衡量的構念都要列出，包括控制變數；依文獻發表年份由新到舊排列，同一篇的構念依自變數、中介變數、調節變數、依變數、控制變數的順序。",
+  "2. 量表來源填原始發展者；作者改編自他人量表者，填原始發展者並在後面註明「改編」；作者自行發展者填「自行發展」。",
+  "3. 題數填該篇實際使用的題數，寫成「N 題」；經刪題者填最後保留的題數，並註明「原 M 題」；原文未報告者填「題數未提及」。",
+  "4. 以分組或操弄形成的變數，量表來源與題數欄都填「操弄」；以次級資料或單一指標衡量者，量表來源欄填「次級資料」或「單一指標」，題數欄填「無量表」。",
+  "5. 維度：有維度者列出各維度名稱與題數，例如「認知（3 題）；情感（3 題）」；單一維度者填「單一維度」。",
+  "6. 只依據各篇原文（方法章節、附錄與量表表格），不得推測或補充原文以外的資訊。",
+  "7. 清單之前不需任何說明；此節不使用表格、條列符號或程式碼區塊。",
+  "8. 若篇幅不足以一次列完，請在最後一行寫「（未完，請輸入繼續）」；我輸入「繼續」後，從中斷處接續，格式相同，不重複已列出的構念。",
+  "9. 用詞一律使用「變數」，不得使用「變項」。"
+].join("\n");
+// 重抓量表題數的回覆：每行「文獻｜構念｜量表來源｜題數｜維度」
+// 題數：取第一個不是「原 M 題」的「N 題」
+const itemN = t => { const m = [...String(t).matchAll(/(原\s*)?(\d+)\s*個?題/g)].find(x => !x[1]); return m ? +m[2] : null; };
+function scaleList() {
+  const v = store.values || {};
+  if (!isOn(v.mx_sc_on) || blank(v.mx_screply)) return [];
+  return v.mx_screply.split(/\r?\n/).map(l => l.split(/\s*[｜|]\s*/).map(c => c.trim())).filter(c => c.length >= 4 && c[0] && c[1] && !/^文獻/.test(c[0]));
+}
 // 依文獻比較表（「建立文獻比較表」貼上的試算表）查變數的量表與題數：變數名稱出現在「量表與研究方法」欄中，取該段的題數
 let _scaleTbl = { t: null, rows: null };
 function scaleTable() {
@@ -633,24 +659,32 @@ function scaleTable() {
   return _scaleTbl.rows;
 }
 function scaleInfo(name) {
-  const rows = scaleTable(); if (!rows) return null;
-  const h = rows[0].map(x => x.trim()), mi = h.findIndex(x => /量表/.test(x));
-  if (mi < 0) return null;
+  const rows = scaleTable(), list = scaleList();
+  const h = rows ? rows[0].map(x => x.trim()) : [], mi = h.findIndex(x => /量表/.test(x));
+  if (mi < 0 && !list.length) return null;
   const vc = h.map((x, i) => /自變|依變|中介|調節|控制/.test(x) ? i : -1).filter(i => i >= 0);
   const norm = x => String(x).toLowerCase().replace(/[\s　]+/g, "");
   const m = String(name).match(/^(.*?)[（(]([^）)]+)[）)]\s*$/);
   const keys = (m ? [m[2], m[1]] : [name]).map(norm).filter(k => k.length >= 2);
   const hit = x => { const n = norm(x); return keys.some(k => n.includes(k)); };
-  const papers = [];
+  const pk = x => { const t = norm(x), a = t.match(/^[a-z\u4e00-\u9fff\-']+/), y = t.match(/\d{4}[a-z]?/); return a && y ? a[0] + y[0] : t; };   // 第一作者姓＋年份
+  const papers = [], done = new Set();
   let seen = 0;
-  rows.slice(1).forEach(r => {
+  // 先用重抓的量表清單（較精確），同一篇不再查表格
+  list.filter(c => hit(c[1])).forEach(c => {
+    const k = pk(c[0]); if (done.has(k)) return; done.add(k); seen++;
+    const n = itemN(c[3]), op = /操弄/.test(c[2] + c[3]);
+    papers.push({ paper: c[0], n, op: op && !n, none: /無量表|次級資料|單一指標/.test(c[2] + c[3]) && !n });
+  });
+  if (mi >= 0) rows.slice(1).forEach(r => {
     const paper = (r[0] || "").split(/\n/)[0].replace(/（?僅有摘要）?/, "").trim() || "（未命名）";
+    if (done.has(pk(paper))) return;
     const segs = (r[mi] || "").split(/[；;。\n]/).filter(hit);
     if (!segs.length && !vc.some(i => hit(r[i] || ""))) return;
     seen++;
     if (!segs.length) return;
-    const seg = segs.join("；"), n = seg.match(/(\d+)\s*個?題/);
-    papers.push({ paper, n: n ? +n[1] : null, op: /操弄/.test(seg) && !n, none: /無量表/.test(seg) && !n });
+    const seg = segs.join("；"), n = itemN(seg);
+    papers.push({ paper, n, op: /操弄/.test(seg) && !n, none: /無量表/.test(seg) && !n });
   });
   return { seen, papers: papers.filter(x => !x.none) };
 }

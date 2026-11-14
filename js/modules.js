@@ -414,7 +414,13 @@ const DEFS = {
     hint: "把筆記本中每一篇文獻整理成一列，作為後續分析的底稿。內容量大，請放在 NotebookLM 的「資料表」功能，不要貼在對話框，以免輸出被截斷。",
     fields: [{ id: "mx_cols", type: "checks", label: "要整理的欄位", hint: "「文獻」欄固定保留",
       get options() { return MATRIX_COLS.filter(c => !c.rt || RT() === "model").map(c => [c.key, c.label, c.locked || !!c.rt]); },
-      value: MATRIX_COLS.filter(c => !c.rt).map(c => c.key) }],
+      value: MATRIX_COLS.filter(c => !c.rt).map(c => c.key) },
+      { id: "mx_sc_on", type: "checks", below: true, label: "重抓量表題數", options: [["on", "表格的「量表與研究方法」欄抓不到題數時：請 NotebookLM 逐篇重抓各構念的量表與題數（只處理量化研究）"]], value: [] },
+      { id: "mx_sc_prompt", type: "promptbox", below: true, label: "重抓量表題數 Prompt", when: p => isOn(p.mx_sc_on),
+        hint: "貼到已上傳文獻的 NotebookLM 新對話（不是資料表）；回覆最後若寫「未完」，輸入「繼續」",
+        copyLabel: "複製重抓 Prompt（貼到 NotebookLM 對話）", build: () => T.ask_scales() },
+      { id: "mx_screply", type: "textarea", below: true, label: "重抓量表題數的 AI 回覆", hint: "各次回覆（含「繼續」之後的）依序貼上；0.2 勾選變數時，會優先以這份清單提示量表與題數", rows: 5, when: p => isOn(p.mx_sc_on) }
+    ],
     build: p => buildMatrix(p.mx_cols),
     next: "下一步：在已上傳文獻的 NotebookLM 開啟「資料表」，把這段 Prompt 貼進自訂指示（不是對話框）。完成後匯出成試算表，全選複製，貼到下方「AI 回覆」保存。"
   },
