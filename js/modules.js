@@ -504,24 +504,26 @@ const DEFS = {
     next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。若判斷為前後因果，可回到{#asmix}調整勾選；要深入了解其中一個變數，用{#vdeep}。"
   },
   evspec: {
-    label: "事件變數的設定方式", target: "nlm",
-    hint: "panel data 研究中有活動、政策、介入等事件時使用：請 NotebookLM 依上傳文獻，逐一核對「panel 資料處理」產生的事件變數（短期活動起日前後各週、長期活動起日後的水準與斜率變化、結束後的變化）與時間控制，是否有文獻支持、是否符合本研究的資料條件，並寫出研究方法可用的段落。請先上傳同樣估計事件效果的實證論文與方法論文獻。",
+    label: "定義事件變數", target: "nlm",
+    hint: "panel data 研究中有活動、政策、介入等事件時使用。依序填寫研究的基本資料與觀察期間、貼上整理好的活動資料，網站列出每個活動的日期資訊（表一）；再複製 Prompt 到已上傳事件研究文獻的 NotebookLM，依文獻決定保留哪些活動，並核對事件變數。回覆貼回後自動帶入，不必勾選；結果與「panel 資料處理」共用，處理資料時自動產生事件變數。",
     fields: [
       { id: "ev_event", type: "text", label: "事件類型", placeholder: "例如：募款活動、配捐活動、政策實施" },
       { id: "ev_timing", type: "radio", label: "事件發生方式", options: [["same", "所有單位同時發生（例如全國性活動）"], ["stag", "各單位發生時間不同"]], value: "same" },
       { id: "ev_ctrl", type: "radio", label: "對照單位", options: [["no", "沒有從未受影響的單位"], ["yes", "有從未受影響的單位"]], value: "no" },
       { id: "ev_y", type: "text", label: "依變數與時間單位", hint: "選填", placeholder: "例如：每日捐款總金額、每日捐款人數" },
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", hint: "選填", placeholder: "例如：公益團體線上捐款" },
-      { id: "ev_list", type: "textarea", label: "本研究的活動", hint: "自動帶入「panel 資料處理」中產生事件變數的活動（表一有勾選保留時只列保留者），類型依表一的短期／長期", rows: 5, mono: true }
+      { id: "ev_view", type: "cands", label: "", render: () => typeof dpEvDefView === "function" ? dpEvDefView() : "" }
     ],
-    seedFrom: "「panel 資料處理」的活動期間", seedNote: "「本研究的活動」由「panel 資料處理」的活動清單帶入，可自行修改",
-    seed: () => ({ ev_list: evSeedList() }),
     rules: () => ["citation"],
-    build: (p, R) => blank(p.ev_event) ? "" : T.event_spec({ ev: p.ev_event.trim(), y: (p.ev_y || "").trim(), ctx: (p.as_ctx || "").trim(), list: (p.ev_list || "").trim(),
-      wb: ((store.values.dp_cfg || {}).ae || {}).ewb ?? 8, wa: ((store.values.dp_cfg || {}).ae || {}).ewa ?? 8,
-      timing: p.ev_timing === "stag" ? "各單位發生時間不同" : "所有單位同時發生", ctrl: p.ev_ctrl === "yes" ? "有從未受影響的單位" : "沒有從未受影響的單位" }) + R,
-    empty: "（請填入事件類型）",
-    next: "下一步：貼到已上傳事件效果相關文獻的 NotebookLM 對話。第二節列出需要修改之處時，把回覆貼給 Claude 確認後再調整「panel 資料處理」；第四節可作為第三章資料分析方法的寫作素材。"
+    build: (p, R) => { if (blank(p.ev_event) || typeof dpEvCfg !== "function") return "";
+      const c = dpEvCfg(); if (!dpActs(c).list.length) return "";
+      const o = dpAeCfg(c), K = dpEvK(c);
+      return T.event_spec({ ev: p.ev_event.trim(), y: (p.ev_y || "").trim(), ctx: (p.as_ctx || "").trim(), facts: dpEvFacts(c), obs: K ? `${dpFmt(K.dmin)} 至 ${dpFmt(K.dmax)}` : "",
+        cut: o.cut, ws: o.short, wl: o.long, wb: o.ewb, wa: o.ewa,
+        timing: p.ev_timing === "stag" ? "各單位發生時間不同" : "所有單位同時發生", ctrl: p.ev_ctrl === "yes" ? "有從未受影響的單位" : "沒有從未受影響的單位" }) + R; },
+    replyView: () => typeof dpEvDecView === "function" ? dpEvDecView() : "",
+    empty: "（請填入事件類型，並貼上活動資料）",
+    next: "下一步：貼到已上傳事件研究文獻的 NotebookLM 對話，回覆整段貼到下方「AI 回覆」，保留的活動會自動帶入；第三節列出需要修改之處時，把回覆貼給 Claude 確認；第四節可作為第三章資料分析方法的寫作素材。"
   },
   smethod: {
     label: "方法導向檢索", target: "ai",
@@ -2419,11 +2421,11 @@ const OUTLINE = [
   { ch: "常用", quick: true, secs: [
     { id: "q-draft", no: "", title: "修訂論文", desc: "補強：段落還缺東西時使用，字數不減。精簡：內容齊全但太冗長，字數必須減少，可設定目標長度。整節統整：整節去除重複、調整段落順序與邏輯。融合：把幾段合併成一段。都會先核實引用，任何一章都可以用。", steps: [
       { mod: "dr", note: "先在上方「改寫方向」選擇做法。補強、精簡一次一段；整節統整會自動帶入本節全文；融合可選多段。" }] },
-    { id: "q-var", no: "", title: "檢索：變數與模型", desc: "步驟 1 深入了解單一變數：定義、維度、理論、操作型定義與量表、施測情境、前因與後果、相近構念。步驟 2 區辨相近變數：兩個以上的變數看起來很像時，分辨它們在研究架構上的異同。步驟 3 方法導向檢索：找特定領域中、實際使用某種統計方法的實證論文作為模仿範例，產生精準的 Google Scholar 檢索式與 Scholar Labs 問句。步驟 4 事件變數的設定方式：panel data 研究中，依文獻核對「panel 資料處理」產生的事件變數與時間控制。任何階段都可以用，各步驟可單獨使用。", steps: [
+    { id: "q-var", no: "", title: "定義：變數與模型", desc: "步驟 1 深入了解單一變數：定義、維度、理論、操作型定義與量表、施測情境、前因與後果、相近構念。步驟 2 區辨相近變數：兩個以上的變數看起來很像時，分辨它們在研究架構上的異同。步驟 3 方法導向檢索：找特定領域中、實際使用某種統計方法的實證論文作為模仿範例，產生精準的 Google Scholar 檢索式與 Scholar Labs 問句。步驟 4 定義事件變數：panel data 研究中，整理活動資料、依文獻篩選可分析的活動並核對事件變數，結果自動帶回「panel 資料處理」。任何階段都可以用，各步驟可單獨使用。", steps: [
       { mod: "vdeep", note: "一次問一個變數；文獻不足時，先針對這個變數補上傳文獻再問。「施測情境」常因原文只簡短交代而標示「未提及」，請回到原文的方法章節或附錄查看。" },
       { mod: "vcomp", note: "每行填一個變數；可直接從組合研究架構的勾選區複製名稱。" },
       { mod: "smethod", note: "貼到有網路搜尋的 AI 對話，不需要上傳文獻。" },
-      { mod: "evspec", note: "panel data 研究用；核對「panel 資料處理」產生的事件變數，活動清單自動帶入。" }] },
+      { mod: "evspec", note: "panel data 研究用；整理活動資料、依文獻篩選活動並定義事件變數，結果自動帶回「panel 資料處理」。" }] },
     { id: "q-data", no: "", title: "panel 資料處理", desc: "把長格式的原始資料（一列一筆交易，同一人同一天可能有多筆）整理成一人一日一筆的寬格式資料：數值欄可選加總、平均、最大或最小；某個文字欄（例如基金別）的各個值可展開成欄，並可合併。合併時文字欄位的值不一致會示警，由你選擇處理方式。全部在瀏覽器處理，資料不會上傳。", steps: [
       { mod: "dprep", note: "依序上傳檔案 → 確認欄位的處理方式 → 檢查資料 → 處理不一致 → 下載。" }] }
   ] },
@@ -2755,11 +2757,3 @@ function fillRefs(text, sec) {
   });
 }
 
-// 事件變數：由「panel 資料處理」的活動清單帶入（有勾選保留時只列保留者）
-function evSeedList() {
-  const c = store.values.dp_cfg; if (!c || typeof dpActs !== "function") return "";
-  const L = dpActs(c).list; if (!L.length) return "";
-  const K = typeof dpEvActs === "function" ? dpEvActs(c) : L;
-  return K.map(a => { const d = a.to - a.from + 1, k = dpEvKind(c, a);
-    return `${a.v}${a.ab ? " " + a.ab : ""}｜${a.name}｜${dpFmt(a.from)} 至 ${dpFmt(a.to)}｜${d} 天｜${k === "s" ? "短期" : "長期"}`; }).join("\n");
-}

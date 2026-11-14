@@ -162,6 +162,7 @@ function dpGuess(old) {
   const H = DP.head, K = DP.kind, idx = re => H.findIndex(h => re.test(h));
   const cfg = { id: null, dmode: "one", dcol: null, y: null, m: null, d: null, ychk: false, roles: {}, res: {}, flag: {}, agg: "person", wide: "day", from: null, to: null, coh: false, cohCol: null, excl: [], pcol: null, pval: null, pmap: {}, pcnt: false, tot: null, parts: [], actRep: "", actSrc: "", ext: [] };
   if (old && H.includes(old.id)) Object.assign(cfg, JSON.parse(JSON.stringify(old)));
+  else if (old) DP_ACTK.forEach(x => { if (old[x] != null) cfg[x] = JSON.parse(JSON.stringify(old[x])); });   // 活動設定（「定義事件變數」）與資料欄位無關，換檔也保留
   const has = c => c != null && H.includes(c);
   if (!has(cfg.id)) { const i = idx(/^(id|ID|編號|代碼|捐款人|個人代碼|會員編號)$/i); cfg.id = H[i >= 0 ? i : 0]; }
   const y = idx(/^(year|yy|yr|年)$/i), m = idx(/^(mm|month|mon|月)$/i), d = idx(/^(dd|day|日)$/i);
@@ -366,14 +367,14 @@ const DP_DRE = /(\d{2,4})\s*[\/\-.年]\s*(\d{1,2})\s*[\/\-.月]\s*(\d{1,2})\s*�
 // 活動整理 Prompt：交給一般 AI，把活動資料整理成固定格式後貼回
 const dpActPrompt = () => [
   "以下是我整理的活動資料（可能是表格、條列或一般文字）。請找出其中每一個活動及其舉辦期間，整理成每行一個活動，格式為：",
-  "活動名稱｜簡稱｜起日｜迄日｜說明",
+  "活動名稱｜簡稱｜起日｜迄日｜地區｜說明",
   "",
   "規則：",
   "0. 「簡稱」為 2 至 6 個中文字，用於表格與圖中辨識活動，各活動的簡稱不得重複（同一活動分成多行時，在簡稱後加 1、2 區分）。",
   "1. 日期一律寫成西元 YYYY/MM/DD；原文為民國年時換算成西元年。",
   "2. 單日活動的起日與迄日相同；起迄日都包含在活動期間內。",
   "3. 同一活動有多個不連續的期間時，分成多行，並在活動名稱後加（1）（2）區分。",
-  "4. 「說明」寫活動內容的簡短摘要（一句話），原文沒有時留白。",
+  "4. 「地區」寫「全國」；原文明確寫出只在某一縣市舉辦時，寫該縣市的全名（例如臺中市）。「說明」寫活動內容的簡短摘要（一句話），原文沒有時留白。",
   "5. 原文沒有寫明年份、日期不完整或無法確定者，不得推測，改列在最後的「## 無法確定」一節，每行寫出原文與原因。",
   "6. 只輸出上述內容，不加其他文字、不使用表格。",
   "", "活動資料：", "---", "（請在這裡貼上活動資料）", "---"
@@ -391,7 +392,9 @@ function dpActs(cfg) {
     const ab2 = cells.length >= 4 && !isD(cells[0]) && !isD(cells[1]);   // 新格式：活動名稱｜簡稱｜起日｜迄日｜說明
     const from = Math.min(ds[0], ds[1] ?? ds[0]), to = Math.max(ds[0], ds[1] ?? ds[0]), a = { name, from, to };
     const ab0 = ab2 ? cells[1] : "", ov = (cfg.actAb || {})[dpAeKeyOf(a)];
-    list.push({ ...a, ab0, ab: ov != null ? ov : ab0, note: cells.length > (ab2 ? 4 : 3) ? cells.slice(ab2 ? 4 : 3).join("｜") : "", v: `act${list.length + 1}` });
+    let ni = ab2 ? 4 : 3, area = null; const ar = cells[ni] || "";   // 地區（新格式）：全國或縣市名稱；舊格式沒有這一欄
+    if (/^全國$/.test(ar)) { area = ""; ni++; } else if (ar && DP_TW.has(dpCty(ar))) { area = dpCty(ar); ni++; }
+    list.push({ ...a, ab0, ab: ov != null ? ov : ab0, area, note: cells.length > ni ? cells.slice(ni).join("｜") : "", v: `act${list.length + 1}` });
   });
   return { list, bad, unsure };
 }
@@ -471,7 +474,7 @@ function dpBlock(cfg, chk) {
 // ── 模型用的事件變數（依文獻）──
 // 共同：time（線性時間趨勢）、dow（星期幾）；短期：起日前後各週指示變數；長期：起日後階梯、起日後天數，已結束者另加結束後階梯與天數
 const dpEvKind = (c, a) => { const o = dpAeCfg(c), k = dpAeKeyOf(a); return o.kind[k] || (a.to - a.from + 1 <= o.cut ? "s" : "l"); };
-const dpEvActs = c => { const L = dpActs(c).list, o = dpAeCfg(c), K = L.filter(a => o.keep[dpAeKeyOf(a)]); return K.length ? K : L; };
+const dpEvActs = c => { const L = dpActs(c).list, K = L.filter(a => dpAeDec(c, a).keep); return K.length ? K : L; };
 function dpEvSpec(c, dmin, dmax) {
   const o = dpAeCfg(c), cols = [["time", "線性時間趨勢：樣本第一天為 1，逐日加 1"], ["dow", "星期幾：1＝星期一，7＝星期日"]];
   dpEvActs(c).forEach(a => { const nmA = `「${a.name}」`;
@@ -508,7 +511,7 @@ function dpEvView(c) {
   const o = dpAeCfg(c), L = dpEvActs(c), S = L.filter(a => dpEvKind(c, a) === "s"), G = L.filter(a => dpEvKind(c, a) === "l");
   const nm = a => `${a.v}${a.ab ? " " + esc(a.ab) : ""}`;
   return `<div class="dpsub"><b>模型用的事件變數</b>
-    <p class="hint">依表一的「短期／長期」分類，替每個活動自動產生放進模型的變數（表一有勾選保留時只處理保留的活動），另加 time 與 dow 控制時間。短期：${S.length ? S.map(nm).join("、") : "無"}；長期：${G.length ? G.map(nm).join("、") : "無"}。</p>
+    <p class="hint">依表一的「短期／長期」分類，替保留的活動自動產生放進模型的變數（沒有保留任何活動時，全部活動都產生），另加 time 與 dow 控制時間。短期：${S.length ? S.map(nm).join("、") : "無"}；長期：${G.length ? G.map(nm).join("、") : "無"}。</p>
     <details class="dpdoc"><summary>說明：這些變數是什麼、為什麼這樣設</summary>
       <p><b>短期活動</b></p>
       <ul><li>變數：把起日前後切成一週一週（每 7 天一週，起日當週為第 0 週），每週一個 0/1 變數；_b${o.ewb}…_b1 是起日前第 ${o.ewb} 週到第 1 週，_a0…_a${o.ewa} 是起日當週到起日後第 ${o.ewa} 週。</li>
@@ -825,7 +828,7 @@ function dpSummary(cfg, chk) {
     unit: `個人（代碼欄 ${cfg.id}，共 ${chk.ids.toLocaleString("en-US")} 人${chk.excl ? `；已排除 ${chk.excl.rules.map(x => `${x.col} 曾為「${x.vals.join("、")}」`).join("或")}的人` : ""}${chk.coh ? `；只含首次交易在 ${dpFmt(cfg.from)} 之後的人` : ""}）`,
     time: `以日為單位，一人一日一筆（${chk.conf.day.groups.toLocaleString("en-US")} 筆，只含有交易的日子）；觀察期間 ${dpFmt(chk.dmin)} 至 ${dpFmt(chk.dmax)}`,
     fields: dayT.map(desc).join("\n"),
-    base: dayX.base
+    base: dayX.base, dmin: chk.dmin, dmax: chk.dmax
   };
 }
 
@@ -846,6 +849,8 @@ function dpCommit(recheck) {   // 設定變更：存進研究存檔（只有設�
   setTimeout(update, 0);   // 等目前的事件結束再重畫，避免輸入框失去焦點時重複重畫
 }
 function dpView() {
+  const sv = store.values.dp_cfg;   // 「定義事件變數」改的是研究存檔中的設定；兩者不是同一份時，帶入活動設定
+  if (DP.cfg && sv && sv !== DP.cfg) DP_ACTK.forEach(x => { if (sv[x] != null) DP.cfg[x] = x === "ae" ? { ...(DP.cfg.ae || {}), ...sv.ae, y1: (DP.cfg.ae || {}).y1, ccol: (DP.cfg.ae || {}).ccol, cy: (DP.cfg.ae || {}).cy } : sv[x]; });
   const c = DP.cfg, H = DP.head, K = DP.kind;
   let h = `<div class="dp"><fieldset class="struct"><legend>1. 上傳原始資料</legend>
     <p class="hint">支援 .xlsx 與 .csv（UTF-8 或 Big5 皆可），一列一筆交易的長格式資料。資料只在這台電腦的瀏覽器處理，不會上傳；研究存檔只記住欄位設定與處理摘要，下次上傳同樣欄位的檔案會自動套用。建議大小：xlsx 約 50 MB、CSV 約 200 MB 以內；.xls 請先在 Excel 另存為 .xlsx 或 CSV。</p>
@@ -946,26 +951,130 @@ function dpView() {
 }
 // ── 活動初步評估：表一篩選（只用日期資訊，不看捐款資料）；表二 Y 比較與事件時間圖（只算保留的活動）──
 const DP_LY = 364;   // 前一年同期：往前 52 週，星期幾一致
-const dpAeCfg = c => { const o = c.ae ||= {}; o.short ??= 28; o.long ??= 182; o.cut ??= 90; o.ewb ??= 8; o.ewa ??= 8; o.keep ||= {}; o.kind ||= {}; o.exact ||= {}; o.cty ||= {}; o.cy ||= 0; return o; };
+const dpAeCfg = c => { const o = c.ae ||= {}; o.short ??= 28; o.long ??= 182; o.cut ??= 90; o.ewb ??= 8; o.ewa ??= 8; o.keep ||= {}; o.kind ||= {}; o.exact ||= {}; o.cty ||= {}; o.keepM ||= {}; o.exactM ||= {}; o.cy ||= 0; return o; };
+// 「定義：變數與模型」步驟 4 的 NotebookLM 回覆：「## 一、篩選結果」每行「變數｜活動名稱｜保留或排除｜起日可作為事件日｜理由」
+const DP_EVKEY = "q-var|evspec";
+function dpEvAI(c) {
+  const t = String(((typeof store !== "undefined" && store.replies) || {})[DP_EVKEY] || "").replace(/\*\*/g, ""), L = dpActs(c).list, out = {};
+  const st = t.search(/^#{1,3}\s*(一、)?篩選結果/m); if (st < 0) return out;
+  const body = t.slice(st).split(/\r?\n/).slice(1); const end = body.findIndex(l => /^#{1,3}\s/.test(l));
+  (end >= 0 ? body.slice(0, end) : body).forEach(l => {
+    const cells = l.replace(/^[\s\-*•]+/, "").replace(/^\||\|$/g, "").split(/[｜|]/).map(x => x.trim()); if (cells.length < 3) return;
+    const v = (cells[0].match(/act\d+/i) || [""])[0].toLowerCase(), a = L.find(x => x.name === cells[1]) || L.find(x => x.v === v); if (!a) return;
+    const kp = cells.find(x => /^(保留|排除)/.test(x)); if (!kp) return;
+    const ex = cells.find(x => /^(是|否|待查證)/.test(x)), why = cells[cells.length - 1];
+    out[dpAeKeyOf(a)] = { keep: /^保留/.test(kp), ex: ex ? ex.replace(/[（(].*$/, "") : "", why, pend: /待補文獻|未找到依據|未提及/.test(l) };
+  });
+  return out;
+}
+// 保留、起日確定：手動修改 → 文獻判定（NotebookLM 回覆） → 舊版的勾選 → 預設（不保留；起日不在月初視為確定）
+function dpAeDec(c, a, ai) {
+  const o = dpAeCfg(c), key = dpAeKeyOf(a), x = (ai || dpEvAI(c))[key], dd = dpYMD(a.from)[2];
+  const keep = key in o.keepM ? !!o.keepM[key] : x ? x.keep : !!o.keep[key], keepSrc = key in o.keepM ? "man" : x ? "ai" : o.keep[key] ? "old" : "";
+  const exact = key in o.exactM ? !!o.exactM[key] : x && x.ex ? x.ex === "是" : key in o.exact ? !!o.exact[key] : dd !== 1, exSrc = key in o.exactM ? "man" : x && x.ex ? "ai" : "";
+  return { keep, keepSrc, exact, exSrc, ai: x || null };
+}
 const dpAeKeyOf = a => a.name + "|" + dpFmt(a.from);
 // 簡稱：AI 回覆的「簡稱」欄，可在活動清單修改（存於 actAb）；表二結果是計算當時的快照，簡稱改讀目前設定
 const dpAbNow = a => { const o = (DP.cfg && DP.cfg.actAb) || {}, k = dpAeKeyOf(a); return k in o ? o[k] : (a.ab || ""); };
 const dpAeCtyGuess = name => { for (const m of String(name).matchAll(/[（(]([^）)]+)[）)]/g)) { const k = dpCty(m[1]); if (DP_TW.has(k)) return k; } return ""; };
 const DP_AEM = ["Y1 捐款總金額", "Y2 捐款人數", "首次捐款人數"];
 function dpAeScreen(c, k) {
-  const o = dpAeCfg(c);
-  const rows = dpActs(c).list.map(a => { const key = dpAeKeyOf(a), days = a.to - a.from + 1, kind = o.kind[key] || (days <= o.cut ? "s" : "l"), W = kind === "s" ? o.short : o.long, dd = dpYMD(a.from)[2];
-    return { a, key, days, kind, W, w0: a.from - W, w1: a.from + W - 1, rough: dd === 1, exact: key in o.exact ? !!o.exact[key] : dd !== 1,
-      preOK: a.from - W >= k.dmin, postOK: a.from + W - 1 <= k.dmax, toEnd: a.to >= k.dmax, cty: key in o.cty ? o.cty[key] : dpAeCtyGuess(a.name), keep: !!o.keep[key] }; });
+  const o = dpAeCfg(c), AI = dpEvAI(c), kn = k && k.dmin != null;   // k：觀察期間；未知時窗口相關欄位為 null
+  const rows = dpActs(c).list.map(a => { const key = dpAeKeyOf(a), days = a.to - a.from + 1, kind = o.kind[key] || (days <= o.cut ? "s" : "l"), W = kind === "s" ? o.short : o.long, dd = dpYMD(a.from)[2], D = dpAeDec(c, a, AI);
+    return { a, key, days, kind, kindM: !!o.kind[key], W, w0: a.from - W, w1: a.from + W - 1, rough: dd === 1, exact: D.exact, exSrc: D.exSrc,
+      preOK: kn ? a.from - W >= k.dmin : null, postOK: kn ? a.from + W - 1 <= k.dmax : null, toEnd: kn ? a.to >= k.dmax : null,
+      cty: key in o.cty ? o.cty[key] : a.area != null ? a.area : dpAeCtyGuess(a.name), ctyM: key in o.cty, keep: D.keep, keepSrc: D.keepSrc, ai: D.ai }; });
   rows.forEach(r => { r.ov = rows.filter(x => x !== r).map(x => [x.a.v, Math.min(r.w1, x.w1) - Math.max(r.w0, x.w0) + 1]).filter(x => x[1] > 0); });
   return rows;
+}
+// ── 「定義：變數與模型」步驟 4「定義事件變數」：活動資料、觀察期間、表一（日期事實）、文獻篩選結果；設定存在研究存檔的 dp_cfg，與「panel 資料處理」共用 ──
+const DP_ACTK = ["actRep", "actSrc", "actAb", "ae"];
+const DP_EVGO = `<p><button type="button" data-go="q-var" data-gostep="3">到「定義事件變數」修改 →</button></p>`;
+const dpEvCfg = () => DP.cfg && store.values.dp_cfg === DP.cfg ? DP.cfg : (store.values.dp_cfg ||= {});
+const dpIso = v => v != null ? dpFmt(v).replace(/\//g, "-") : "";
+// 觀察期間：已處理資料時用資料實際的起訖日，否則用手動填寫的期間
+function dpEvK(c) {
+  const o = dpAeCfg(c), man = o.obs0 != null && o.obs1 != null ? { dmin: o.obs0, dmax: o.obs1 } : null;
+  let d = DP.chk && DP.cfg === c ? { dmin: DP.chk.dmin, dmax: DP.chk.dmax } : null;
+  if (!d) { const s = store.values.dp_sum || {}, m = String(s.time || "").match(/觀察期間 (\d{4}\/\d{2}\/\d{2}) 至 (\d{4}\/\d{2}\/\d{2})/);
+    if (s.dmin != null) d = { dmin: s.dmin, dmax: s.dmax }; else if (m) d = { dmin: dpDateVal(m[1]), dmax: dpDateVal(m[2]) }; }
+  return d ? { ...d, src: "data", man } : man ? { ...man, src: "man", man } : null;
+}
+const dpYNu = (b, warn) => b == null ? "—" : b ? "是" : `<span class="${warn ? "warn" : ""}">否</span>`;
+const dpOvTxt = r => r.ov.length ? r.ov.map(([v, n]) => `${v} ${n} 天`).join("、") : "無";
+// 送給 NotebookLM 的日期事實（每個活動一行）
+function dpEvFacts(c) {
+  const K = dpEvK(c), S = dpAeScreen(c, K), yn = b => b == null ? "未知" : b ? "是" : "否";
+  return S.map(r => [`${r.a.v}${r.a.ab ? " " + r.a.ab : ""}`, r.a.name, `${dpFmt(r.a.from)} 至 ${dpFmt(r.a.to)}`, `${r.days} 天`, r.kind === "s" ? "短期" : "長期", r.cty || "全國",
+    r.rough ? "起日在月初（可能為概估）" : "起日不在月初", `事前窗口完整：${yn(r.preOK)}`, `事後窗口完整：${yn(r.postOK)}`, `延續到資料截止日：${yn(r.toEnd)}`, `窗口重疊：${dpOvTxt(r)}`].join("｜")).join("\n");
+}
+function dpEvDefView() {
+  const c = dpEvCfg(), A = dpActs(c), o = dpAeCfg(c), K = dpEvK(c);
+  let h = `<div class="dp dpev"><fieldset class="struct"><legend>觀察期間</legend>
+    <div class="dprow"><label>起 <input type="date" data-dpev="obs0" value="${dpIso(o.obs0)}"></label><label>迄 <input type="date" data-dpev="obs1" value="${dpIso(o.obs1)}"></label></div>
+    <p class="hint">用來判斷每個活動起日前後的窗口是否完整、是否延續到資料截止日。「panel 資料處理」檢查過資料後，自動改用資料實際的起訖日。</p>
+    ${K && K.src === "data" ? `<div class="note">使用資料實際的觀察期間：${dpFmt(K.dmin)} 至 ${dpFmt(K.dmax)}${K.man && (K.man.dmin !== K.dmin || K.man.dmax !== K.dmax) ? "；與上方填寫的期間不同，以資料為準" : ""}。</div>` : !K ? `<div class="note warn">請填寫觀察期間，或先在「panel 資料處理」檢查資料；沒有觀察期間時，窗口是否完整列為「未知」。</div>` : ""}</fieldset>
+    <fieldset class="struct"><legend>活動原始資料</legend>
+    <p class="hint">活動資料（表格、條列或文字都可以）先交給一般 AI 整理：按「複製活動整理 Prompt」，貼到一般 AI（Claude、ChatGPT、Gemini），在 Prompt 最後的位置貼上活動資料；AI 的回覆整段貼到下方。地區預設為全國，原文寫明只在某縣市舉辦時才填縣市。</p>
+    <p><button type="button" data-dpevcopy="act">複製活動整理 Prompt（貼到一般 AI）</button> <span class="hint" id="dpevmsg"></span></p>
+    <textarea data-dpev="actRep" class="mono" style="min-height:96px" placeholder="AI 的回覆貼在這裡，例如：
+年終感恩募款｜年終募款｜2023/12/01｜2023/12/31｜全國｜年底募款信與電話勸募">${esc(c.actRep || "")}</textarea>
+    <div class="dprow"><label>資料來源 <input type="text" data-dpev="actSrc" value="${esc(c.actSrc || "")}" placeholder="例如：本機構 2013–2025 年活動紀錄" style="width:22em"></label></div>`;
+  if (A.bad.length) h += `<div class="note warn">讀不出日期的行（請修正或刪除）：\n${A.bad.map(esc).join("\n")}</div>`;
+  if (A.unsure.length) h += `<div class="note warn">AI 列為無法確定的活動（未納入；確認日期後，依「活動名稱｜簡稱｜起日｜迄日｜地區｜說明」補進上方）：\n${A.unsure.map(esc).join("\n")}</div>`;
+  h += `</fieldset>`;
+  if (A.list.length) { const S = dpAeScreen(c, K), ctys = [...DP_TW];
+    h += `<fieldset class="struct"><legend>表一：活動的日期資訊</legend>
+    <p class="hint">只用日期資訊，不看捐款資料。類型依活動天數預設（${o.cut} 天以內為短期），地區依活動資料預設；需要時可改下拉選單，改過的標示「已手動修改」，選回第一項即取消。下方的 Prompt 會把這張表交給 NotebookLM，依文獻決定保留哪些活動。</p>
+    <div class="dprow"><label>天數 <input type="number" min="1" step="1" data-dpae="cut" value="${o.cut}" style="width:5em"> 天以內預設為短期</label><label>窗口：短期前後各 <input type="number" min="1" step="1" data-dpae="short" value="${o.short}" style="width:5em"> 天</label><label>長期前後各 <input type="number" min="1" step="1" data-dpae="long" value="${o.long}" style="width:5em"> 天</label></div>
+    <table class="dptbl"><thead><tr><th>變數</th><th>簡稱</th><th>活動名稱</th><th>起日</th><th>迄日</th><th>天數</th><th>類型</th><th>地區</th><th>起日</th><th>事前窗口</th><th>事後窗口</th><th>延續到截止日</th><th>窗口重疊</th></tr></thead><tbody>${S.map(r => { const dk = r.days <= o.cut ? "短期" : "長期", da = r.a.area != null ? (r.a.area || "全國") : (dpAeCtyGuess(r.a.name) || "全國");
+      return `<tr><td>${r.a.v}</td><td><input type="text" data-dpab="${esc(r.key)}" value="${esc(r.a.ab)}" placeholder="（未填）" style="width:7em"></td><td>${esc(r.a.name)}</td><td>${dpFmt(r.a.from)}</td><td>${dpFmt(r.a.to)}</td><td class="r">${r.days}</td>
+      <td><select data-dpevkind="${esc(r.key)}"><option value="">依天數：${dk}</option><option value="s"${r.kindM && r.kind === "s" ? " selected" : ""}>短期</option><option value="l"${r.kindM && r.kind === "l" ? " selected" : ""}>長期</option></select>${r.kindM ? ` <small class="warn">已手動修改</small>` : ""} <small>${r.W} 天</small></td>
+      <td><select data-dpevcty="${esc(r.key)}"><option value="__d">依活動資料：${esc(da)}</option><option value=""${r.ctyM && !r.cty ? " selected" : ""}>全國</option>${ctys.map(x => `<option${r.ctyM && x === r.cty ? " selected" : ""}>${x}</option>`).join("")}</select>${r.ctyM ? ` <small class="warn">已手動修改</small>` : ""}</td>
+      <td>${r.rough ? `<span class="warn">月初，可能為概估</span>` : "非月初"}</td><td>${dpYNu(r.preOK, 1)}</td><td>${dpYNu(r.postOK, 1)}</td><td>${r.toEnd == null ? "—" : r.toEnd ? `<span class="warn">是</span>` : "否"}</td>
+      <td>${r.ov.length ? `<span class="warn">${dpOvTxt(r)}</span>` : "無"}</td></tr>`; }).join("")}</tbody></table>
+    <p class="hint">${K ? `事前、事後窗口「否」表示窗口超出觀察期間（${dpFmt(K.dmin)} 至 ${dpFmt(K.dmax)}）。` : ""}窗口重疊列出與其他活動窗口重疊的天數。</p></fieldset>`; }
+  return h + `</div>`;
+}
+// 貼上 NotebookLM 回覆後：文獻篩選結果（可手動修改）與事件變數
+function dpEvDecView() {
+  const c = dpEvCfg(), A = dpActs(c); if (!A.list.length) return "";
+  const S = dpAeScreen(c, dpEvK(c)), has = S.some(r => r.ai), pend = S.filter(r => r.ai && r.ai.pend), miss = has ? S.filter(r => !r.ai) : [];
+  const sel = (attr, key, cur, man, def) => `<select data-${attr}="${esc(key)}"><option value="">${def}</option><option value="1"${man && cur ? " selected" : ""}>${attr === "dpevkeep" ? "保留" : "是"}</option><option value="0"${man && !cur ? " selected" : ""}>${attr === "dpevkeep" ? "排除" : "否"}</option></select>${man ? ` <small class="warn">已手動修改</small>` : ""}`;
+  let h = `<div class="dp dpev"><fieldset class="struct"><legend>文獻篩選結果</legend>
+    <p class="hint">依上方回覆的「## 一、篩選結果」自動帶入，不必勾選。查證後發現需要更正時，可改下拉選單，改過的標示「已手動修改」，選回第一項即改回文獻判定。保留的活動自動用於「panel 資料處理」的事件變數與活動前後比較。</p>
+    ${!has ? `<div class="note">尚未貼上回覆，或回覆中讀不到「## 一、篩選結果」。</div>` : ""}
+    ${pend.length ? `<div class="note warn">下列活動的判定缺乏上傳文獻的依據（【待補文獻】），目前先依 NotebookLM 的暫定判斷處理：${pend.map(r => r.a.v + (r.a.ab ? " " + esc(r.a.ab) : "")).join("、")}。補上文獻後，重新送出 Prompt 並更新回覆。</div>` : ""}
+    ${miss.length ? `<div class="note warn">回覆中沒有判定：${miss.map(r => r.a.v).join("、")}（活動清單可能在送出 Prompt 後有變動，請重新送出）。</div>` : ""}
+    <table class="dptbl"><thead><tr><th>變數</th><th>簡稱</th><th>活動名稱</th><th>類型</th><th>保留</th><th>起日可作為事件日</th><th>文獻判定的理由</th></tr></thead><tbody>${S.map(r => { const ai = r.ai, kd = ai ? (ai.keep ? "保留" : "排除") : "未判定", ed = ai && ai.ex ? ai.ex : r.rough ? "否（月初）" : "是";
+      return `<tr><td>${r.a.v}</td><td>${esc(r.a.ab || "")}</td><td>${esc(r.a.name)}</td><td>${r.kind === "s" ? "短期" : "長期"}</td>
+      <td>${sel("dpevkeep", r.key, r.keep, r.keepSrc === "man", `依文獻：${kd}`)}</td><td>${sel("dpevex", r.key, r.exact, r.exSrc === "man", `依文獻：${esc(ed)}`)}</td>
+      <td>${ai ? (ai.pend ? `<span class="warn">${esc(ai.why)}${/待補文獻/.test(ai.why) ? "" : "【待補文獻】"}</span>` : esc(ai.why)) : "—"}</td></tr>`; }).join("")}</tbody></table></fieldset>
+    ${dpEvView(c)}
+    <p><button type="button" data-go="q-data" data-gostep="0">前往 panel 資料處理 →</button></p></div>`;
+  return h;
+}
+function dpEvChange(t) {
+  const c = dpEvCfg(), d = t.dataset, o = dpAeCfg(c), v = t.value;
+  if (d.dpev === "obs0" || d.dpev === "obs1") o[d.dpev] = v ? dpDateVal(v) : null;
+  else if (d.dpev === "actRep" || d.dpev === "actSrc") { c[d.dpev] = v; DP.extStat = null; }
+  else if (["short", "long", "cut", "ewb", "ewa"].includes(d.dpae)) o[d.dpae] = Math.max(1, Math.round(+v || 1));
+  else if (d.dpab != null) { const ab = c.actAb ||= {}, a = dpActs({ ...c, actAb: {} }).list.find(x => dpAeKeyOf(x) === d.dpab), x = v.trim(); if (a && x === a.ab0) delete ab[d.dpab]; else ab[d.dpab] = x; }
+  else if (d.dpevkeep != null) { if (v === "") delete o.keepM[d.dpevkeep]; else o.keepM[d.dpevkeep] = v === "1"; }
+  else if (d.dpevex != null) { if (v === "") delete o.exactM[d.dpevex]; else o.exactM[d.dpevex] = v === "1"; }
+  else if (d.dpevkind != null) { if (v === "") delete o.kind[d.dpevkind]; else o.kind[d.dpevkind] = v; }
+  else if (d.dpevcty != null) { if (v === "__d") delete o.cty[d.dpevcty]; else o.cty[d.dpevcty] = v; }
+  else return;
+  if (DP.cfg === c) return dpCommit(false);
+  store.values.dp_cfg = c; setTimeout(update, 0);
 }
 // Y1 的來源：數值欄（加總、平均、最大、最小）或展開後各欄的合計
 const dpAeYopts = c => [...(c.pcol ? [["__pv", `展開後各欄合計（${dpTargets(c).join("＋") || "無"}）`]] : []), ...DP.head.filter(h => ["sum", "mean", "max", "min"].includes(c.roles[h])).map(h => [h, h])];
 const dpAeY = c => { const o = dpAeCfg(c), opt = dpAeYopts(c); if (opt.some(x => x[0] === o.y1)) return o.y1;
   const t = opt.find(x => x[0] !== "__pv" && /total|合計|總|金額|amount/i.test(x[0])); return (t || opt[0] || [null])[0]; };
 const dpAeYlab = c => { const y = dpAeY(c); return y === "__pv" ? "展開後各欄合計" : y || "（未選）"; };
-const dpAeStateKey = (c, k) => { const o = dpAeCfg(c); return JSON.stringify([o.short, o.long, o.cut, o.keep, o.kind, o.cty, dpAeY(c), o.ccol || dpCtyCols()[0] || "", dpActs(c).list, k.k, k.dmin, k.dmax]); };
+const dpAeStateKey = (c, k) => { const o = dpAeCfg(c); return JSON.stringify([o.short, o.long, o.cut, dpActs(c).list.filter(a => dpAeDec(c, a).keep).map(dpAeKeyOf), o.kind, o.cty, dpAeY(c), o.ccol || dpCtyCols()[0] || "", dpActs(c).list, k.k, k.dmin, k.dmax]); };
 function dpAeRun(c, k, T) {
   const o = dpAeCfg(c), H = T.head, rows = T.rows, di = H.indexOf("date"), yv = dpAeY(c), ccol = o.ccol || dpCtyCols()[0] || "";
   const yc = yv === "__pv" ? dpTargets(c).map(t => H.indexOf(t)).filter(x => x >= 0) : [H.indexOf(yv)].filter(x => x >= 0);
@@ -1109,20 +1218,11 @@ const DP_AEDOC = `<details class="dpdoc"><summary>方法說明：這些表與圖
 </details>`;
 function dpAeView(c, k) {
   if (!k || !dpActs(c).list.length) return "";
-  const o = dpAeCfg(c), S = dpAeScreen(c, k), ctys = [...DP_TW], yo = dpAeYopts(c), y = dpAeY(c), cc = dpCtyCols(), YN = (b, warn) => b ? "是" : `<span class="${warn ? "warn" : ""}">否</span>`;
+  const o = dpAeCfg(c), S = dpAeScreen(c, k), yo = dpAeYopts(c), y = dpAeY(c), cc = dpCtyCols();
   let h = `<div class="dpsub"><b>活動初步評估</b>${DP_AEDOC}
-    <p class="hint">分兩段進行。表一只用日期資訊（天數、起日、窗口是否完整、重疊），不看捐款資料，請依此先決定要保留的活動與分類；表二才比較保留活動的 Y，只用於描述，不用來挑選活動。每個活動以起日（對外公開日）為事件日，比較起日前後同樣天數的窗口；前一年同期為 ${DP_LY} 天前的同一段日期（星期幾一致），用來對照季節性。</p>
-    <div class="dprow"><label>短期窗口 <input type="number" min="1" step="1" data-dpae="short" value="${o.short}" style="width:5em"> 天</label><label>長期窗口 <input type="number" min="1" step="1" data-dpae="long" value="${o.long}" style="width:5em"> 天</label><label>天數 <input type="number" min="1" step="1" data-dpae="cut" value="${o.cut}" style="width:5em"> 天以內預設為短期</label></div>
-    <table class="dptbl"><thead><tr><th>保留</th><th>變數</th><th>簡稱</th><th>活動名稱</th><th>起日</th><th>天數</th><th>類型</th><th>起日確定</th><th>事前窗口</th><th>事後窗口</th><th>延續到截止日</th><th>窗口重疊</th><th>地區</th></tr></thead><tbody>${S.map(r => `<tr>
-      <td><input type="checkbox" data-dpaekeep="${esc(r.key)}"${r.keep ? " checked" : ""}></td><td>${r.a.v}</td><td>${esc(r.a.ab || "")}</td><td>${esc(r.a.name)}</td><td>${dpFmt(r.a.from)}</td><td class="r">${r.days}</td>
-      <td><select data-dpaekind="${esc(r.key)}"><option value="s"${r.kind === "s" ? " selected" : ""}>短期</option><option value="l"${r.kind === "l" ? " selected" : ""}>長期</option></select> <small>${r.W} 天</small></td>
-      <td><label class="chip"><input type="checkbox" data-dpaeex="${esc(r.key)}"${r.exact ? " checked" : ""}>${r.rough ? "<small>月初，可能為概估</small>" : "確定"}</label></td>
-      <td>${YN(r.preOK, 1)}</td><td>${YN(r.postOK, 1)}</td><td>${r.toEnd ? `<span class="warn">是</span>` : "否"}</td>
-      <td>${r.ov.length ? `<span class="warn">${r.ov.map(([v, n]) => `${v} ${n} 天`).join("、")}</span>` : "無"}</td>
-      <td><select data-dpaecty="${esc(r.key)}"><option value="">全國</option>${ctys.map(x => `<option${x === r.cty ? " selected" : ""}>${x}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table>
-    <p class="hint">事前、事後窗口「否」表示窗口超出觀察期間（${dpFmt(k.dmin)} 至 ${dpFmt(k.dmax)}），該段不計算。起日落在月初者可能是以年或月登錄的概估日期，查證後再勾選「起日確定」。窗口重疊列出與其他活動窗口重疊的天數（含未保留的活動）。延續到截止日、或長達數年的活動屬於長期結構轉變，以起日前後的變化描述。地區活動（名稱中的縣市會自動判斷）比較該縣市與其他縣市。</p>`;
+    <p class="hint">保留哪些活動、短期或長期、地區與窗口天數，在「定義：變數與模型」步驟 4「定義事件變數」依文獻決定（表一）；這裡用捐款資料比較保留活動起日前後的 Y（表二），只用於描述，不用來挑選活動。每個活動以起日（對外公開日）為事件日，比較起日前後同樣天數的窗口（短期 ${o.short} 天、長期 ${o.long} 天）；前一年同期為 ${DP_LY} 天前的同一段日期（星期幾一致），用來對照季節性。</p>`;
   const keep = S.filter(r => r.keep);
-  if (!keep.length) return h + `<p class="note">勾選要保留的活動後，可計算活動前後比較。</p></div>`;
+  if (!keep.length) return h + `<p class="note">還沒有保留的活動：請先到「定義事件變數」貼上 NotebookLM 的篩選結果。</p>${DP_EVGO}</div>`;
   const anyC = keep.some(r => r.cty);
   h += `<div class="dprow"><label>Y1 的金額欄 <select data-dpae="y1">${yo.map(([v, t]) => `<option value="${esc(v)}"${v === y ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></label>
     ${anyC ? `<label>縣市欄 <select data-dpae="ccol">${dpOpt(cc, o.ccol || cc[0] || "", cc.length ? null : "（沒有縣市欄）")}</select></label>` : ""}
@@ -1151,16 +1251,14 @@ function dpAeView(c, k) {
 function dpExtView(c, k) {
   const A = dpActs(c), N = dpN;
   let h = `<fieldset class="struct"><legend>4. 活動期間與外部資料（選用）</legend>
-    <div class="dpsub"><b>活動期間</b>
-    <p class="hint">活動資料（表格、條列或文字都可以）先交給一般 AI 整理：按「複製活動整理 Prompt」，貼到一般 AI（Claude、ChatGPT、Gemini），在 Prompt 最後的位置貼上活動資料；AI 的回覆整段貼到下方。每個活動產生一個 0/1 變數（act1、act2…），活動期間內（含起迄日）為 1，其餘為 0；活動視為全國一致。</p>
-    <p><button type="button" data-dpcopy="act">複製活動整理 Prompt</button> <span class="hint" id="dpcopymsg"></span></p>
-    <textarea data-dp="actRep" class="mono" style="min-height:96px" placeholder="AI 的回覆貼在這裡，例如：
-年終感恩募款｜年終募款｜2023/12/01｜2023/12/31｜年底募款信與電話勸募">${esc(c.actRep || "")}</textarea>
-    <div class="dprow"><label>資料來源 <input type="text" data-dp="actSrc" value="${esc(c.actSrc || "")}" placeholder="例如：本機構 2013–2025 年活動紀錄" style="width:22em"></label></div>`;
-  if (A.list.length) h += `<table class="dptbl"><thead><tr><th>變數</th><th>簡稱</th><th>活動名稱</th><th>起日</th><th>迄日</th><th>天數</th><th>說明</th></tr></thead><tbody>${A.list.map(a => `<tr><td>${a.v}</td><td><input type="text" data-dpab="${esc(dpAeKeyOf(a))}" value="${esc(a.ab)}" placeholder="（未填）" style="width:7em"></td><td>${esc(a.name)}</td><td>${dpFmt(a.from)}</td><td>${dpFmt(a.to)}</td><td class="r">${a.to - a.from + 1}</td><td>${esc(a.note)}</td></tr>`).join("")}</tbody></table>`;
-  if (A.bad.length) h += `<div class="note warn">讀不出日期的行（請修正或刪除）：\n${A.bad.map(esc).join("\n")}</div>`;
-  if (A.unsure.length) h += `<div class="note warn">AI 列為無法確定的活動（未納入；確認日期後，依「活動名稱｜簡稱｜起日｜迄日｜說明」補進上方）：\n${A.unsure.map(esc).join("\n")}</div>`;
-  h += dpAeView(c, k) + dpEvView(c);
+    <div class="dpsub"><b>活動期間與事件變數</b>
+    <p class="hint">活動資料的整理、依文獻篩選、短期／長期分類、地區與事件變數的週數，都在「定義：變數與模型」步驟 4「定義事件變數」設定，這裡自動帶入。每個活動產生期間 0/1 變數（act1、act2…，活動期間內含起迄日為 1）；保留的活動另產生模型用的事件變數（沒有保留任何活動時，全部活動都產生）。</p>`;
+  if (A.list.length) { const S = dpAeScreen(c, k), EV = new Set(dpEvActs(c).map(a => a.v));
+    h += `<table class="dptbl"><thead><tr><th>變數</th><th>簡稱</th><th>活動名稱</th><th>起日</th><th>迄日</th><th>天數</th><th>類型</th><th>地區</th><th>保留</th><th>事件變數</th></tr></thead><tbody>${S.map(r => `<tr><td>${r.a.v}</td><td>${esc(r.a.ab || "")}</td><td>${esc(r.a.name)}</td><td>${dpFmt(r.a.from)}</td><td>${dpFmt(r.a.to)}</td><td class="r">${r.days}</td><td>${r.kind === "s" ? "短期" : "長期"}</td><td>${esc(r.cty || "全國")}</td><td>${r.keep ? "是" : "否"}</td><td>${EV.has(r.a.v) ? "產生" : "—"}</td></tr>`).join("")}</tbody></table>`; }
+  else h += `<div class="note">還沒有活動。</div>`;
+  if (A.bad.length || A.unsure.length) h += `<div class="note warn">活動資料有讀不出日期或無法確定的行，請到「定義事件變數」處理。</div>`;
+  h += DP_EVGO;
+  h += dpAeView(c, k);
   h += `</div><div class="dpsub"><b>外部資料</b>
     <p class="hint">依日期串接的資料（例如連假、全國性的颱風假），或依日期與縣市串接的資料（例如天氣、空氣品質、各縣市的颱風假）。上傳 .xlsx 或 .csv：長格式為一列一個日期（或日期 × 縣市）；欄名有 3 個以上是縣市名稱時，視為一個縣市一欄的寬格式。縣市以本資料當天處理後的縣市欄串接（已套用不一致的處理與 22 縣市篩選）；台／臺視為相同，舊縣名換為現行縣市。數值中的「T」（微量）視為 0；「X」（儀器故障）不列入平均，某縣市當天全部為 X 時，以距離最近的縣市（依縣市政府所在地的距離）同一天的值取代；最近的縣市當天也沒有有效值、離島縣，或依日期串接的全國資料，維持缺漏並列出。研究存檔只記住串接設定，外部檔要與原始資料一起重新上傳。資料來源、網址與取得日期須填寫，會寫進處理紀錄，供論文說明資料來源與查核。</p>`;
   (c.ext || []).forEach((e, i) => {
@@ -1302,6 +1400,7 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
   const pane = document.getElementById("pane");
   pane.addEventListener("change", e => {
     const t = e.target; if (!t.closest || !t.closest(".dp") || !DP) return;
+    if (t.closest(".dpev")) return dpEvChange(t);
     const c = DP.cfg, d = t.dataset;
     if (d.dp === "file") { if (t.files && t.files[0]) dpLoad(t.files[0]); return; }
     if (d.dp === "sheet") { dpLoadSheet(+t.value); return; }
@@ -1354,6 +1453,9 @@ if (typeof document !== "undefined" && document.getElementById("pane")) {
   });
   pane.addEventListener("click", e => {
     const b = e.target.closest && e.target.closest(".dp button"); if (!b || b.disabled || DP.busy) return;
+    if (b.dataset.dpevcopy === "act") { const m = document.getElementById("dpevmsg");
+      return navigator.clipboard.writeText(dpActPrompt()).then(() => { if (m) m.textContent = "已複製；貼到一般 AI，再於最後貼上活動資料。"; }, () => { if (m) m.textContent = "無法複製，請改用 Chrome。"; }); }
+    if (b.closest(".dpev")) return;
     if (b.dataset.dp === "check") dpRunCheck();
     else if (b.dataset.dpexadd) { const tx = DP.head.filter((x, i) => DP.kind[i] === "text" && !dpKeys(DP.cfg).has(x)); (DP.cfg.excl ||= []).push({ col: tx.find(h => dpUV(h).some(([v]) => dpIsTW(v))) || null, vals: [] }); dpCommit(true); }
     else if (b.dataset.dpexdel != null) { DP.cfg.excl.splice(+b.dataset.dpexdel, 1); dpCommit(true); }
