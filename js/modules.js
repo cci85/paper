@@ -358,6 +358,26 @@ function focusQueries(text) {
   }
   return FOCUS_Q.filter(d => got[d.name]).map(d => ({ ...d, text: got[d.name] }));
 }
+// 0.1 研究方向聚焦：貼上 AI 回覆後，把最後一版的研究問題草稿 (a) 與檢索字串 (d) 回填到「前次的研究問題草稿與檢索字串」
+// 欄位空白，或內容仍是上次自動回填的版本時才覆寫；研究者改過就不動
+function focusPrev(t) {
+  const L = String(t || "").replace(/\r\n?/g, "\n").split("\n").map(x => x.replace(/\*\*/g, ""));
+  const isA = x => /^[\s#>*•\-]*[(（]a[)）]/i.test(x), isB = x => /^[\s#>*•\-]*[(（][b-f][)）]/i.test(x);
+  let a = -1; L.forEach((x, i) => { if (isA(x)) a = i; });
+  let draft = "";
+  if (a >= 0) { const out = []; for (let i = a + 1; i < L.length && !isB(L[i]); i++) out.push(L[i]); draft = out.join("\n").replace(/^\s+|\s+$/g, "").replace(/\n{3,}/g, "\n\n"); }
+  const Q = focusQueries(t);
+  if (!draft && !Q.length) return "";
+  return [draft ? "研究問題草稿：\n" + draft : "", Q.length ? "檢索字串：\n" + Q.map(q => `【${q.name}】${q.text}`).join("\n") : ""].filter(Boolean).join("\n\n");
+}
+function focusAuto(t) {
+  const v = focusPrev(t); if (!v) return "";
+  const cur = store.values.f_prev || "";
+  if (!blank(cur) && cur.trim() !== String(store.values.__fprevAuto || "").trim()) return cur.trim() === v.trim() ? "" : "AI 回覆中有新的研究問題草稿或檢索字串，但「前次的研究問題草稿與檢索字串」已經手動修改過，所以沒有覆寫；要改用 AI 回覆的版本，請先清空該欄位，再重新貼上回覆。";
+  if (cur.trim() === v.trim()) return "";
+  store.values.f_prev = v; store.values.__fprevAuto = v;
+  return "已把 AI 回覆中最後一版的研究問題草稿與檢索字串，帶入上方「前次的研究問題草稿與檢索字串」；上方 Prompt 已改為從第三節接續。要加上量表限定，勾選「本次檢索限定」後重新複製 Prompt，貼到新對話即可。";
+}
 function focusQView(t) {
   const Q = focusQueries(t); if (!Q.length) return "";
   return `<details class="qlist" open><summary><b>檢索字串（依檢索平台）</b></summary>` + Q.map(q =>
@@ -386,6 +406,7 @@ const DEFS = {
     ],
     build: p => buildFocus(p),
     replyView: t => focusQView(t),
+    autoReply: t => focusAuto(t),
     next: "下一步：貼到一般 AI 的新對話，依提問逐題作答；檢索到的文獻存進 Zotero 後，上傳到 NotebookLM，接著用{#matrix}。"
   },
   matrix: {
