@@ -73,6 +73,10 @@ if ((store.layout || 0) < 12) {   // 常用：「定義：變數與模型」改�
   if (store.step) store.step["q-var"] = k === 3 ? 1 : 0;
   store.layout = 12;
 }
+if ((store.layout || 0) < 13) {   // 0.1 新增步驟 1「碩博士論文情境盤點」，原有步驟往後移一步
+  if (store.step && store.step["s0-1"] != null) store.step["s0-1"] += 1;
+  store.layout = 13;
+}
 // 常用的舊回覆改存成紀錄（定義變數：單一變數與相近變數；方法導向檢索）；開啟舊的研究存檔時也會執行
 function migrateQuick() {
   const r = store.replies ||= {}, v = store.values ||= {}, H = k => ((v.__hist ||= {})[k] ||= {});

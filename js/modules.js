@@ -386,6 +386,46 @@ function focusQView(t) {
     `<div class="qrow"><p><b>${esc(q.name)}</b>　<small class="hint">${esc(q.note)}</small>　<button type="button" data-copytext="${esc(q.text)}">複製</button>${q.url ? `　<a href="${esc(q.url(q.text))}" target="_blank" rel="noopener">在 Google Scholar 開啟 →</a>` : ""}</p><pre class="pboxpre">${esc(q.text)}</pre></div>`).join("") +
     `<p class="hint">AI 回覆中更新過檢索字串時，這裡顯示最後一次的版本。中文資料庫查詢結果為 0 筆時：改用模糊檢索、拿掉第三個概念，或在 AI 對話中選 (e) 的 C「太窄或搜尋不到」。</p></details>`;
 }
+// 0.1 碩博士論文情境盤點：讀取回覆第三節「帶入欄位」（取最後一次出現者）
+const TH_TAG = "【碩博士論文整理】";
+function thParse(t) {
+  const r = String(t || "").replace(/\r\n?/g, "\n").replace(/\*\*/g, "");
+  const last = re => { const m = [...r.matchAll(re)]; return m.length ? m[m.length - 1][1].trim() : ""; };
+  const phen = last(/^[\s>*•\-]*情境與現象[：:]\s*(.+)$/gm), res = last(/^[\s>*•\-]*研究對象與資源[：:]\s*(.+)$/gm);
+  const L = r.split("\n"); let s = -1; L.forEach((x, i) => { if (/^[\s>*•\-#]*變數清單[：:]?\s*$/.test(x)) s = i; });
+  const vars = [];
+  if (s >= 0) for (let i = s + 1; i < L.length; i++) {
+    const x = L[i].replace(/^[\s>*•\-]+/, "").trim(); if (!x) { if (vars.length) break; continue; }
+    const c = x.split(/\s*[｜|]\s*/).map(y => y.trim()).filter((y, k, a) => y || (k > 0 && k < a.length - 1));
+    if (c.length < 2 || !/變數/.test(c[0]) || /^角色$/.test(c[0])) { if (vars.length) break; continue; }
+    vars.push({ role: c[0], name: c[1], n: c[2] || "", clue: c.slice(3).join("｜") });
+  }
+  return { phen, res, vars };
+}
+const thVars = () => thParse((store.replies || {})["s0-1|thesis"]).vars;
+// 帶入 0.1「研究方向聚焦」的欄位：保留研究者自己填的內容，只取代上次帶入的【碩博士論文整理】那一段
+function thPut(k, v, nl) {
+  const cur = String(store.values[k] || ""), keep = cur.replace(/\s*【碩博士論文整理】[\s\S]*$/, "").trim();
+  const nv = (keep ? keep + (nl ? "\n" : "　") : "") + TH_TAG + v;
+  if (nv === cur) return false;
+  store.values[k] = nv; return true;
+}
+function thAuto(t) {
+  const P = thParse(t);
+  if (!P.phen && !P.res && !P.vars.length) return blank(t) ? "" : "回覆中沒有讀取到第三節「帶入欄位」（情境與現象、研究對象與資源、變數清單）。回覆寫「未完」時，請輸入「繼續」，把後續回覆接在這裡的最後。";
+  const a = P.phen && thPut("f_phen", P.phen, true), b = P.res && thPut("f_res", P.res, false);
+  const into = [a ? "「感興趣的現象或研究方向」" : "", b ? "「可運用的資源」" : ""].filter(Boolean).join("與");
+  if (!into) return "";
+  return (into ? `已把彙整結果帶入步驟 2「研究方向聚焦」的${into}（標示「${TH_TAG}」，你原本填的內容保留；再次貼上新回覆時只更新這一段）。` : "") +
+    (P.vars.length && RT() !== "model" ? `變數清單共 ${P.vars.length} 個，會在 0.2「組合研究架構」列為參考。` : "");
+}
+function thView(t, ref) {
+  const V = thParse(t).vars; if (!V.length) return "";
+  const clue = RT() === "model" ? "資料來源線索" : "量表來源線索";
+  return `<details class="qlist" open><summary><b>碩博士論文出現過的變數（${V.length} 個）</b></summary><table class="mtbl"><tr><th>角色</th><th>變數</th><th>篇數</th><th>${clue}</th></tr>` +
+    V.map(v => `<tr><td>${esc(v.role)}</td><td>${esc(v.name)}</td><td>${esc(v.n)}</td><td>${esc(v.clue)}</td></tr>`).join("") + `</table>` +
+    `<p class="hint">${ref ? "取自 0.1 步驟 1「碩博士論文情境盤點」，只作為挑選變數的線索：勾選的變數須有期刊文獻支持；" + clue + "請回頭找原始期刊文獻。" : "這份清單只作為線索：變數的定義與理論基礎要回到期刊文獻；" + clue + "列出的原始來源，可加進期刊文獻的檢索與 NotebookLM 來源。"}</p></details>`;
+}
 // 受訪者版問卷（0.4 與常用「問卷資料處理」共用；欄位存同一個值）
 const RV_FIELDS = [
   { id: "rv_title", type: "text", label: "受訪者版問卷：問卷標題", hint: "留白時用「研究情境＋購物經驗調查問卷」；不要用論文題目，以免透露研究目的", placeholder: "例如：蝦皮購物經驗調查問卷" },
@@ -394,6 +434,17 @@ const RV_FIELDS = [
 ];
 const DEFS = {
   // ─── 前置探索 ───
+  thesis: {
+    label: "碩博士論文情境盤點", target: "nlm",
+    hint: "學生蒐集的碩博士論文可以提供研究方向，但理論基礎與變數定義常不夠嚴謹。這一步只請 NotebookLM 逐篇整理研究情境、研究對象與研究變數，再跨篇彙整出可能的研究方向；不整理各篇的理論與變數定義，這些一律回到期刊文獻。請另開一個只放碩博士論文的 NotebookLM 筆記本，不要與期刊論文放在同一個筆記本，以免後續步驟引用到學位論文的定義與理論。",
+    fields: [
+      { id: "th_scope", type: "text", label: "關注的主題", hint: "選填；論文主題很分散時填寫，彙整會以相關論文為主", placeholder: "例如：高齡者學習生成式 AI" }
+    ],
+    build: p => T.thesis_ctx({ scope: p.th_scope || "", mm: RT() === "model" }),
+    replyView: t => thView(t),
+    autoReply: t => thAuto(t),
+    next: "下一步：貼到只放碩博士論文的 NotebookLM 筆記本的新對話；回覆最後若寫「未完」，輸入「繼續」。全部回覆依序貼到下方「AI 回覆」，第三節的「情境與現象」「研究對象與資源」會自動帶入{#focus}，變數清單會在 0.2「組合研究架構」列為參考。"
+  },
   focus: {
     label: "研究方向聚焦", target: "ai",
     hint: "給尚未讀過文獻的研究生：以選擇題逐步把生活觀察收斂成研究問題，並產生中英文關鍵字與檢索字串。下方欄位全部選填；都不填時輸出原文，由 AI 從第一個問題開始問。",
@@ -627,6 +678,7 @@ const DEFS = {
       { id: "am_on", type: "checks", label: "自變數與依變數已確定", options: [["on", "已確定：先在清單勾選自變數與依變數，再請 AI 建議中介與調節變數"]], value: [] },
       { id: "as_vlist", type: "textarea", label: "前面步驟的回覆", hint: "自動帶入步驟 1 與下方篩選的 AI 回覆；也可直接貼上各次回覆", rows: 6, mono: true },
       { id: "as_pick", type: "picker", label: "勾選要用的變數", hint: "上方勾選「已確定」時：先勾自變數（可多個）與依變數；AI 建議的中介與調節變數貼回後才會出現，再勾選。每個變數下方提示是否有量表及題數（取自變數清單的「量表」欄；舊版清單沒有此欄時，改查「建立文獻比較表」貼上的表格）", source: p => mixVars(p), roles: MIX_ROLES, value: [] },
+      { id: "as_thv", type: "cands", label: "碩博士論文出現過的變數（參考）", when: () => RT() !== "model" && thVars().length > 0, render: () => thView((store.replies || {})["s0-1|thesis"], true) },
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", hint: "選填；用來判斷文獻能否類推", placeholder: "例如：蝦皮電商平台", when: p => isOn(p.am_on) },
       { id: "am_prompt", type: "promptbox", label: "篩選 Prompt", when: p => isOn(p.am_on),
         hint: "依你勾選的自變數與依變數產生；貼到已上傳相關文獻的 NotebookLM 對話，AI 會判定每個候選為建議納入、可考慮或不建議，找不到時直接寫「未找到」",
@@ -2582,12 +2634,13 @@ const OUTLINE = [
       { mod: "svdata", note: "先選擇或新增問卷，再填入問卷連結與定稿問卷。" }] }
   ] },
   { ch: "第零章 研究準備", secs: [
-    { id: "s0-1", no: "0.1", title: "文獻蒐集與整理", desc: "還沒讀文獻、只有一個想研究的現象時，從這裡開始：聚焦研究問題與關鍵字 → 建立文獻比較表。步驟 3–5 為選用的「整批文獻全貌」：要先看整個研究領域的主題、理論、變數與缺口時再做。整理好之後，到 0.2 形成研究架構。", steps: [
-      { mod: "focus", note: "用選擇題把現象收斂成研究問題，產生中英文關鍵字與檢索字串；檢索到的文獻存進同一個 Zotero 資料夾。", go: [{ to: "s0-1", step: 1, when: "檢索到的文獻存進 Zotero、上傳到 NotebookLM 後" }] },
-      { mod: "matrix", note: "文獻上傳到 NotebookLM 後，逐篇整理成比較表；完成後加入 NotebookLM 的來源，作為後續提出與檢核研究架構的索引（做法見最下方）。", go: [{ to: "s0-4", step: 0, when: "已大致知道要研究哪些變數，或已確定自變數與依變數" }, { to: "s0-1", step: 2, when: "文獻多而分散，想先看整個領域的全貌" }],
-        after: "完成後請做兩件事，後續步驟都會用到這份表：\n1. 把匯出的試算表全選複製（Ctrl+A、Ctrl+C），貼到上方「AI 回覆」保存。\n2. 回到同一個 NotebookLM，按「新增來源 → 複製的文字」貼上，再從該來源右側的選單重新命名為「00_文獻比較表（索引）」。之後 0.2「提出候選研究架構」「組合研究架構」與 0.3「依文獻檢核架構」的 Prompt，都會以它作為索引，快速對照每篇文獻的變數、理論與量表，作為提出與檢核研究架構的依據；引用仍回到各篇全文。\n\n接下來：已大致知道要研究哪些變數、指導教授已給方向，或已確定自變數與依變數 → 直接到 0.2；文獻多而分散、還看不出主流方向，想先了解整個領域的主題、理論、方法與缺口 → 繼續步驟 3–5。" },
-      { mod: "m5a", note: "選用（整批文獻全貌）：開新對話，盤點主題、理論與研究方法。", go: [{ to: "s0-1", step: 3, when: "同一個對話接續" }] },
-      { mod: "m5b", note: "選用（整批文獻全貌）：同一個對話接續，以文字說明各變數的定義、測量與角色，並畫關係圖；用來理解變數，挑選變數請用 0.2。", go: [{ to: "s0-1", step: 4, when: "同一個對話接續" }] },
+    { id: "s0-1", no: "0.1", title: "文獻蒐集與整理", desc: "還沒讀文獻、只有一個想研究的現象時，從這裡開始：聚焦研究問題與關鍵字 → 建立文獻比較表。已蒐集碩博士論文時，可先用步驟 1 釐清研究情境、研究對象與可能的研究變數（選用）。步驟 4–6 為選用的「整批文獻全貌」：要先看整個研究領域的主題、理論、變數與缺口時再做。整理好之後，到 0.2 形成研究架構。", steps: [
+      { mod: "thesis", note: "選用：已蒐集碩博士論文時，先用它們釐清研究情境、研究對象與可能的研究變數；沒有可跳過。", go: [{ to: "s0-1", step: 1, when: "回覆貼上、帶入研究方向聚焦後" }] },
+      { mod: "focus", note: "用選擇題把現象收斂成研究問題，產生中英文關鍵字與檢索字串；檢索到的文獻存進同一個 Zotero 資料夾。", go: [{ to: "s0-1", step: 2, when: "檢索到的文獻存進 Zotero、上傳到 NotebookLM 後" }] },
+      { mod: "matrix", note: "文獻上傳到 NotebookLM 後，逐篇整理成比較表；完成後加入 NotebookLM 的來源，作為後續提出與檢核研究架構的索引（做法見最下方）。", go: [{ to: "s0-4", step: 0, when: "已大致知道要研究哪些變數，或已確定自變數與依變數" }, { to: "s0-1", step: 3, when: "文獻多而分散，想先看整個領域的全貌" }],
+        after: "完成後請做兩件事，後續步驟都會用到這份表：\n1. 把匯出的試算表全選複製（Ctrl+A、Ctrl+C），貼到上方「AI 回覆」保存。\n2. 回到同一個 NotebookLM，按「新增來源 → 複製的文字」貼上，再從該來源右側的選單重新命名為「00_文獻比較表（索引）」。之後 0.2「提出候選研究架構」「組合研究架構」與 0.3「依文獻檢核架構」的 Prompt，都會以它作為索引，快速對照每篇文獻的變數、理論與量表，作為提出與檢核研究架構的依據；引用仍回到各篇全文。\n\n接下來：已大致知道要研究哪些變數、指導教授已給方向，或已確定自變數與依變數 → 直接到 0.2；文獻多而分散、還看不出主流方向，想先了解整個領域的主題、理論、方法與缺口 → 繼續步驟 4–6。" },
+      { mod: "m5a", note: "選用（整批文獻全貌）：開新對話，盤點主題、理論與研究方法。", go: [{ to: "s0-1", step: 4, when: "同一個對話接續" }] },
+      { mod: "m5b", note: "選用（整批文獻全貌）：同一個對話接續，以文字說明各變數的定義、測量與角色，並畫關係圖；用來理解變數，挑選變數請用 0.2。", go: [{ to: "s0-1", step: 5, when: "同一個對話接續" }] },
       { mod: "m5c", note: "選用（整批文獻全貌）：同一個對話接續，從變數、理論、情境與方法四個面向，找出整個領域的研究缺口與研究主題建議。", go: [{ to: "s0-4", step: 0, when: "看完全貌、選定研究方向後" }] }] },
     { id: "s0-4", no: "0.2", title: "形成研究架構",
       mtitle: "形成研究模型", mdesc: "追蹤資料研究的重點在於估計目標與模型設定：先描述資料、收斂解釋與預測目標（步驟 1），再請 AI 提出彼此競爭的候選模型、比較策略與各種比較結果的策略意涵（步驟 2），選定研究模型組。資料裡沒有、但可串接外部資料或計算出來的變數，可用步驟 3 查證文獻支持。",
