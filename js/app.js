@@ -548,9 +548,10 @@ $("pane").addEventListener("click", async e => {
   }
   const cb = e.target.closest("button[data-cand]");
   if (cb) {   // 候選架構：選定
-    const f = mod().fields.find(x => x.type === "cands"); f.choose(+cb.dataset.cand);
+    const f = mod().fields.find(x => x.type === "cands" && (!cb.dataset.cf || x.id === cb.dataset.cf)), msg = f.choose(+cb.dataset.cand);
     save(); renderPane(); update();
-    const fin = $("diag-fin_diag"); if (fin) fin.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (msg) alert(msg);
+    const fin = $(cb.dataset.cf === "as_sugg" ? "diag-as_diag" : "diag-fin_diag"); if (fin) fin.scrollIntoView({ behavior: "smooth", block: "center" });
     return;
   }
   const fb = e.target.closest("button[data-fbtn]");

@@ -814,6 +814,8 @@ T.ask_frame = p => {
     "",
     "限制：只能使用上傳文獻中出現的變數與理論；若某項關係需要上傳文獻以外的支持，請標示【待補文獻】。用詞一律使用「變數」，不得使用「變項」。變數關係一律以純文字箭頭「→」表示；統計量一律以純文字書寫（例如 β = −0.163, t = −2.491, p = .013），不得使用 LaTeX 語法或 $ 符號，不得使用 LaTeX 等數學語法（例如 $\\rightarrow$）；Mermaid 程式碼區塊內仍依 Mermaid 語法使用 -->。",
     "",
+    "接著另起一節「## 架構路徑」，把每個架構的路徑逐行列出，供網頁畫出架構圖，每行一條，格式為：架構一｜H1｜起點變數中文名稱 → 終點變數中文名稱｜方向（正向／負向／未標示）；調節路徑寫成：架構一｜H5｜調節變數 × （起點 → 終點）｜方向；中介路徑拆成兩條直接路徑列出。架構編號與上方一致，變數名稱與變數清單一致。此節不使用表格、條列符號或程式碼區塊。",
+    "",
     `最後另起一節「## 變數清單」，將上述所有架構用到的變數逐行列出，每行一個變數，格式為：角色｜中文名稱（英文原文）｜一句話定義｜出處（作者, 年份）｜出現於哪些架構｜量表。${VAR_SCALE}。角色只能填「自變數」「中介變數」「調節變數」「依變數」四者之一；同一變數在不同架構中擔任不同角色時，分列為不同行。接著，再逐行列出上傳文獻中曾出現、與本研究情境或研究問題相關，但未納入上述任何架構的變數，格式相同，架構欄填「未納入架構」；角色依該變數在原文獻中所擔任的角色填寫。${VAR_DEF}。${VAR_NOT_DESIGN}。此節不使用表格、條列符號或程式碼區塊。`
   ].join("\n");
 };
@@ -1669,6 +1671,87 @@ T.ask_mech = p => [
 ].join("\n");
 
 
+// 組合研究架構：讀出步驟 1「提出候選研究架構」建議的架構（優先讀「## 架構路徑」；較早的回覆改讀各架構的 Mermaid 圖）
+const ZH_NO = "一二三四五六七八九十";
+const frameNo = t => { const m = String(t).match(/架構\s*([一二三四五六七八九十]|\d+)/); return m ? (/\d/.test(m[1]) ? +m[1] : ZH_NO.indexOf(m[1]) + 1) : 0; };
+function mermaidArch(code) {
+  const lab = {}, def = /([A-Za-z_][\w]*)\s*(\[\[|\[\(|\(\(|\[\/|\[|\(|\{\{|\{)\s*"?([^\]\)\}"]*?)"?\s*(\]\]|\)\]|\)\)|\/\]|\]|\)|\}\}|\})/g;
+  const name = l => { const t = l.replace(/<br\s*\/?>/gi, "\n").replace(/[*_`]/g, "").trim(), [a, ...b] = t.split(/\n+/).map(x => x.trim()).filter(Boolean);
+    return /[（(]/.test(a || "") || !b.length ? a || "" : `${a}（${b.join(" ")}）`; };
+  const solid = [], dot = [];
+  code.split(/\r?\n/).forEach(raw => {
+    let line = raw.trim();
+    if (!line || /^(flowchart|graph|subgraph|end\b|style|classDef|class\s|linkStyle|%%|click)/.test(line)) return;
+    line = line.replace(def, (_, id, o, l) => { if (l.trim()) lab[id] = name(l); return id; });
+    line = line.replace(/--\s+[^->|]+?\s+-->/g, "-->").replace(/-\.\s+[^->|]+?\s+\.->/g, "-.->").replace(/\|[^|]*\|/g, "");
+    const tk = line.split(/\s*(-\.+->|=+>|-{2,}>|-\.-|-{3,})\s*/);
+    for (let i = 1; i + 1 < tk.length; i += 2) {
+      const a = tk[i - 1].trim().split(/\s*&\s*/), b = tk[i + 1].trim().split(/\s*&\s*/);
+      a.forEach(x => b.forEach(y => { if (/^\w+$/.test(x) && /^\w+$/.test(y)) (/\./.test(tk[i]) ? dot : solid).push([x, y]); }));
+    }
+  });
+  const nm = id => lab[id] || id;
+  return { solid: solid.map(([a, b]) => [nm(a), nm(b)]), dot: dot.map(([a, b]) => [nm(a), nm(b)]) };
+}
+function suggestFrames(text) {
+  const t = deLatex(String(text || "")).replace(/\r\n?/g, "\n");
+  if (blank(t)) return [];
+  const vl = parseVarList(t), K = n => archKey(n);
+  const roleOf = (n, no) => { const hit = vl.filter(v => K(v.name) === K(n)); const h = hit.find(v => frameNo(v.frames) === no || new RegExp(`架構\\s*${ZH_NO[no - 1]}`).test(v.frames)) || hit[0]; return h ? h.role : ""; };
+  const zh = Object.fromEntries(ARCH_ROLE.map(r => [r[0], r[1]]));
+  const build = (no, paths, title) => {
+    const vars = new Map();
+    vl.filter(v => new RegExp(`架構\\s*(${ZH_NO[no - 1]}|${no})(?![\\d十])`).test(v.frames)).forEach(v => vars.set(K(v.name), `${zh[v.role]}｜${v.name}`));
+    const A = parseArch(["## 變數", ...vars.values(), "## 路徑", ...paths].join("\n"));
+    A.vars.forEach(v => { if (!v.role || !vars.has(K(v.name))) v.role = roleOf(v.name, no) || v.role; });
+    return { title: title || `架構${ZH_NO[no - 1] || no}`, A };
+  };
+  const out = [];
+  const sec = t.match(/^#{1,3}\s*架構路徑[^\n]*\n([\s\S]*?)(?=^#{1,3}\s|$(?![\s\S]))/m);
+  if (sec) {
+    const by = {};
+    sec[1].split("\n").forEach(l => { const c = l.replace(/^[\s\-*•]+/, "").split(/\s*[｜|]\s*/); const no = frameNo(c[0]); if (no && c.length >= 3) (by[no] ||= []).push(c.slice(1).join("｜")); });
+    Object.keys(by).sort((a, b) => a - b).forEach(no => out.push(build(+no, by[no])));
+  } else {
+    const re = /```\s*mermaid\s*\n([\s\S]*?)```/gi; let m, i = 0, last = 0;
+    while ((m = re.exec(t))) {
+      i++;
+      const before = t.slice(last, m.index), heads = [...before.matchAll(/架構\s*([一二三四五六七八九十]|\d+)[^\n]{0,40}/g)];
+      const no = heads.length ? frameNo(heads[heads.length - 1][0]) || i : i;
+      const title = heads.length ? heads[heads.length - 1][0].replace(/[*#`]/g, "").trim() : "";
+      last = re.lastIndex;
+      const g = mermaidArch(m[1]), paths = [];
+      g.solid.forEach(([a, b], j) => paths.push(`H${j + 1}｜${a} → ${b}｜未標示`));
+      g.dot.forEach(([z, b]) => { const e = g.solid.find(x => x[1] === b) || g.solid.find(x => x[0] === b); if (e) paths.push(`H${paths.length + 1}｜${z} × （${e[0]} → ${e[1]}）｜未標示`); });
+      if (paths.length) out.push(build(no, paths, title));
+    }
+  }
+  return out.filter(c => c.A.vars.length && c.A.edges.length);
+}
+// 套用為草圖：勾選該架構的變數，並把路徑畫到「我的草圖」
+function useSuggest(i) {
+  const c = suggestFrames((store.replies || {})["s0-4|asf"])[i]; if (!c) return "";
+  const v = store.values, vl = parseVarList(v.as_vlist), K = n => archKey(n), map = {}, miss = [];
+  c.A.vars.forEach(a => { const h = vl.find(x => K(x.name) === K(a.name) && x.role === a.role) || vl.find(x => K(x.name) === K(a.name)); if (h) map[a.key] = h.key; else miss.push(dgLabel(a.name)[0]); });
+  if ((v.as_pick || []).length && !confirm(`套用「${c.title}」會取代目前勾選的變數與草圖，確定嗎？`)) return "";
+  v.as_pick = [...new Set(Object.values(map))];
+  const d = dgData("as_diag");
+  d.edges = c.A.edges.filter(e => map[e.from] && map[e.to]).map(e => ({ from: map[e.from], to: map[e.to] }));
+  d.mods = c.A.mods.map(m => { const [a, b] = m.edge.split(">"); return map[m.from] && map[a] && map[b] ? { from: map[m.from], edge: map[a] + ">" + map[b] } : null; }).filter(Boolean);
+  d.pos = {}; d.tray = []; d.lab = {};
+  return miss.length ? `已套用；以下變數不在變數清單中，未能畫入：${miss.join("、")}` : "";
+}
+function renderSuggest() {
+  const r = (store.replies || {})["s0-4|asf"];
+  if (blank(r)) return `<p class="hint">（步驟 1「提出候選研究架構」的 AI 回覆貼上後，這裡會畫出建議的架構）</p>`;
+  const cs = suggestFrames(r);
+  if (!cs.length) return `<p class="note warn">步驟 1 的回覆中讀不到架構的路徑。用目前版本的 Prompt 重新提問，回覆會有「## 架構路徑」一節；較早的回覆若有 Mermaid 架構圖也能讀取。</p>`;
+  return cs.map((c, i) => {
+    const d = { pos: {}, edges: c.A.edges.map(({ from, to }) => ({ from, to })), mods: c.A.mods.map(({ from, edge }) => ({ from, edge })) };
+    dgAutoPos(c.A.vars, d.pos, true);
+    return `<div class="cand"><div class="cand-head"><b>${esc(c.title)}</b><button type="button" class="copy" data-cand="${i}" data-cf="as_sugg">套用為草圖</button></div><div class="cand-svg">${dgSvg(c.A.vars, d, null, false)}</div></div>`;
+  }).join("");
+}
 // 組合研究架構：篩選模式下，取勾選的自變數與依變數（不含待選區）；名稱去除英文
 function mechXY(p) {
   const vs = mixPicked(p), nm = v => v.name.trim();
