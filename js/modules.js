@@ -1719,7 +1719,7 @@ function renderCands(p) {
     const d = { pos: {}, edges: c.A.edges.map(({ from, to }) => ({ from, to })), mods: c.A.mods.map(({ from, edge }) => ({ from, edge })) };
     dgAutoPos(c.A.vars, d.pos, true);
     const on = (store.values.cf_sel ?? -1) === i && !blank(store.values.cf_text);
-    return `<div class="cand${on ? " on" : ""}"><div class="cand-head"><b>${esc(c.title)}</b><button type="button" class="copy" data-cand="${i}">${on ? "已選定 ✓" : "選這個"}</button></div>
+    return `<div class="cand${on ? " on" : ""}"><div class="cand-head"><b>${esc(c.title)}</b><button type="button" class="copy" data-cand="${i}" data-cf="cf_view">${on ? "已選定 ✓" : "選這個"}</button></div>
       <div class="cand-svg">${dgSvg(c.A.vars, d, null, false)}</div>
       ${c.fresh.length ? `<p class="hint">新增變數：${esc(c.fresh.join("、"))}</p>` : ""}
       <details><summary>理由與文獻支持</summary><div class="cand-reason">${esc(c.reason || "（回覆中沒有理由說明）")}</div></details></div>`;
