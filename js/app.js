@@ -119,9 +119,10 @@ function renderToc() {
     [["construct", "問卷／實驗"], ["model", "panel data"]].map(([v, t]) =>
       `<label class="chip"><input type="radio" name="rtype" data-rtype="${v}" ${rt === v ? "checked" : ""}>${t}</label>`).join("") +
     `</div><small class="hint">${rt === "model" ? "模型導向：第零章 0.2–0.4 改為資料結構、候選模型與模型比較" : "構念導向：變數、路徑與量表"}</small></div>` + OUTLINE.map(c => {
-    const open = c.quick || c.secs.some(s => s.id === store.sec);
+    const ss = c.secs.filter(secOn); if (!ss.length) return "";
+    const open = c.quick || ss.some(s => s.id === store.sec);
     return `<details class="${c.quick ? "quick" : ""}" ${open ? "open" : ""}><summary>${esc(c.ch)}</summary>` +
-      c.secs.map(s => `<button data-sec="${s.id}" class="${s.id === store.sec ? "on" : ""}"><b>${s.no}</b>${esc(secTitle(s))}</button>`).join("") +
+      ss.map(s => `<button data-sec="${s.id}" class="${s.id === store.sec ? "on" : ""}"><b>${s.no}</b>${esc(secTitle(s))}</button>`).join("") +
       `</details>`;
   }).join("");
 }
@@ -173,8 +174,7 @@ function renderPane() {
   const afterOut = shown.filter(f => f.afterOut).map(fieldHtml).join("");
   const below = shown.filter(f => f.below).map(fieldHtml).join("");
   const ch2g = /^s2-/.test(store.sec), ch3g = /^s3-/.test(store.sec), gd = (GUIDE_CH1.secs || {})[store.sec] || (ch2g ? GUIDE_CH2.html : ch3g ? GUIDE_CH3.html : "");   // 第一、二、三章各節：可展開的寫作規範
-  $("pane").innerHTML = `${gd ? `<details class="guide"><summary>${ch2g ? "第二章寫作規範" : ch3g ? "第三章寫作規範" : "本節寫作規範（第一章）"}　點開查看</summary><div class="guide-body">${gd}</div>
-      ${ch2g || ch3g ? "" : `<p><button type="button" data-go="q-ch1g" data-gostep="0">查看第一章完整寫作規範 →</button></p>`}</details>` : ""}${steps().length === 1 && !sec().no ? "" : `<h3>${sec().no ? `步驟 ${stepIdx() + 1}　` : ""}${esc(m.label)}</h3>`}
+  $("pane").innerHTML = `${gd ? `<details class="guide"><summary>${ch2g ? "第二章寫作規範" : ch3g ? "第三章寫作規範" : "本節寫作規範（第一章）"}　點開查看</summary><div class="guide-body">${gd}</div></details>` : ""}${steps().length === 1 && !sec().no ? "" : `<h3>${sec().no ? `步驟 ${stepIdx() + 1}　` : ""}${esc(m.label)}</h3>`}
     <p class="target t-${m.target}">${esc(TARGETS[m.target])}</p>${top ? `<div class="topfield">${top}</div>` : ""}
     <p class="stepnote">${esc(ref(step().note))}</p>
     <p class="hint">${esc(ref(m.hint))}</p>${m.hist ? `<div class="dprow histrow" id="histrow"></div>` : ""}${fields}
@@ -291,7 +291,9 @@ function renderReplyView() {
   const m = mod(), el = $("replyview"); if (!m.replyView || !el) return;
   el.innerHTML = m.replyView(deLatex((store.replies || {})[replyKey()] || ""));
 }
-function showAll() { migrateQuick(); rebuildCh2(); migrateCh3(); if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s2-0"; renderToc(); renderSection(); renderPane(); foldOut(); update(); }
+function showAll() { migrateQuick(); rebuildCh2(); migrateCh3(); if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s2-0";
+  if (!secOn(sec())) store.sec = { "q-data": "q-sv", "q-sv": "q-data" }[store.sec] || "s0-1";   // 研究類型切換時，換到對應的資料處理
+  renderToc(); renderSection(); renderPane(); foldOut(); update(); }
 
 // 每一步最下方的「建議下一步」：可直接跳到目標節與步驟
 function goNext() {

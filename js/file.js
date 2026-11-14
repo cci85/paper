@@ -143,6 +143,14 @@ function readable(pngs) {
     const blocks = [];
     stepsOf(s).forEach((st, i) => {
       const m = DEFS[st.mod], lines = [], fixed = st.fixed || {};
+      if (m.svq && typeof svqAll === "function" && (store.values.__svq || SVQ_F.some(f => !blank(String(store.values[f] || ""))))) {   // 問卷資料處理：逐份列出
+        const F = m.fields.filter(f => SVQ_F.includes(f.id)), recs = svqAll().map(q => {
+          const L = [`#### ${q.name}`];
+          F.forEach(f => { const v = q.v[f.id]; if (v === undefined || blank(Array.isArray(v) ? v.join("") : v) || (f.id === "gf_req" && isOn(v))) return; shown.add(f.id);
+            const t = fmt(f, v); L.push(f.type === "textarea" ? `**${f.label}**\n\n${mdText(t)}` : `**${f.label}**：${t}`); });
+          return L.length > 1 ? L.join("\n\n") : ""; }).filter(Boolean);
+        if (recs.length) blocks.push(`### ${m.label}\n\n${recs.join("\n\n")}`); return;
+      }
       const HH = m.hist ? (((store.values || {}).__hist || {})[s.id + "|" + st.mod] || {}) : {};
       if (Object.keys(HH).length) {   // 保留多筆紀錄的步驟：逐筆列出欄位與 AI 回覆
         const recs = Object.entries(HH).sort((a, b) => a[1].t - b[1].t).map(([n, rec]) => {

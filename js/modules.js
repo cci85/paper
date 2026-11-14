@@ -331,6 +331,12 @@ const TARGETS = {
 };
 
 // 說明文字中的{#id}會換成本頁編號，{@id} 會換成另一頁的「頁名 [編號]」
+// 受訪者版問卷（0.4 與常用「問卷資料處理」共用；欄位存同一個值）
+const RV_FIELDS = [
+  { id: "rv_title", type: "text", label: "受訪者版問卷：問卷標題", hint: "留白時用「研究情境＋購物經驗調查問卷」；不要用論文題目，以免透露研究目的", placeholder: "例如：蝦皮購物經驗調查問卷" },
+  { id: "rv_go", type: "button", label: "下載受訪者版問卷（Word）", hint: "依「定稿問卷」產生紙本問卷：不顯示構念英文名稱、量表出處與反向題標註，題號全卷連續", run: () => { rvWord().then(m => { const el = document.getElementById("fmsg-rv_go"); if (el) el.textContent = m; }); return "正在產生 Word 檔…"; } },
+  { id: "rv_view", type: "cands", label: "受訪者版問卷預覽", render: () => rvView() }
+];
 const DEFS = {
   // ─── 前置探索 ───
   focus: {
@@ -626,9 +632,7 @@ const DEFS = {
           if (!blank(store.values.sv_final) && !confirm("「定稿問卷」已有內容，要以目前預覽取代嗎？")) return "未變更";
           store.values.sv_final = t; return "已帶入目前問卷預覽，可再直接修改。"; } },
       { id: "sv_final", type: "textarea", below: true, label: "定稿問卷", hint: "最後確定的整份問卷（純文字即可，構念寫成〈構念名稱〉（量表出處），題項寫成 Q1. 題目）；會存入研究存檔，並帶到 3.2 撰寫操作型定義與衡量", rows: 10 },
-      { id: "rv_title", type: "text", below: true, label: "受訪者版問卷：問卷標題", hint: "留白時用「研究情境＋購物經驗調查問卷」；不要用論文題目，以免透露研究目的", placeholder: "例如：蝦皮購物經驗調查問卷" },
-      { id: "rv_go", type: "button", below: true, label: "下載受訪者版問卷（Word）", hint: "依「定稿問卷」產生紙本問卷：不顯示構念英文名稱、量表出處與反向題標註，題號全卷連續", run: () => { rvWord().then(m => { const el = document.getElementById("fmsg-rv_go"); if (el) el.textContent = m; }); return "正在產生 Word 檔…"; } },
-      { id: "rv_view", type: "cands", below: true, label: "受訪者版問卷預覽", render: () => rvView() }
+      ...RV_FIELDS.map(f => ({ ...f, below: true }))
     ],
     replyView: t => surveyView(t),
     rules: () => ["citation"],
@@ -1078,14 +1082,6 @@ const DEFS = {
     copyLabel: "複製參考文獻清單",
     next: "論文.md 最後會自動附上「參考文獻」一節（只列已有出處者）。"
   },
-  ch1guide: {
-    label: "第一章寫作規範", target: "tool",
-    hint: "供撰寫與審查第一章時參考；下方「複製」可取得精簡版規範的純文字。",
-    fields: [{ id: "g1_view", type: "cands", label: "", render: () => `<div class="guide-body">${GUIDE_CH1.full}</div>` }],
-    build: () => GUIDE_CH1.ai,
-    copyLabel: "複製精簡版規範",
-    next: "第一章各步驟的 Prompt 會自動附上精簡版規範（附加共用規則中的「第一章寫作規範」）。"
-  },
   scope: {
     label: "研究範圍", target: "nlm",
     hint: "依研究題目、研究架構、研究情境與研究對象，撰寫「研究範圍」：先說明選擇此研究情境（平台）的理由，再說明研究對象與本研究聚焦的變數；只寫聚焦在哪裡，不列排除項目。",
@@ -1131,6 +1127,24 @@ const DEFS = {
     empty: "（完成「檢查資料」後，這裡會顯示處理紀錄）",
     noCopy: true, outLabel: "處理紀錄",
     next: "panel data 研究：處理完成後到 0.2「資料結構與估計目標」，觀察單位、時間與資料欄位留白時會自動帶入。"
+  },
+  svdata: {
+    label: "問卷資料處理", target: "tool", svq: true,
+    hint: "一份研究可有多份問卷（例如前測與正式問卷、研究一與研究二）：上方選擇或新增問卷，每份各自存問卷連結、定稿問卷與受訪者版標題，都會存入研究存檔。目前選定的問卷，就是 0.4 與 3.2 使用的「定稿問卷」。",
+    fields: [
+      { id: "svq_bar", type: "cands", label: "", render: () => svqBar() },
+      { id: "sv_url", type: "text", label: "問卷連結", hint: "受訪者填答的網址（例如 Google 表單的填答網址）；只存在研究存檔，不會放進任何 Prompt", placeholder: "例如：https://forms.gle/…" },
+      { id: "sv_open", type: "button", label: "開啟問卷連結", run: () => { const u = String(store.values.sv_url || "").trim();
+        if (!/^https?:\/\//i.test(u)) return "請先填入以 http 或 https 開頭的問卷連結。"; window.open(u, "_blank", "noopener"); return ""; } },
+      { id: "sv_final", type: "textarea", label: "定稿問卷", hint: "與 0.4「問卷草稿與可行性評估」最下方的「定稿問卷」是同一份，任一處修改都會同步；不是由 0.4 產生的問卷可直接貼在這裡（構念寫成〈構念名稱〉（量表出處），題項寫成 Q1. 題目）", rows: 10 },
+      ...RV_FIELDS,
+      { id: "gf_req", type: "checks", label: "Google 表單：必填設定", options: [["on", "所有題目設為必填"]], value: ["on"] },
+      { id: "gf_script", type: "promptbox", label: "建立 Google 表單的 Apps Script",
+        hint: "依「定稿問卷」產生：題號、各部分分頁、量表題為李克特尺度，選擇題依單選或複選建立。使用方式：到 script.google.com 新增專案，刪除預設內容後貼上並儲存，選擇 createForm 執行（第一次需授權）；完成後「執行記錄」會顯示表單的編輯網址與填答網址，請把填答網址填回上方「問卷連結」。知情同意與資格題中，以「不、否、非、未滿」等開頭的選項會設為選了就提交表單（結束填答），請在表單編輯畫面檢查。",
+        copyLabel: "複製 Apps Script", empty: "（「定稿問卷」有內容後，這裡會產生 Apps Script）", build: p => gfScript(p) }
+    ],
+    build: () => "", noCopy: true, empty: "",
+    next: "問卷回收後，到 3.3「研究對象與抽樣」填寫回收與有效問卷份數；第四章用{#stats}分析資料。"
   },
   tbfill: {
     label: "待補資料查證", target: "tool",
@@ -2436,8 +2450,10 @@ const OUTLINE = [
     { id: "q-model", no: "", title: "模型說明", desc: "步驟 1 模型講義：以本研究為例，講解本研究所用的統計模型（教學用的寫法；論文的寫法在第三章）。步驟 2 方法導向檢索：找特定領域中、實際使用某種統計方法的實證論文作為模仿範例，產生 Google Scholar 檢索式與 Scholar Labs 問句。", steps: [
       { mod: "mlect", note: "預設帶入 0.2／0.3 的研究模型組；一次可講解一個或多個模型。" },
       { mod: "smethod", note: "貼到有網路搜尋的 AI 對話，不需要上傳文獻。" }] },
-    { id: "q-data", no: "", title: "panel 資料處理", desc: "把長格式的原始資料（一列一筆交易，同一人同一天可能有多筆）整理成一人一日一筆的寬格式資料：數值欄可選加總、平均、最大或最小；某個文字欄（例如基金別）的各個值可展開成欄，並可合併。合併時文字欄位的值不一致會示警，由你選擇處理方式。全部在瀏覽器處理，資料不會上傳。", steps: [
-      { mod: "dprep", note: "依序上傳檔案 → 確認欄位的處理方式 → 檢查資料 → 處理不一致 → 下載。" }] }
+    { id: "q-data", no: "", rt: "model", title: "panel 資料處理", desc: "把長格式的原始資料（一列一筆交易，同一人同一天可能有多筆）整理成一人一日一筆的寬格式資料：數值欄可選加總、平均、最大或最小；某個文字欄（例如基金別）的各個值可展開成欄，並可合併。合併時文字欄位的值不一致會示警，由你選擇處理方式。全部在瀏覽器處理，資料不會上傳。", steps: [
+      { mod: "dprep", note: "依序上傳檔案 → 確認欄位的處理方式 → 檢查資料 → 處理不一致 → 下載。" }] },
+    { id: "q-sv", no: "", rt: "construct", title: "問卷資料處理", desc: "問卷調查法或實驗設計法用：保存每份問卷的連結與定稿問卷，下載受訪者版問卷（Word），並產生建立 Google 表單的 Apps Script。可新增多份問卷。", steps: [
+      { mod: "svdata", note: "先選擇或新增問卷，再填入問卷連結與定稿問卷。" }] }
   ] },
   { ch: "第零章 研究準備", secs: [
     { id: "s0-1", no: "0.1", title: "文獻蒐集與整理", desc: "還沒讀文獻、只有一個想研究的現象時，從這裡開始：聚焦研究問題與關鍵字 → 建立文獻比較表。步驟 3–5 為選用的「整批文獻全貌」：要先看整個研究領域的主題、理論、變數與缺口時再做。整理好之後，到 0.2 形成研究架構。", steps: [
@@ -2516,18 +2532,16 @@ const OUTLINE = [
       { mod: "discuss", note: "可接在 5.1 同一個對話。", fixed: { ds_secs: ["limit"] } }], finish: FIN_FULL }
   ] },
   { ch: "論文整理", secs: [
-    { id: "q-abs", no: "", title: "摘要", desc: "依第一章到第五章的定稿產生中英文摘要與關鍵詞；回覆會放進下載的 Word 檔。建議全文定稿後再做。", steps: [
-      { mod: "abstract", note: "各章定稿會自動帶入；貼到一般 AI 即可，回覆貼到下方「AI 回覆」。" }] },
-    { id: "q-full", no: "", title: "論文全文", desc: "依章節顯示各節的定稿（就是「研究名稱_論文.md」的內容）；各節的定稿可在該節最下方的「本節論文內容」查看與修改。", steps: [
-      { mod: "fulltext", note: "定稿來自各節撰寫步驟的正文，修訂論文（補強、精簡、整節統整、融合）後可取代為改寫版。" }] },
+    { id: "q-tb", no: "", title: "待補資料查證", desc: "集中列出第一章到第五章各節定稿中所有【待補資料】【待補文獻】【待補引用】【待補量表】，查證後直接填入；論文.md 會以填入的內容取代標記。", steps: [
+      { mod: "tbfill", note: "可隨時回來填寫；AI 回覆更新後，清單會自動重新整理。" }] },
     { id: "q-rename", no: "", title: "全站用詞取代", desc: "變數改名或統一譯名時使用：一次更新全站的論文內容、AI 回覆、研究假說、架構圖與第二章分節。", steps: [
       { mod: "rename", note: "取代前會先顯示各處的數量；取代後可按「復原上一次取代」。" }] },
     { id: "q-ref", no: "", title: "參考文獻", desc: "掃描各節定稿中的行內引用，從各步驟的 AI 回覆中找出完整出處；請逐筆核對或填入，論文.md 最後會附上依 APA 第七版排序的參考文獻。", steps: [
       { mod: "refs", note: "中文文獻在前（依筆畫）、英文文獻在後（依字母）。自動帶入的出處請務必核對原文。" }] },
-    { id: "q-tb", no: "", title: "待補資料查證", desc: "集中列出第一章到第五章各節定稿中所有【待補資料】【待補文獻】【待補引用】【待補量表】，查證後直接填入；論文.md 會以填入的內容取代標記。", steps: [
-      { mod: "tbfill", note: "可隨時回來填寫；AI 回覆更新後，清單會自動重新整理。" }] },
-    { id: "q-ch1g", no: "", title: "第一章寫作規範", desc: "整理自「如何寫論文」筆記本（畢恆達、Evans et al.、Swales CARS 模型等）：第一章的組成、各節寫作邏輯、該寫與不該寫、常見錯誤與精簡版規範。精簡版會自動附在第一章各步驟的 Prompt 中。", steps: [
-      { mod: "ch1guide", note: "第一章各節上方也有「本節寫作規範」可展開查看。" }] }
+    { id: "q-abs", no: "", title: "摘要", desc: "依第一章到第五章的定稿產生中英文摘要與關鍵詞；回覆會放進下載的 Word 檔。建議全文定稿後再做。", steps: [
+      { mod: "abstract", note: "各章定稿會自動帶入；貼到一般 AI 即可，回覆貼到下方「AI 回覆」。" }] },
+    { id: "q-full", no: "", title: "論文全文", desc: "依章節顯示各節的定稿（就是「研究名稱_論文.md」的內容）；各節的定稿可在該節最下方的「本節論文內容」查看與修改。", steps: [
+      { mod: "fulltext", note: "定稿來自各節撰寫步驟的正文，修訂論文（補強、精簡、整節統整、融合）後可取代為改寫版。" }] }
   ] }
 ];
 
@@ -2753,6 +2767,8 @@ function hlText() { const it = hlItems(); return it.length ? "依據第二章的
 function hlView() { const it = hlItems(); return it.length ? `<ol class="hlist">${it.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : `<p class="hint">第二章各變數一節還沒有出現「H1：……」形式的假說敘述。</p>`; }
 const stepsOf = sec => [...((RT() === "model" && sec.msteps) || sec.steps), ...(sec.finish || []).map(m => ({ mod: m, note: FINISH_NOTE[m], finish: true }))];
 // 研究類型為 panel data 時，第零章部分節改用模型導向的標題與說明
+// 只在某一研究類型出現的節（rt）
+const secOn = s => !s.rt || s.rt === RT();
 const secTitle = s => (RT() === "model" && s.mtitle) || s.title;
 const secDesc = s => (RT() === "model" && s.mdesc) || s.desc;
 

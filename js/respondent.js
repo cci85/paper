@@ -72,7 +72,7 @@ function rvModel() {   // { title, intro, parts:[{ title, notes[], qs:[{ n, q, o
   const ref = s => s.replace(/(^|[^A-Za-z0-9])\s?([A-Z]{1,2}\d+)(?![0-9A-Za-z])\s?/g, (all, pre, id) => idMap[id] ? `${pre}第 ${idMap[id]} 題` : all);
   parts.forEach(p => { p.notes = p.notes.map(ref); p.qs.forEach(x => { x.q = ref(x.q); x.opts = x.opts.map(ref);
     if (x.opts.length && !/單選|複選|多選/.test(x.q)) x.q += "（單選）"; }); });
-  return { title: rvTitle(), intro, parts };
+  return { title: rvTitle(), intro, parts, scale: { pts, lo: end(1) || "非常不同意", hi: end(pts) || "非常同意" } };
 }
 const rvInline = opts => opts.length <= 5 && opts.join("").length <= 36;
 function rvView() {
@@ -113,4 +113,82 @@ async function rvWord() {
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     return "已下載受訪者版問卷 Word 檔。";
   } catch (e) { return "產生 Word 檔失敗：" + e.message; }
+}
+
+// ── 常用「問卷資料處理」：一份研究可有多份問卷；目前選定的問卷欄位就在 store.values（0.4、3.2 讀的是同一份），其他問卷存在 __svq.list ──
+const SVQ_F = ["sv_url", "sv_final", "rv_title", "gf_req"];
+const svqSt = () => { const v = store.values, q = v.__svq && typeof v.__svq === "object" ? v.__svq : (v.__svq = { cur: "問卷一", list: {} }); q.list ||= {}; q.cur ||= "問卷一"; return q; };
+const svqNames = () => { const q = svqSt(); return [...new Set([...Object.keys(q.list), q.cur])]; };
+const svqPack = () => Object.fromEntries(SVQ_F.map(f => [f, store.values[f] ?? (f === "gf_req" ? ["on"] : "")]));
+function svqUse(name) {   // 存下目前問卷，換成另一份（不存在時為空白的新問卷）
+  const q = svqSt(); q.list[q.cur] = svqPack();
+  const d = q.list[name] || {}; SVQ_F.forEach(f => { store.values[f] = d[f] ?? (f === "gf_req" ? ["on"] : ""); });
+  q.cur = name; q.list[name] = svqPack();
+}
+function svqAll() {   // 研究存檔用：每份問卷的欄位（目前問卷取現值）
+  const q = svqSt(); return svqNames().map(n => ({ name: n, v: n === q.cur ? svqPack() : q.list[n] || {} }));
+}
+function svqBar() {
+  const q = svqSt(), names = svqNames();
+  return `<div class="dprow"><label>問卷（${names.length} 份） <select data-svq="sel">${names.map(n => `<option value="${esc(n)}"${n === q.cur ? " selected" : ""}>${esc(n)}</option>`).join("")}</select></label>
+    <button type="button" data-svq="new">新增問卷</button> <button type="button" data-svq="ren">改名</button> <button type="button" data-svq="del">刪除這份問卷</button></div>`;
+}
+const svqRedraw = () => { save(); renderPane(); update(); };
+document.getElementById("pane").addEventListener("change", e => {
+  const t = e.target; if (!t || !t.dataset || t.dataset.svq !== "sel") return;
+  svqUse(t.value); svqRedraw();
+});
+document.getElementById("pane").addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("button[data-svq]"); if (!b) return;
+  const q = svqSt(), names = svqNames(), act = b.dataset.svq;
+  const ask = (msg, def) => { const n = (prompt(msg, def) || "").trim(); if (!n) return ""; if (names.includes(n)) { alert(`已有名為「${n}」的問卷。`); return ""; } return n; };
+  if (act === "new") { let k = names.length + 1; while (names.includes("問卷" + rvZh(k))) k++;
+    const n = ask("新問卷的名稱（例如：前測問卷、研究二）", "問卷" + rvZh(k)); if (!n) return; svqUse(n); }
+  else if (act === "ren") { const n = ask("問卷的新名稱", q.cur); if (!n) return; delete q.list[q.cur]; q.cur = n; q.list[n] = svqPack(); }
+  else if (act === "del") {
+    if (!confirm(`刪除問卷「${q.cur}」？這份問卷的連結、定稿問卷與標題都會刪除。`)) return;
+    const old = q.cur, rest = names.filter(n => n !== old); delete q.list[old];
+    if (rest.length) { q.cur = rest[0]; const d = q.list[q.cur] || {}; SVQ_F.forEach(f => { store.values[f] = d[f] ?? (f === "gf_req" ? ["on"] : ""); }); }
+    else { SVQ_F.forEach(f => { store.values[f] = f === "gf_req" ? ["on"] : ""; }); q.cur = "問卷一"; }
+  }
+  svqRedraw();
+});
+
+// 由定稿問卷產生建立 Google 表單的 Apps Script（FormApp）：各部分分頁；量表題為線性刻度；知情同意與資格題中否定的選項設為提交表單
+function gfScript(p) {
+  const M = rvModel(); if (!M) return "";
+  const stop = /^(不|否|非|未滿|沒有|無)|不同意|不符合|不是/;
+  const D = { title: M.title, intro: M.intro, req: isOn(p.gf_req), pts: M.scale.pts, lo: M.scale.lo, hi: M.scale.hi,
+    parts: M.parts.map(x => { const gate = /^(知情同意確認|資格題)$/.test(x.title);
+      return { label: x.label, notes: x.notes, gate, qs: x.qs.map(q => ({ t: `${q.n}. ${q.q}`, opts: q.opts, multi: q.multi, likert: q.likert,
+        stop: gate && !q.multi ? q.opts.map((o, i) => stop.test(o.trim()) ? i : -1).filter(i => i >= 0) : [] })) }; }) };
+  return `// 由「你論了嗎」依定稿問卷產生：${M.title}
+// 使用方式：script.google.com → 新專案 → 刪除預設內容後貼上 → 儲存 → 選擇 createForm 執行（第一次需授權）
+// 完成後，「執行記錄」會顯示表單的編輯網址與填答網址；表單建在你的 Google 雲端硬碟
+function createForm() {
+  var D = ${JSON.stringify(D, null, 1)};
+  var form = FormApp.create(D.title);
+  form.setDescription(D.intro).setProgressBar(true).setConfirmationMessage("問卷到此結束，感謝您的填答。");
+  D.parts.forEach(function (p, i) {
+    var help = p.notes.join("\\n");
+    if (i === 0) form.addSectionHeaderItem().setTitle(p.label).setHelpText(help);
+    else form.addPageBreakItem().setTitle(p.label).setHelpText(help);
+    p.qs.forEach(function (x, j) {
+      if (p.gate && j > 0) form.addPageBreakItem().setTitle(p.label);   // 依答案結束填答的題目，一頁只放一題
+      var it;
+      if (x.likert) it = form.addScaleItem().setTitle(x.t).setBounds(1, D.pts).setLabels(D.lo, D.hi);
+      else if (x.opts.length && x.multi) it = form.addCheckboxItem().setTitle(x.t).setChoiceValues(x.opts);
+      else if (x.opts.length) {
+        it = form.addMultipleChoiceItem().setTitle(x.t);
+        if (x.stop.length) it.setChoices(x.opts.map(function (o, k) {
+          return it.createChoice(o, x.stop.indexOf(k) >= 0 ? FormApp.PageNavigationType.SUBMIT : FormApp.PageNavigationType.CONTINUE); }));
+        else it.setChoiceValues(x.opts);
+      }
+      else it = form.addTextItem().setTitle(x.t);
+      it.setRequired(D.req);
+    });
+  });
+  Logger.log("編輯網址：" + form.getEditUrl());
+  Logger.log("填答網址：" + form.getPublishedUrl());
+}`;
 }
