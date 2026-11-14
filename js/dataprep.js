@@ -988,9 +988,9 @@ function dpAeScreen(c, k) {
   rows.forEach(r => { r.ov = rows.filter(x => x !== r).map(x => [x.a.v, Math.min(r.w1, x.w1) - Math.max(r.w0, x.w0) + 1]).filter(x => x[1] > 0); });
   return rows;
 }
-// ── 「定義：變數與模型」步驟 4「定義事件變數」：活動資料、觀察期間、表一（日期事實）、文獻篩選結果；設定存在研究存檔的 dp_cfg，與「panel 資料處理」共用 ──
+// ── 「定義：變數與模型」的「事件變數」：活動資料、觀察期間、表一（日期事實）、文獻篩選結果；設定存在研究存檔的 dp_cfg，與「panel 資料處理」共用 ──
 const DP_ACTK = ["actRep", "actSrc", "actAb", "ae"];
-const DP_EVGO = `<p><button type="button" data-go="q-var" data-gostep="3">到「定義事件變數」修改 →</button></p>`;
+const DP_EVGO = `<p><button type="button" data-go="q-var" data-gostep="1">到「事件變數」修改 →</button></p>`;
 const dpEvCfg = () => DP.cfg && store.values.dp_cfg === DP.cfg ? DP.cfg : (store.values.dp_cfg ||= {});
 const dpIso = v => v != null ? dpFmt(v).replace(/\//g, "-") : "";
 // 觀察期間：已處理資料時用資料實際的起訖日，否則用手動填寫的期間
@@ -1220,9 +1220,9 @@ function dpAeView(c, k) {
   if (!k || !dpActs(c).list.length) return "";
   const o = dpAeCfg(c), S = dpAeScreen(c, k), yo = dpAeYopts(c), y = dpAeY(c), cc = dpCtyCols();
   let h = `<div class="dpsub"><b>活動初步評估</b>${DP_AEDOC}
-    <p class="hint">保留哪些活動、短期或長期、地區與窗口天數，在「定義：變數與模型」步驟 4「定義事件變數」依文獻決定（表一）；這裡用捐款資料比較保留活動起日前後的 Y（表二），只用於描述，不用來挑選活動。每個活動以起日（對外公開日）為事件日，比較起日前後同樣天數的窗口（短期 ${o.short} 天、長期 ${o.long} 天）；前一年同期為 ${DP_LY} 天前的同一段日期（星期幾一致），用來對照季節性。</p>`;
+    <p class="hint">保留哪些活動、短期或長期、地區與窗口天數，在「定義：變數與模型」的「事件變數」依文獻決定（表一）；這裡用捐款資料比較保留活動起日前後的 Y（表二），只用於描述，不用來挑選活動。每個活動以起日（對外公開日）為事件日，比較起日前後同樣天數的窗口（短期 ${o.short} 天、長期 ${o.long} 天）；前一年同期為 ${DP_LY} 天前的同一段日期（星期幾一致），用來對照季節性。</p>`;
   const keep = S.filter(r => r.keep);
-  if (!keep.length) return h + `<p class="note">還沒有保留的活動：請先到「定義事件變數」貼上 NotebookLM 的篩選結果。</p>${DP_EVGO}</div>`;
+  if (!keep.length) return h + `<p class="note">還沒有保留的活動：請先到「定義：變數與模型」的「事件變數」貼上 NotebookLM 的篩選結果。</p>${DP_EVGO}</div>`;
   const anyC = keep.some(r => r.cty);
   h += `<div class="dprow"><label>Y1 的金額欄 <select data-dpae="y1">${yo.map(([v, t]) => `<option value="${esc(v)}"${v === y ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></label>
     ${anyC ? `<label>縣市欄 <select data-dpae="ccol">${dpOpt(cc, o.ccol || cc[0] || "", cc.length ? null : "（沒有縣市欄）")}</select></label>` : ""}
@@ -1252,11 +1252,11 @@ function dpExtView(c, k) {
   const A = dpActs(c), N = dpN;
   let h = `<fieldset class="struct"><legend>4. 活動期間與外部資料（選用）</legend>
     <div class="dpsub"><b>活動期間與事件變數</b>
-    <p class="hint">活動資料的整理、依文獻篩選、短期／長期分類、地區與事件變數的週數，都在「定義：變數與模型」步驟 4「定義事件變數」設定，這裡自動帶入。每個活動產生期間 0/1 變數（act1、act2…，活動期間內含起迄日為 1）；保留的活動另產生模型用的事件變數（沒有保留任何活動時，全部活動都產生）。</p>`;
+    <p class="hint">活動資料的整理、依文獻篩選、短期／長期分類、地區與事件變數的週數，都在「定義：變數與模型」的「事件變數」設定，這裡自動帶入。每個活動產生期間 0/1 變數（act1、act2…，活動期間內含起迄日為 1）；保留的活動另產生模型用的事件變數（沒有保留任何活動時，全部活動都產生）。</p>`;
   if (A.list.length) { const S = dpAeScreen(c, k), EV = new Set(dpEvActs(c).map(a => a.v));
     h += `<table class="dptbl"><thead><tr><th>變數</th><th>簡稱</th><th>活動名稱</th><th>起日</th><th>迄日</th><th>天數</th><th>類型</th><th>地區</th><th>保留</th><th>事件變數</th></tr></thead><tbody>${S.map(r => `<tr><td>${r.a.v}</td><td>${esc(r.a.ab || "")}</td><td>${esc(r.a.name)}</td><td>${dpFmt(r.a.from)}</td><td>${dpFmt(r.a.to)}</td><td class="r">${r.days}</td><td>${r.kind === "s" ? "短期" : "長期"}</td><td>${esc(r.cty || "全國")}</td><td>${r.keep ? "是" : "否"}</td><td>${EV.has(r.a.v) ? "產生" : "—"}</td></tr>`).join("")}</tbody></table>`; }
   else h += `<div class="note">還沒有活動。</div>`;
-  if (A.bad.length || A.unsure.length) h += `<div class="note warn">活動資料有讀不出日期或無法確定的行，請到「定義事件變數」處理。</div>`;
+  if (A.bad.length || A.unsure.length) h += `<div class="note warn">活動資料有讀不出日期或無法確定的行，請到「定義：變數與模型」的「事件變數」處理。</div>`;
   h += DP_EVGO;
   h += dpAeView(c, k);
   h += `</div><div class="dpsub"><b>外部資料</b>

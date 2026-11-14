@@ -318,6 +318,10 @@ function pdictView(text) {
 const pdVals = () => { const v = store.values; return { ctx: (v.as_ctx || "").trim(), con: (v.as_con || "").trim(), unit: (v.pd_unit || "").trim(), time: (v.pd_time || "").trim(),
   fields: (v.pd_fields || "").trim(), feat: v.pd_feat || [], goal: v.pd_goal || ["exp", "pred"], vars: pdVarText() }; };
 
+// 常用「定義變數」：每行一個變數；「模型講義」：從「角色｜模型名稱｜目的」取出模型名稱
+const vfVars = p => String((p && p.vf_vars) || "").split(/\r?\n/).map(v => v.replace(/^[\s\-*•]+/, "").trim()).filter(Boolean);
+const valuesOfVdef = () => ({ vf_vars: (typeof store !== "undefined" && store.values.vf_vars) || "" });
+const mlNames = t => String(t || "").split(/\r?\n/).map(l => l.replace(/^[\s\-*•]+/, "").trim()).filter(Boolean).map(l => { const c = l.split(/[｜|]/).map(x => x.trim()); return (c.length >= 2 ? c[1] : c[0]).replace(/[（(].*$/, "").trim(); }).filter(Boolean);
 // 貼到哪裡
 const TARGETS = {
   nlm: "貼到 NotebookLM 對話",
@@ -476,35 +480,23 @@ const DEFS = {
     build: (p, R) => T.ask_more({}) + R,
     next: "下一步：若回覆最後寫「未完」，輸入「繼續」。各次回覆（含「繼續」之後的）依序貼到下方「AI 回覆」，到{#asmix}會自動帶入、合併並去除重複。"
   },
-  vdeep: {
-    label: "深入了解單一變數", target: "nlm",
-    hint: "依上傳文獻整理一個變數的定義、維度、理論、量表、施測情境、前因、後果與相近構念。只能根據上傳文獻回答，文獻只是順帶提及這個變數時，回答會較薄。",
+  vdef: {
+    label: "定義變數", target: "nlm",
+    hint: "填一個變數：依上傳文獻整理它的定義、維度、理論、量表、施測情境、前因、後果與相近構念。填兩個以上（每行一個）：區辨這些看起來很像的變數，比較定義、描述層次、文獻中的角色、衡量方式與實證區辨，判斷它們是同一構念、部分重疊、前後因果，還是彼此獨立。只能根據上傳文獻回答；每查一次存成一筆紀錄，可從上方的「紀錄」切換。",
     fields: [
-      { id: "vd_var", type: "text", label: "變數名稱", placeholder: "例如：顧客靈感（customer inspiration）" },
+      { id: "vf_vars", type: "textarea", label: "變數", hint: "一個變數：深入了解；兩個以上（每行一個）：區辨相近變數。建議附英文原文", rows: 3, placeholder: "顧客靈感（customer inspiration）\n\n或每行一個：\n偶遇商品資訊（Encountering Product Information）\n體驗到的驚喜感（Experienced Serendipity）" },
       { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", hint: "選填", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" }
     ],
-    rules: () => ["citation", "verify"],
-    build: (p, R) => blank(p.vd_var) ? "" : T.var_deep({ v: p.vd_var.trim(), ctx: p.as_ctx.trim() }) + R,
-    empty: "（請填入變數名稱）",
-    next: "下一步：「文獻不足之處」列出的關鍵字可用來檢索新文獻，上傳到同一個 Notebook 後再問一次。要寫成第二章時用{#m6a}；整理量表與題項用{#opdef}。"
-  },
-  vcomp: {
-    label: "區辨相近變數", target: "nlm",
-    hint: "兩個以上的變數看起來很像時使用：比較定義、描述層次、文獻中的角色、衡量方式與實證區辨，判斷它們是同一構念、部分重疊、前後因果，還是彼此獨立，並建議在研究架構中如何處理。",
-    fields: [
-      { id: "vc_vars", type: "textarea", label: "變數", hint: "每行一個，至少兩個；建議附英文原文", rows: 4, placeholder: "偶遇商品資訊（Encountering Product Information）\n體驗到的驚喜感（Experienced Serendipity）" },
-      { id: "as_ctx", type: "text", label: "研究情境（平台或產業）", hint: "選填", placeholder: "例如：抖音電商、台灣精釀啤酒、國軍基層部隊" }
-    ],
-    rules: () => ["citation"],
-    build: (p, R) => {
-      const vars = (p.vc_vars || "").split(/\r?\n/).map(v => v.replace(/^[\s\-*•]+/, "").trim()).filter(Boolean);
-      return vars.length < 2 ? "" : T.var_compare({ vars, ctx: p.as_ctx.trim() }) + R;
-    },
-    empty: "（請填入至少兩個變數，每行一個）",
-    next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。若判斷為前後因果，可回到{#asmix}調整勾選；要深入了解其中一個變數，用{#vdeep}。"
+    hist: p => vfVars(p).join("、"),
+    rules: p => vfVars(p || valuesOfVdef()).length >= 2 ? ["citation"] : ["citation", "verify"],
+    build: (p, R) => { const vars = vfVars(p), ctx = (p.as_ctx || "").trim();
+      return !vars.length ? "" : (vars.length === 1 ? T.var_deep({ v: vars[0], ctx }) : T.var_compare({ vars, ctx })) + R; },
+    status: p => { const n = vfVars(p).length; return n === 1 ? "目前：深入了解單一變數。" : n >= 2 ? `目前：區辨 ${n} 個相近變數。` : ""; },
+    empty: "（請填入變數：一個為深入了解，兩個以上為區辨相近變數）",
+    next: "下一步：貼到已上傳相關文獻的 NotebookLM 對話。單一變數：「文獻不足之處」列出的關鍵字可用來檢索新文獻，上傳後再問一次；要寫成第二章時用{#m6a}，整理量表與題項用{#opdef}。相近變數：判斷為前後因果時，可回到{#asmix}調整勾選。"
   },
   evspec: {
-    label: "定義事件變數", target: "nlm",
+    label: "事件變數", target: "nlm",
     hint: "panel data 研究中有活動、政策、介入等事件時使用。依序填寫研究的基本資料與觀察期間、貼上整理好的活動資料，網站列出每個活動的日期資訊（表一）；再複製 Prompt 到已上傳事件研究文獻的 NotebookLM，依文獻決定保留哪些活動，並核對事件變數。回覆貼回後自動帶入，不必勾選；結果與「panel 資料處理」共用，處理資料時自動產生事件變數。",
     fields: [
       { id: "ev_event", type: "text", label: "事件類型", placeholder: "例如：募款活動、配捐活動、政策實施" },
@@ -525,6 +517,22 @@ const DEFS = {
     empty: "（請填入事件類型，並貼上活動資料）",
     next: "下一步：貼到已上傳事件研究文獻的 NotebookLM 對話，回覆整段貼到下方「AI 回覆」，保留的活動會自動帶入；第三節列出需要修改之處時，把回覆貼給 Claude 確認；第四節可作為第三章資料分析方法的寫作素材。"
   },
+  mlect: {
+    label: "模型講義", target: "nlm",
+    hint: "以本研究為例，請 NotebookLM 依上傳的方法論文獻，寫一份講解本研究所用統計模型的教學講義：模型在回答什麼問題、方程式的每個符號對應本研究的哪個變數、為什麼選這個模型、估計前要檢查什麼、輸出怎麼讀、常見錯誤。這是教學用的講義，用白話說明；論文的寫法在第三章。每次講解存成一筆紀錄，可從上方的「紀錄」切換。",
+    fields: [
+      { id: "ml_models", type: "textarea", label: "要講解的模型", hint: "每行一個：角色｜模型名稱（英文原文）｜目的。預設帶入 0.2／0.3 的研究模型組，可刪去只留要講解的模型", rows: 4, mono: true },
+      { id: "ml_focus", type: "textarea", label: "想特別弄懂的地方", hint: "選填；每行一題", rows: 2, placeholder: "例如：固定效果模型為什麼不能估計不隨時間改變的變數？\n交互作用項的係數怎麼解讀？" }
+    ],
+    seedFrom: "0.2／0.3 的研究模型組", seedNote: "「要講解的模型」由 0.2／0.3 的研究模型組帶入",
+    seed: () => ({ ml_models: modelText() }), seedQuiet: ["ml_models"],
+    hist: p => mlNames(p.ml_models).join("、"),
+    rules: () => ["citation"],
+    build: (p, R) => { const models = pipeLines(p.ml_models) || (p.ml_models || "").trim(); if (!models) return "";
+      return T.model_lecture({ ...pdVals(), models, focus: splitLines(p.ml_focus) }) + R; },
+    empty: "（請填入要講解的模型；0.2 完成後會自動帶入研究模型組）",
+    next: "下一步：貼到已上傳方法論文獻（教科書、方法論文、使用同一模型的實證論文）的 NotebookLM 對話。講義中標示【待補文獻】之處，可用{#smethod}找使用同一方法的實證論文。論文中的寫法請到第三章撰寫。"
+  },
   smethod: {
     label: "方法導向檢索", target: "ai",
     hint: "要找特定領域中、實際使用某種統計方法的實證論文來模仿時使用。AI 會給你可直接貼到 Google Scholar 的檢索式與 Scholar Labs 問句；請使用有網路搜尋的 AI，它會試跑檢索式並附上 2–3 篇論文確認。",
@@ -536,6 +544,7 @@ const DEFS = {
       { id: "sm_extra", type: "text", label: "其他想加入的條件", hint: "選填；任何片段資訊皆可", placeholder: "例如：有報告組內相關係數（ICC）、使用 HLM 軟體、2015 年以後" },
       { id: "sm_excl", type: "text", label: "要排除的領域", hint: "選填；該方法常見但與你無關的領域", placeholder: "例如：教育、護理" }
     ],
+    hist: p => [(p.sm_method || "").trim(), (p.sm_field || "").trim()].filter(Boolean).join("｜"),
     build: p => blank(p.sm_field) || blank(p.sm_method) ? "" : T.search_method({ field: p.sm_field.trim(), method: p.sm_method.trim(), unit: p.sm_unit.trim(), topic: p.sm_topic.trim(), extra: p.sm_extra.trim(), excl: p.sm_excl.trim() }),
     empty: "（請填入研究領域與統計方法）",
     next: "下一步：檢索式貼到 Google Scholar（scholar.google.com），問句貼到 Scholar Labs。先點開「試跑結果」的連結確認論文確實存在且使用該方法。"
@@ -2421,11 +2430,12 @@ const OUTLINE = [
   { ch: "常用", quick: true, secs: [
     { id: "q-draft", no: "", title: "修訂論文", desc: "補強：段落還缺東西時使用，字數不減。精簡：內容齊全但太冗長，字數必須減少，可設定目標長度。整節統整：整節去除重複、調整段落順序與邏輯。融合：把幾段合併成一段。都會先核實引用，任何一章都可以用。", steps: [
       { mod: "dr", note: "先在上方「改寫方向」選擇做法。補強、精簡一次一段；整節統整會自動帶入本節全文；融合可選多段。" }] },
-    { id: "q-var", no: "", title: "定義：變數與模型", desc: "步驟 1 深入了解單一變數：定義、維度、理論、操作型定義與量表、施測情境、前因與後果、相近構念。步驟 2 區辨相近變數：兩個以上的變數看起來很像時，分辨它們在研究架構上的異同。步驟 3 方法導向檢索：找特定領域中、實際使用某種統計方法的實證論文作為模仿範例，產生精準的 Google Scholar 檢索式與 Scholar Labs 問句。步驟 4 定義事件變數：panel data 研究中，整理活動資料、依文獻篩選可分析的活動並核對事件變數，結果自動帶回「panel 資料處理」。任何階段都可以用，各步驟可單獨使用。", steps: [
-      { mod: "vdeep", note: "一次問一個變數；文獻不足時，先針對這個變數補上傳文獻再問。「施測情境」常因原文只簡短交代而標示「未提及」，請回到原文的方法章節或附錄查看。" },
-      { mod: "vcomp", note: "每行填一個變數；可直接從組合研究架構的勾選區複製名稱。" },
-      { mod: "smethod", note: "貼到有網路搜尋的 AI 對話，不需要上傳文獻。" },
+    { id: "q-var", no: "", title: "定義：變數與模型", desc: "步驟 1 定義變數：填一個變數時，依文獻整理定義、維度、理論、操作型定義與量表、施測情境、前因與後果、相近構念；填兩個以上時，區辨這些相近變數在研究架構上的異同。步驟 2 事件變數：panel data 研究中，整理活動資料、依文獻篩選可分析的活動並核對事件變數，結果自動帶回「panel 資料處理」。任何階段都可以用，各步驟可單獨使用。", steps: [
+      { mod: "vdef", note: "一次問一個變數，或把看起來很像的幾個變數一起比較；文獻不足時，先補上傳文獻再問。「施測情境」常因原文只簡短交代而標示「未提及」，請回到原文的方法章節或附錄查看。" },
       { mod: "evspec", note: "panel data 研究用；整理活動資料、依文獻篩選活動並定義事件變數，結果自動帶回「panel 資料處理」。" }] },
+    { id: "q-model", no: "", title: "模型說明", desc: "步驟 1 模型講義：以本研究為例，講解本研究所用的統計模型（教學用的寫法；論文的寫法在第三章）。步驟 2 方法導向檢索：找特定領域中、實際使用某種統計方法的實證論文作為模仿範例，產生 Google Scholar 檢索式與 Scholar Labs 問句。", steps: [
+      { mod: "mlect", note: "預設帶入 0.2／0.3 的研究模型組；一次可講解一個或多個模型。" },
+      { mod: "smethod", note: "貼到有網路搜尋的 AI 對話，不需要上傳文獻。" }] },
     { id: "q-data", no: "", title: "panel 資料處理", desc: "把長格式的原始資料（一列一筆交易，同一人同一天可能有多筆）整理成一人一日一筆的寬格式資料：數值欄可選加總、平均、最大或最小；某個文字欄（例如基金別）的各個值可展開成欄，並可合併。合併時文字欄位的值不一致會示警，由你選擇處理方式。全部在瀏覽器處理，資料不會上傳。", steps: [
       { mod: "dprep", note: "依序上傳檔案 → 確認欄位的處理方式 → 檢查資料 → 處理不一致 → 下載。" }] }
   ] },

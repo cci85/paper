@@ -19,7 +19,7 @@ try {
   store.migrated = true;
 } catch {}
 // 2026-11 第零章重整：步驟移到新的節，AI 回覆跟著搬（舊存檔讀入時也會套用）
-const REPLY_MOVE = { "s0-1|gapsel": "s0-4|gapsel", "s0-4|lr": "s2-2|lr", "s0-4|astat": "s0-6|astat", "s0-4|asq": "s0-6|asq", "q-final|dr": "q-draft|dr", "s2-3|m8": "q-newlit|m8", "r-method|smethod": "q-var|smethod" };
+const REPLY_MOVE = { "s0-1|gapsel": "s0-4|gapsel", "s0-4|lr": "s2-2|lr", "s0-4|astat": "s0-6|astat", "s0-4|asq": "s0-6|asq", "q-final|dr": "q-draft|dr", "s2-3|m8": "q-newlit|m8", "r-method|smethod": "q-model|smethod", "q-var|smethod": "q-model|smethod" };
 function migrateReplies(r) {
   if (!r) return r;
   Object.entries(REPLY_MOVE).forEach(([a, b]) => {
@@ -66,6 +66,24 @@ if ((store.layout || 0) < 11) {   // 常用「變數定義」與「方法導向�
   if (store.sec === "r-method") { store.sec = "q-var"; store.step["q-var"] = 2; }
   delete (store.step || {})["r-method"]; store.layout = 11;
 }
+if ((store.layout || 0) < 12) {   // 常用：「定義：變數與模型」改為定義變數（單一與相近合併）、事件變數；方法導向檢索移到「模型說明」
+  const k = (store.step || {})["q-var"] || 0;
+  if (store.sec === "q-var" && k === 2) { store.sec = "q-model"; store.step["q-model"] = 1; }
+  if (store.step) store.step["q-var"] = k === 3 ? 1 : 0;
+  store.layout = 12;
+}
+// 常用的舊回覆改存成紀錄（定義變數：單一變數與相近變數；方法導向檢索）；開啟舊的研究存檔時也會執行
+function migrateQuick() {
+  const r = store.replies ||= {}, v = store.values ||= {}, H = k => ((v.__hist ||= {})[k] ||= {});
+  const mv = (old, key, name, vals) => { if (!(old in r)) return; if (!blank(r[old])) { const n = name || "（未命名）"; if (!H(key)[n]) H(key)[n] = { v: vals, r: r[old], t: 0 }; } delete r[old]; };
+  mv("q-var|vdeep", "q-var|vdef", (v.vd_var || "").trim(), { vf_vars: v.vd_var || "", as_ctx: v.as_ctx || "" });
+  mv("q-var|vcomp", "q-var|vdef", String(v.vc_vars || "").split(/\r?\n/).map(x => x.trim()).filter(Boolean).join("、"), { vf_vars: v.vc_vars || "", as_ctx: v.as_ctx || "" });
+  const sm = r["q-model|smethod"], sn = [(v.sm_method || "").trim(), (v.sm_field || "").trim()].filter(Boolean).join("｜");
+  if (!blank(sm) && sn && !(v.__histCur || {})["q-model|smethod"] && !H("q-model|smethod")[sn]) {
+    H("q-model|smethod")[sn] = { v: { sm_field: v.sm_field, sm_method: v.sm_method, sm_unit: v.sm_unit, sm_topic: v.sm_topic, sm_extra: v.sm_extra, sm_excl: v.sm_excl }, r: sm, t: 0 };
+    (v.__histCur ||= {})["q-model|smethod"] = sn; }
+}
+migrateQuick();
 if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s0-1";
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} if (window.onStoreSave) window.onStoreSave(); };
 
@@ -159,7 +177,7 @@ function renderPane() {
       ${ch2g || ch3g ? "" : `<p><button type="button" data-go="q-ch1g" data-gostep="0">查看第一章完整寫作規範 →</button></p>`}</details>` : ""}${steps().length === 1 && !sec().no ? "" : `<h3>${sec().no ? `步驟 ${stepIdx() + 1}　` : ""}${esc(m.label)}</h3>`}
     <p class="target t-${m.target}">${esc(TARGETS[m.target])}</p>${top ? `<div class="topfield">${top}</div>` : ""}
     <p class="stepnote">${esc(ref(step().note))}</p>
-    <p class="hint">${esc(ref(m.hint))}</p>${fields}
+    <p class="hint">${esc(ref(m.hint))}</p>${m.hist ? `<div class="dprow histrow" id="histrow"></div>` : ""}${fields}
     ${m.rules ? `<fieldset class="struct"><legend>附加共用規則</legend><div class="chips" id="rules"></div>
       <p class="hint" style="margin:8px 0 0">${step().rules ? "本節預設精簡組合；勾選會依本節分別記住。" : "預設沿用原本的組合；勾選會依模組分別記住。"}</p></fieldset>` : ""}
     <div class="note" id="status"></div>
@@ -199,8 +217,36 @@ function renderPickers(m, p) {
   });
 }
 
+// 可保留多筆紀錄的步驟（模組設 hist：依欄位產生紀錄名稱）：貼上回覆時存成一筆；改名稱時換成該名稱的紀錄或清空回覆
+const histOf = k => ((store.values.__hist ||= {})[k] ||= {});
+const histVals = m => Object.fromEntries(m.fields.filter(f => ["text", "textarea", "radio", "checks"].includes(f.type)).map(f => [f.id, store.values[f.id] ?? ""]));
+function histSync(m, p) {
+  if (!m.hist) return;
+  const k = replyKey(), C = store.values.__histCur ||= {}, cur = C[k], n = m.hist(p) || "", H = histOf(k);
+  if (cur == null) return;
+  if (cur === n) { if (H[n]) H[n].v = histVals(m); return; }
+  const r = H[n] ? H[n].r : "";
+  (store.replies ||= {})[k] = r; if (H[n]) C[k] = n; else delete C[k];
+  const ta = document.querySelector("textarea[data-reply]"); if (ta && ta.value !== r) ta.value = r;
+  renderReplyView();
+}
+function histSave(m) {
+  if (!m.hist) return;
+  const k = replyKey(), n = m.hist(valuesOf(m)) || "", r = (store.replies || {})[k] || "", C = store.values.__histCur ||= {}, H = histOf(k);
+  if (!n) return;
+  if (blank(r)) { if (C[k] === n) { delete H[n]; delete C[k]; } return; }
+  H[n] = { v: histVals(m), r, t: Date.now() }; C[k] = n;
+}
+function histRow(m) {
+  const el = $("histrow"); if (!el) return;
+  const k = replyKey(), H = histOf(k), names = Object.keys(H).sort((a, b) => H[a].t - H[b].t), cur = (store.values.__histCur || {})[k];
+  el.innerHTML = !names.length ? `<span class="hint">貼上 AI 回覆後，這次的查詢會存成一筆紀錄，寫進研究存檔。</span>` :
+    `<label>紀錄（${names.length} 筆） <select data-hist="1"><option value="">（新的查詢）</option>${names.map(x => `<option value="${esc(x)}"${x === cur ? " selected" : ""}>${esc(x)}</option>`).join("")}</select></label>` +
+    (cur ? ` <button type="button" data-histdel="1">刪除這筆紀錄</button>` : "");
+}
 function update() {
   const m = mod(), p = valuesOf(m);
+  histSync(m, p);
   renderPickers(m, p);
   m.fields.filter(f => f.type === "diagram").forEach(f => renderDiagram(f, p));
   const R = m.rules ? RULES.filter(r => activeRules(m, p).includes(r.key)).map(r => typeof r.text === "function" ? r.text(p) : r.text).join("") : "";
@@ -216,7 +262,7 @@ function update() {
   $("outd").hidden = !out;
   outSum();
   $("next").textContent = ref(m.next);
-  renderReplyView();
+  renderReplyView(); histRow(m);
   m.fields.filter(f => f.type === "cands").forEach(f => { const el = $("cands-" + f.id); if (el) el.innerHTML = f.render(p); });
   m.fields.filter(f => f.type === "promptbox").forEach(f => {
     const el = $("pbox-" + f.id); if (!el) return;
@@ -245,7 +291,7 @@ function renderReplyView() {
   const m = mod(), el = $("replyview"); if (!m.replyView || !el) return;
   el.innerHTML = m.replyView(deLatex((store.replies || {})[replyKey()] || ""));
 }
-function showAll() { rebuildCh2(); migrateCh3(); if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s2-0"; renderToc(); renderSection(); renderPane(); foldOut(); update(); }
+function showAll() { migrateQuick(); rebuildCh2(); migrateCh3(); if (!ALL_SECS.some(s => s.id === store.sec)) store.sec = "s2-0"; renderToc(); renderSection(); renderPane(); foldOut(); update(); }
 
 // 每一步最下方的「建議下一步」：可直接跳到目標節與步驟
 function goNext() {
@@ -323,6 +369,19 @@ function runAuto(t) {
 }
 $("pane").addEventListener("paste", e => { const t = e.target; if (t && t.tagName === "TEXTAREA") setTimeout(() => runAuto(t), 0); });
 $("pane").addEventListener("change", e => { const t = e.target; if (t && t.tagName === "TEXTAREA") runAuto(t); });
+$("pane").addEventListener("change", e => {   // 切換紀錄：帶入該筆的欄位與回覆；「新的查詢」清空本步驟的欄位與回覆
+  const t = e.target; if (!t || !t.dataset || !t.dataset.hist) return;
+  const m = mod(), k = replyKey(), H = histOf(k), C = store.values.__histCur ||= {}, n = t.value;
+  if (n && H[n]) { Object.entries(H[n].v || {}).forEach(([f, v]) => { store.values[f] = v; }); store.replies[k] = H[n].r; C[k] = n; }
+  else { Object.keys(histVals(m)).filter(f => f !== "as_ctx").forEach(f => { store.values[f] = ""; }); store.replies[k] = ""; delete C[k]; }
+  save(); renderPane(); update();
+});
+$("pane").addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("button[data-histdel]"); if (!b) return;
+  const k = replyKey(), C = store.values.__histCur ||= {}, n = C[k]; if (!n) return;
+  if (!confirm(`刪除紀錄「${n}」？`)) return;
+  delete histOf(k)[n]; delete C[k]; store.replies[k] = ""; save(); renderPane(); update();
+});
 $("pane").addEventListener("click", e => {   // 0.4 panel data：把「可再考慮的變數」加入研究變數
   const b = e.target.closest("button[data-addvar]"); if (!b) return;
   const v = store.values, cur = (v.pd_vars || "").trim() || pdVarAI();
@@ -412,7 +471,7 @@ $("pane").addEventListener("input", e => {
     return;
   }
   if (t.dataset.reply) {
-    (store.replies ||= {})[replyKey()] = t.value; save(); renderReplyView();
+    (store.replies ||= {})[replyKey()] = t.value; histSave(mod()); histRow(mod()); save(); renderReplyView();
     mod().fields.filter(f => f.type === "cands" && f.id === "pm_view").forEach(f => { const el = $("cands-" + f.id); if (el) el.innerHTML = f.render(); });   // 0.2 panel data：回覆貼上後立即列出候選模型
     const fb = $("finbox"); if (fb) { const open = fb.open; fb.outerHTML = finBox(); const nb = $("finbox"); if (nb) nb.open = open; }   // 撰寫步驟貼上回覆後，定稿立即更新
     return;

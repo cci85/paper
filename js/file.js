@@ -143,6 +143,16 @@ function readable(pngs) {
     const blocks = [];
     stepsOf(s).forEach((st, i) => {
       const m = DEFS[st.mod], lines = [], fixed = st.fixed || {};
+      const HH = m.hist ? (((store.values || {}).__hist || {})[s.id + "|" + st.mod] || {}) : {};
+      if (Object.keys(HH).length) {   // 保留多筆紀錄的步驟：逐筆列出欄位與 AI 回覆
+        const recs = Object.entries(HH).sort((a, b) => a[1].t - b[1].t).map(([n, rec]) => {
+          const L = [`#### ${n}`];
+          m.fields.forEach(f => { const v = (rec.v || {})[f.id]; if (v === undefined || f.type === "cands" || blank(Array.isArray(v) ? v.join("") : v)) return;
+            const t = fmt(f, v); L.push(f.type === "textarea" ? `**${f.label}**\n\n${mdText(t)}` : `**${f.label}**：${t}`); });
+          if (!blank(rec.r)) L.push(`**AI 回覆**\n\n${mdText(fenceMermaid(deLatex(rec.r)))}`);
+          return L.join("\n\n"); });
+        blocks.push(`### ${s.no ? `步驟 ${i + 1}　` : ""}${m.label}\n\n${recs.join("\n\n")}`); return;
+      }
       m.fields.forEach(f => {
         if (f.id in fixed || shown.has(f.id) || f.type === "picker") return;
         if (f.type === "diagram") {
