@@ -205,7 +205,7 @@ function renderRules() {
 function renderPickers(m, p) {
   m.fields.filter(f => f.type === "picker").forEach(f => {
     const box = $("pick-" + f.id); if (!box) return;
-    const opts = f.source(p).map(o => ({ ...o, scale: typeof scaleTag === "function" ? scaleTag(o.name) : null })), sig = JSON.stringify(opts), on = p[f.id] || [];
+    const opts = f.source(p).map(o => ({ ...o, scale: typeof scaleTag === "function" ? scaleTag(o.name, o.scale) : null })), sig = JSON.stringify(opts), on = p[f.id] || [];
     if (box.dataset.sig === sig) return;
     box.dataset.sig = sig;
     box.innerHTML = opts.length ? f.roles.map(([r, label]) => {
