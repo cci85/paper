@@ -381,7 +381,7 @@ $("pane").addEventListener("change", e => { const t = e.target; if (t && t.tagNa
 $("pane").addEventListener("change", e => {   // 收合欄位：手動輸入完、離開文字框時收合
   const t = e.target; if (!t || t.tagName !== "TEXTAREA" || !t.dataset.f) return;
   const f = mod().fields.find(x => x.id === t.dataset.f);
-  if (f && f.fold && !FOLD_OPEN[f.id] && !blank(t.value) && !document.getElementById("fold-" + f.id)) { const y = window.scrollY; renderPane(); update(); window.scrollTo(0, y); }
+  if (f && (f.rerender || (f.fold && !FOLD_OPEN[f.id] && !blank(t.value) && !document.getElementById("fold-" + f.id)))) {   /* rerender：此欄決定其他欄位是否顯示 */ const y = window.scrollY; renderPane(); update(); window.scrollTo(0, y); }
 });
 $("pane").addEventListener("change", e => {   // 切換紀錄：帶入該筆的欄位與回覆；「新的查詢」清空本步驟的欄位與回覆
   const t = e.target; if (!t || !t.dataset || !t.dataset.hist) return;
